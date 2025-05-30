@@ -2,9 +2,8 @@
     "version": 2,
     "builds": [
       {
-        "src": "xy_backend/backend/wsgi.py",
-        "use": "@vercel/python",
-        "config": { "maxLambdaSize": "15mb", "runtime": "python3.9" }
+        "src": "backend/wsgi.py",
+        "use": "@vercel/python"
       },
       {
         "src": "build_files.sh",
@@ -21,7 +20,7 @@
       },
       {
         "src": "/(.*)",
-        "dest": "xy_backend/backend/wsgi.py"
+        "dest": "backend/wsgi.py"
       }
     ]
   }
