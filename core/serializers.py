@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import (
-    Profile, Transaction, Post, Store, Category, Coupon, Product, Comment, Order, OrderItem,
+    Profile, Transaction, Post, Store, Category, Coupon, Product, Review, Order, OrderItem,
     Report, UserVerification, TwoFactorAuth, Role, UserRole, MagicLink, LoginHistory, Wishlist,
     ShippingAddress, Payment, StoreStaff, CustomerLifetimeValue, StoreAnalytics, Like, Follow,
     Notification, SystemSettings, Currency, SubscriptionPlan, Analytics, Refund, FraudDetection,
@@ -51,9 +51,9 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = '__all__'
 
-class CommentSerializer(serializers.ModelSerializer):
+class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Comment
+        model = Review
         fields = '__all__'
 
 class OrderSerializer(serializers.ModelSerializer):

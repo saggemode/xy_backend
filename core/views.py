@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 import random
 
 from .models import (
-    Profile, Transaction, Post, Store, Category, Coupon, Product, Comment, Order, OrderItem,
+    Profile, Transaction, Post, Store, Category, Coupon, Product, Review, Order, OrderItem,
     Report, UserVerification, TwoFactorAuth, Role, UserRole, MagicLink, LoginHistory, Wishlist,
     ShippingAddress, Payment, StoreStaff, CustomerLifetimeValue, StoreAnalytics, Like, Follow,
     Notification, SystemSettings, Currency, SubscriptionPlan, Analytics, Refund, FraudDetection,
@@ -17,7 +17,7 @@ from .models import (
 )
 from .serializers import (
     ProfileSerializer, TransactionSerializer, PostSerializer, StoreSerializer, CategorySerializer,
-    CouponSerializer, ProductSerializer, CommentSerializer, OrderSerializer, OrderItemSerializer,
+    CouponSerializer, ProductSerializer, ReviewSerializer, OrderSerializer, OrderItemSerializer,
     ReportSerializer, UserVerificationSerializer, TwoFactorAuthSerializer, RoleSerializer,
     UserRoleSerializer, MagicLinkSerializer, LoginHistorySerializer, WishlistSerializer,
     ShippingAddressSerializer, PaymentSerializer, StoreStaffSerializer, CustomerLifetimeValueSerializer,
@@ -170,9 +170,9 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
 
-class CommentViewSet(viewsets.ModelViewSet):
-    queryset = Comment.objects.all()
-    serializer_class = CommentSerializer
+class ReviewViewSet(viewsets.ModelViewSet):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
 
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()

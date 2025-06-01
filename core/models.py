@@ -1,6 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User, AbstractUser
 from django.utils import timezone
+from django.core.exceptions import ValidationError
+from django.db.models import Avg, Min, Max, Sum
 
 # User Profile model
 class Profile(models.Model):
@@ -16,8 +18,8 @@ class Profile(models.Model):
 class Transaction(models.Model):
     sender = models.ForeignKey(User, related_name='sent_transactions', on_delete=models.CASCADE)
     receiver = models.ForeignKey(User, related_name='received_transactions', on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    timestamp = models.DateTimeField(default=timezone.now)
     status = models.CharField(max_length=20, default='pending')
 
     def __str__(self):
@@ -26,10 +28,10 @@ class Transaction(models.Model):
 # Social Media Post model
 class Post(models.Model):
     author = models.ForeignKey(User, on_delete=models.CASCADE)
-    content = models.TextField()
-    image = models.JSONField(blank=True)
-    video = models.JSONField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    content = models.TextField(default='')
+    image = models.JSONField(blank=True, default=list)
+    video = models.JSONField(blank=True, default=list)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -39,8 +41,8 @@ class Post(models.Model):
 class Store(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=100, unique=True)
-    description = models.TextField()
-    location = models.TextField()
+    description = models.TextField(default='')
+    location = models.TextField(default='')
     logo = models.URLField(blank=False)
     cover_image = models.URLField(blank=True, null=True)
     contact_email = models.EmailField(blank=True, null=True)
@@ -52,7 +54,7 @@ class Store(models.Model):
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
     # is_approved = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -62,18 +64,22 @@ class Store(models.Model):
 class Category(models.Model):
     name = models.CharField(max_length=100)
     imageUrl = models.URLField(blank=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
 
 class SubCategory(models.Model):
-    name = models.CharField(max_length=100)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='subcategories')
-    imageUrl = models.URLField(blank=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+    name = models.CharField(max_length=100)
+    image_url = models.URLField()
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('category', 'name')
+        verbose_name_plural = 'Subcategories'
 
     def __str__(self):
         return f"{self.category.name} - {self.name}"
@@ -82,58 +88,150 @@ class SubCategory(models.Model):
 class Coupon(models.Model):
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
     code = models.CharField(max_length=20, unique=True)
-    discount = models.DecimalField(max_digits=5, decimal_places=2)
-    valid_from = models.DateTimeField()
-    valid_to = models.DateTimeField()
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    description = models.TextField(blank=True)
+    discount_type = models.CharField(max_length=10, choices=[('percent', 'Percent'), ('amount', 'Amount'), ('fixed', 'Fixed')], default='amount')
+    value = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    max_discount_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    min_order_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    max_uses = models.PositiveIntegerField(default=1)
+    times_used = models.PositiveIntegerField(default=0)
+    users_used = models.ManyToManyField(User, related_name='used_coupons', blank=True)
+    valid_from = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField()
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Optional restrictions
+    restricted_users = models.ManyToManyField(User, related_name='restricted_coupons', blank=True)
+    restricted_products = models.ManyToManyField('Product', related_name='restricted_coupons', blank=True)
+    restricted_categories = models.ManyToManyField('Category', related_name='restricted_coupons', blank=True)
+    max_uses_per_user = models.PositiveIntegerField(default=1)
+
+    def is_valid(self):
+        now = timezone.now()
+        return (
+            self.active and 
+            now >= self.valid_from and 
+            now < self.expires_at and 
+            self.times_used < self.max_uses
+        )
+
+    def can_be_used_by(self, user):
+        if self.restricted_users.exists() and user not in self.restricted_users.all():
+            return False
+        return self.users_used.filter(id=user.id).count() < self.max_uses_per_user
+
+    def apply_discount(self, amount):
+        if self.discount_type == 'percent':
+            discount = amount * (self.value / 100)
+            if self.max_discount_amount:
+                discount = min(discount, self.max_discount_amount)
+            return discount
+        elif self.discount_type == 'fixed':
+            return min(self.value, amount)
+        else:  # amount type
+            return min(self.value, amount)
+
     def __str__(self):
-        return self.code
+        return f"{self.code} - {self.store.name}"
 
 # Product model
 class Product(models.Model):
-    store = models.ForeignKey(Store, on_delete=models.CASCADE)
+    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='products')
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
+    subcategory = models.ForeignKey(SubCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    
     name = models.CharField(max_length=100)
-    brand = models.CharField(max_length=100)
-    price = models.FloatField(default=0, blank=False)
-    description = models.TextField()
-    imageUrl = models.JSONField(blank=False)
+    brand = models.CharField(max_length=100, blank=True)
+    base_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    description = models.TextField(default='')
+    image_urls = models.JSONField(help_text="List of image URLs", default=list)
+    
     stock = models.PositiveIntegerField(default=0)
-    rating = models.FloatField(blank=False, default=1.0)
+    rating = models.FloatField(default=1.0)
     is_featured = models.BooleanField(default=False)
-    sizes = models.JSONField(blank=True, null=True)
-    colors = models.JSONField(blank=True, null=True)
-    created_at = models.DateTimeField(default=timezone.now, blank=False)
+    
+    has_variants = models.BooleanField(default=False)
+    available_sizes = models.JSONField(blank=True, null=True, help_text="e.g. ['S', 'M', 'L']")
+    available_colors = models.JSONField(blank=True, null=True, help_text="e.g. ['Red', 'Blue']")
+    
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def __str__(self):
-        return self.name
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ['store', 'name']
 
-# Comment model
-class Comment(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='comments')
+    def __str__(self):
+        return f"{self.name} ({self.store})"
+
+    def clean(self):
+        if self.subcategory and self.category and self.subcategory.category != self.category:
+            raise ValidationError("Subcategory must belong to the selected category")
+        if self.has_variants and not self.available_sizes and not self.available_colors:
+            raise ValidationError("Products with variants must have at least one size or color option")
+
+    def save(self, *args, **kwargs):
+        if self.subcategory:
+            self.category = self.subcategory.category
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def average_rating(self):
+        return self.reviews.aggregate(avg=Avg('rating'))['avg'] or self.rating
+
+    @property
+    def min_price(self):
+        if self.has_variants:
+            return self.variants.aggregate(min_price=Min('price'))['min_price'] or self.base_price
+        return self.base_price
+
+    @property
+    def max_price(self):
+        if self.has_variants:
+            return self.variants.aggregate(max_price=Max('price'))['max_price'] or self.base_price
+        return self.base_price
+
+    @property
+    def total_stock(self):
+        if self.has_variants:
+            return self.variants.aggregate(total=Sum('stock'))['total'] or 0
+        return self.stock
+
+# Review model
+class Review(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    rating = models.PositiveSmallIntegerField()
-    title = models.CharField(max_length=100)
-    content = models.TextField()
-    image = models.JSONField(blank=True)
-    video = models.JSONField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
+    rating = models.PositiveSmallIntegerField(choices=[(i, i) for i in range(1, 6)], default=1)
+    title = models.CharField(max_length=200, blank=True)
+    comment = models.TextField(blank=True)
+    images = models.JSONField(blank=True, null=True, help_text="List of image URLs", default=list)
+    is_verified_purchase = models.BooleanField(default=False)
+    helpful_votes = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        unique_together = ('user', 'product')
+        ordering = ['-created_at']
+
     def __str__(self):
-        return f"{self.user.username}'s comment on {self.product.name}"
+        return f"{self.user.username} - {self.product.name} ({self.rating})"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Update product rating
+        self.product.rating = self.product.average_rating()
+        self.product.save(update_fields=['rating'])
 
 # Order model
 class Order(models.Model):
     buyer = models.ForeignKey(User, on_delete=models.CASCADE)
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
-    total = models.DecimalField(max_digits=10, decimal_places=2)
+    total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     status = models.CharField(max_length=20, default='pending')
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -143,8 +241,8 @@ class Order(models.Model):
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField()
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    quantity = models.PositiveIntegerField(default=1)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     def __str__(self):
         return f"{self.quantity} x {self.product.name} in Order {self.order.id}"
@@ -153,8 +251,8 @@ class OrderItem(models.Model):
 class Report(models.Model):
     reporter = models.ForeignKey(User, on_delete=models.CASCADE)
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
-    reason = models.TextField()
-    created_at = models.DateTimeField(default=timezone.now, blank=False)
+    reason = models.TextField(default='')
+    created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -496,13 +594,41 @@ class Inventory(models.Model):
 
 # Product Variants
 class ProductVariant(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    sku = models.CharField(max_length=50, unique=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    attributes = models.JSONField()  # e.g., {"size": "M", "color": "Red"}
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
+    sku = models.CharField(max_length=100, unique=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    stock = models.PositiveIntegerField(default=0)
+    image_url = models.URLField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    size = models.CharField(max_length=20, blank=True, null=True)
+    color = models.CharField(max_length=30, blank=True, null=True)
+
+    class Meta:
+        ordering = ['size', 'color']
 
     def __str__(self):
-        return f"Variant of {self.product.name}"
+        variant_parts = []
+        if self.size:
+            variant_parts.append(self.size)
+        if self.color:
+            variant_parts.append(self.color)
+        return f"{self.product.name} - {' '.join(variant_parts)}".strip()
+
+    def clean(self):
+        if not self.product.has_variants:
+            raise ValidationError("Cannot create variants for a product that doesn't support variants")
+        if not self.size and not self.color:
+            raise ValidationError("Variant must have at least one of size or color")
+        if self.size and self.product.available_sizes and self.size not in self.product.available_sizes:
+            raise ValidationError("Invalid size for this product")
+        if self.color and self.product.available_colors and self.color not in self.product.available_colors:
+            raise ValidationError("Invalid color for this product")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 # Dynamic Pricing or Discounts
 class DynamicPricing(models.Model):
