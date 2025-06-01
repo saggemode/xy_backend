@@ -2,6 +2,9 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, generics, viewsets
+from django.contrib.auth.models import User
+import random
+
 from .models import (
     Profile, Transaction, Post, Store, Category, Coupon, Product, Comment, Order, OrderItem,
     Report, UserVerification, TwoFactorAuth, Role, UserRole, MagicLink, LoginHistory, Wishlist,
@@ -26,7 +29,7 @@ from .serializers import (
     GDPRComplianceSerializer, InventorySerializer, ProductVariantSerializer, DynamicPricingSerializer,
     LoyaltyPointsSerializer, SearchFilterSerializer, AbandonedCartSerializer, UserBehaviorSerializer,
     SalesReportSerializer, GroupSerializer, MessageSerializer, RepostSerializer, HashtagSerializer,
-    MentionSerializer
+    MentionSerializer, UserSerializer
 )
 from django.db.models import Count
 
@@ -63,6 +66,101 @@ class StoreViewSet(viewsets.ModelViewSet):
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+
+class CategoryList(generics.ListAPIView):
+    # queryset = Category.objects.annotate(product_count=Count('products')).order_by('-product_count')
+    serializer_class = CategorySerializer 
+    queryset = Category.objects.all()
+    def get_queryset(self):
+        return Category.objects.annotate(product_count=Count('products')).order_by('-product_count')  
+
+
+class HomeCategoryList(generics.ListAPIView):
+    serializer_class = CategorySerializer
+
+    def get_queryset(self):
+        # Assuming you want to return a random selection of categories
+        queryset = Category.objects.all()
+
+        queryset = queryset.annotate(random_order=Count('id'))
+        
+        queryset = list(queryset)
+        random.shuffle(queryset)
+        
+        return queryset[:5]  # Randomly select 10 categories
+
+class ProductList(generics.ListAPIView):
+    serializer_class = ProductSerializer
+
+    def get_queryset(self):
+        # Assuming you want to return a random selection of categories
+        queryset = Product.objects.all()
+
+        queryset = queryset.annotate(random_order=Count('id'))
+        
+        queryset = list(queryset)
+        random.shuffle(queryset)
+        
+        return queryset[:5]  # Randomly select 10 categories
+
+class PopularProductList(generics.ListAPIView):
+    queryset = Product.objects.all().order_by('-rating')  # Using rating field instead of popularity
+    serializer_class = ProductSerializer
+
+
+class HomeSimilarProduct(APIView):
+    def get(self, request, product_id):
+        try:
+            product = Product.objects.get(id=product_id)
+            similar_products = Product.objects.filter(category=product.category).exclude(id=product.id)[:10]
+            serializer = ProductSerializer(similar_products, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Product.DoesNotExist:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class SimilarProductBasedOnUser(APIView):
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            # Assuming you have a method to get similar products based on user preferences
+            similar_products = Product.objects.filter(preferences__user=user)[:10]
+            serializer = ProductSerializer(similar_products, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+class FilterProductsByUser(APIView):
+    def get(self, request, user_id):
+        try:
+            user = User.objects.get(id=user_id)
+            products = Product.objects.filter(user=user)
+            serializer = ProductSerializer(products, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+class FilterProductsByCategory(APIView):
+    def get(self, request, category_id):
+        try:
+            category = Category.objects.get(id=category_id)
+            products = Product.objects.filter(category=category)
+            serializer = ProductSerializer(products, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Category.DoesNotExist:
+            return Response({"error": "Category not found"}, status=status.HTTP_404_NOT_FOUND)        
+
+
+class SearchProductByTitle(APIView):
+    def get(self, request):
+        title = request.query_params.get('title', '')
+        if not title:
+            return Response({"error": "Title parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        products = Product.objects.filter(title__icontains=title)
+        serializer = ProductSerializer(products, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+   
 
 class CouponViewSet(viewsets.ModelViewSet):
     queryset = Coupon.objects.all()
@@ -267,10 +365,6 @@ class HashtagViewSet(viewsets.ModelViewSet):
 class MentionViewSet(viewsets.ModelViewSet):
     queryset = Mention.objects.all()
     serializer_class = MentionSerializer
-
-class PopularProductList(generics.ListAPIView):
-    queryset = Product.objects.all().order_by('-popularity')  # Assuming 'popularity' is a field in the Product model
-    serializer_class = ProductSerializer
 
 class SearchProductByTitle(generics.ListAPIView):
     serializer_class = ProductSerializer

@@ -9,6 +9,7 @@ from .models import (
     DynamicPricing, LoyaltyPoints, SearchFilter, AbandonedCart, UserBehavior, SalesReport,
     Group, Message, Repost, Hashtag, Mention
 )
+from django.contrib.auth.models import User
 
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -289,3 +290,8 @@ class MentionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mention
         fields = '__all__'
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name']
