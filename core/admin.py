@@ -20,6 +20,7 @@ admin.site.register(Message)
 admin.site.register(Repost)
 admin.site.register(Hashtag)
 admin.site.register(Mention)    
+admin.site.register(ProductVariant)
 
 
 
