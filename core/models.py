@@ -146,7 +146,11 @@ class Product(models.Model):
     brand = models.CharField(max_length=100, blank=True)
     base_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     description = models.TextField(default='')
-    image_urls = models.JSONField(help_text="List of image URLs", default=list)
+    image_urls = models.JSONField(
+        help_text="List of image URLs",
+        default=list,
+        example=["https://www.abhmfg.com/images/thumbs/0002197_full-mortise_450.jpeg"]
+    )
     
     stock = models.PositiveIntegerField(default=0)
     rating = models.FloatField(default=1.0)
@@ -169,12 +173,23 @@ class Product(models.Model):
     def clean(self):
         if self.subcategory and self.category and self.subcategory.category != self.category:
             raise ValidationError("Subcategory must belong to the selected category")
-        if self.has_variants and not self.available_sizes and not self.available_colors:
-            raise ValidationError("Products with variants must have at least one size or color option")
+        
+        if self.has_variants:
+            if not self.available_sizes and not self.available_colors:
+                raise ValidationError("Products with variants must have at least one size or color option")
+            
+            # Validate that all variants have required attributes
+            for variant in self.variants.all():
+                if not variant.size and not variant.color:
+                    raise ValidationError(f"Variant {variant} must have at least one of size or color")
+                
+                if variant.size and self.available_sizes and variant.size not in self.available_sizes:
+                    raise ValidationError(f"Invalid size '{variant.size}' for variant {variant}")
+                
+                if variant.color and self.available_colors and variant.color not in self.available_colors:
+                    raise ValidationError(f"Invalid color '{variant.color}' for variant {variant}")
 
     def save(self, *args, **kwargs):
-        if self.subcategory:
-            self.category = self.subcategory.category
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -198,6 +213,92 @@ class Product(models.Model):
         if self.has_variants:
             return self.variants.aggregate(total=Sum('stock'))['total'] or 0
         return self.stock
+
+    @property
+    def is_in_stock(self):
+        if self.has_variants:
+            return self.variants.filter(stock__gt=0).exists()
+        return self.stock > 0
+
+    @property
+    def available_variants(self):
+        if not self.has_variants:
+            return []
+        return self.variants.filter(is_active=True, stock__gt=0)
+
+    def get_variant(self, size=None, color=None):
+        """Get a specific variant by size and/or color"""
+        if not self.has_variants:
+            return None
+        
+        filters = {'is_active': True}
+        if size:
+            filters['size'] = size
+        if color:
+            filters['color'] = color
+            
+        return self.variants.filter(**filters).first()
+
+    def create_variant(self, size=None, color=None, price=None, stock=0, sku=None):
+        """Create a new variant for this product"""
+        if not self.has_variants:
+            raise ValidationError("Cannot create variants for a product that doesn't support variants")
+        
+        if not size and not color:
+            raise ValidationError("Variant must have at least one of size or color")
+        
+        if size and self.available_sizes and size not in self.available_sizes:
+            raise ValidationError(f"Invalid size '{size}'")
+        
+        if color and self.available_colors and color not in self.available_colors:
+            raise ValidationError(f"Invalid color '{color}'")
+        
+        return self.variants.create(
+            size=size,
+            color=color,
+            price=price or self.base_price,
+            stock=stock,
+            sku=sku or f"{self.name}-{size or ''}-{color or ''}".strip()
+        )
+
+        # Product Variants
+class ProductVariant(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
+    sku = models.CharField(max_length=100, unique=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    stock = models.PositiveIntegerField(default=0)
+    image_url = models.URLField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    size = models.CharField(max_length=20, blank=True, null=True)
+    color = models.CharField(max_length=30, blank=True, null=True)
+
+    class Meta:
+        ordering = ['size', 'color']
+
+    def __str__(self):
+        variant_parts = []
+        if self.size:
+            variant_parts.append(self.size)
+        if self.color:
+            variant_parts.append(self.color)
+        return f"{self.product.name} - {' '.join(variant_parts)}".strip()
+
+    def clean(self):
+        if not self.product.has_variants:
+            raise ValidationError("Cannot create variants for a product that doesn't support variants")
+        if not self.size and not self.color:
+            raise ValidationError("Variant must have at least one of size or color")
+        if self.size and self.product.available_sizes and self.size not in self.product.available_sizes:
+            raise ValidationError("Invalid size for this product")
+        if self.color and self.product.available_colors and self.color not in self.product.available_colors:
+            raise ValidationError("Invalid color for this product")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
 
 # Review model
 class Review(models.Model):
@@ -592,43 +693,6 @@ class Inventory(models.Model):
     def __str__(self):
         return f"Inventory for {self.product.name}"
 
-# Product Variants
-class ProductVariant(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
-    sku = models.CharField(max_length=100, unique=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    stock = models.PositiveIntegerField(default=0)
-    image_url = models.URLField(blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)
-    size = models.CharField(max_length=20, blank=True, null=True)
-    color = models.CharField(max_length=30, blank=True, null=True)
-
-    class Meta:
-        ordering = ['size', 'color']
-
-    def __str__(self):
-        variant_parts = []
-        if self.size:
-            variant_parts.append(self.size)
-        if self.color:
-            variant_parts.append(self.color)
-        return f"{self.product.name} - {' '.join(variant_parts)}".strip()
-
-    def clean(self):
-        if not self.product.has_variants:
-            raise ValidationError("Cannot create variants for a product that doesn't support variants")
-        if not self.size and not self.color:
-            raise ValidationError("Variant must have at least one of size or color")
-        if self.size and self.product.available_sizes and self.size not in self.product.available_sizes:
-            raise ValidationError("Invalid size for this product")
-        if self.color and self.product.available_colors and self.color not in self.product.available_colors:
-            raise ValidationError("Invalid color for this product")
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
 
 # Dynamic Pricing or Discounts
 class DynamicPricing(models.Model):
