@@ -13,7 +13,7 @@ from .models import (
     LoyaltyProgram, Auction, SearchIndex, RealTimeNotification, RateLimit, Language, Report,
     SocialShare, SecurityLog, ExternalService, GDPRCompliance, Inventory, ProductVariant,
     DynamicPricing, LoyaltyPoints, SearchFilter, AbandonedCart, UserBehavior, SalesReport,
-    Group, Message, Repost, Hashtag, Mention
+    Group, Message, Repost, Hashtag, Mention, SubCategory
 )
 from .serializers import (
     ProfileSerializer, TransactionSerializer, PostSerializer, StoreSerializer, CategorySerializer,
@@ -29,7 +29,7 @@ from .serializers import (
     GDPRComplianceSerializer, InventorySerializer, ProductVariantSerializer, DynamicPricingSerializer,
     LoyaltyPointsSerializer, SearchFilterSerializer, AbandonedCartSerializer, UserBehaviorSerializer,
     SalesReportSerializer, GroupSerializer, MessageSerializer, RepostSerializer, HashtagSerializer,
-    MentionSerializer, UserSerializer
+    MentionSerializer, UserSerializer, SubCategorySerializer
 )
 from django.db.models import Count
 
@@ -372,3 +372,13 @@ class SearchProductByTitle(generics.ListAPIView):
     def get_queryset(self):
         title = self.request.query_params.get('title', '')
         return Product.objects.filter(title__icontains=title)
+
+class SubCategoryViewSet(viewsets.ModelViewSet):
+    queryset = SubCategory.objects.all()
+    serializer_class = SubCategorySerializer
+
+    def get_queryset(self):
+        category_id = self.request.query_params.get('category', None)
+        if category_id:
+            return SubCategory.objects.filter(category_id=category_id)
+        return SubCategory.objects.all()

@@ -75,6 +75,7 @@ router.register(r'messages', MessageViewSet)
 router.register(r'reposts', RepostViewSet)
 router.register(r'hashtags', HashtagViewSet)
 router.register(r'mentions', MentionViewSet)
+router.register(r'subcategories', views.SubCategoryViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

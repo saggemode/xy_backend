@@ -7,7 +7,7 @@ from .models import (
     LoyaltyProgram, Auction, SearchIndex, RealTimeNotification, RateLimit, Language, Report,
     SocialShare, SecurityLog, ExternalService, GDPRCompliance, Inventory, ProductVariant,
     DynamicPricing, LoyaltyPoints, SearchFilter, AbandonedCart, UserBehavior, SalesReport,
-    Group, Message, Repost, Hashtag, Mention
+    Group, Message, Repost, Hashtag, Mention, SubCategory
 )
 from django.contrib.auth.models import User
 
@@ -32,9 +32,14 @@ class StoreSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class CategorySerializer(serializers.ModelSerializer):
+    subcategories = serializers.SerializerMethodField()
+    
     class Meta:
         model = Category
-        fields = '__all__'
+        fields = ['id', 'name', 'imageUrl', 'created_at', 'updated_at', 'subcategories']
+
+    def get_subcategories(self, obj):
+        return SubCategorySerializer(obj.subcategories.all(), many=True).data
 
 class CouponSerializer(serializers.ModelSerializer):
     class Meta:
@@ -289,6 +294,11 @@ class HashtagSerializer(serializers.ModelSerializer):
 class MentionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mention
+        fields = '__all__'
+
+class SubCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubCategory
         fields = '__all__'
 
 class UserSerializer(serializers.ModelSerializer):

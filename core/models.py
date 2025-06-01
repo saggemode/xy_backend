@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, AbstractUser
 from django.utils import timezone
 
 # User Profile model
@@ -51,6 +51,7 @@ class Store(models.Model):
     twitter_url = models.URLField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
+    # is_approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -60,13 +61,22 @@ class Store(models.Model):
 # Category model
 class Category(models.Model):
     name = models.CharField(max_length=100)
-    imageUrl = models.URLField(blank=False )
+    imageUrl = models.URLField(blank=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
- 
+
+class SubCategory(models.Model):
+    name = models.CharField(max_length=100)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='subcategories')
+    imageUrl = models.URLField(blank=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.category.name} - {self.name}"
 
 # Coupon model
 class Coupon(models.Model):
