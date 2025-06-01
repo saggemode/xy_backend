@@ -66,7 +66,7 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
-    
+ 
 
 # Coupon model
 class Coupon(models.Model):
@@ -87,11 +87,12 @@ class Product(models.Model):
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
     name = models.CharField(max_length=100)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    brand = models.CharField(max_length=100)
+    price = models.FloatField(default=0, blank=False)
     description = models.TextField()
-    imageUrl = models.JSONField(blank=True)
+    imageUrl = models.JSONField(blank=False)
     stock = models.PositiveIntegerField(default=0)
-    rating = models.FloatField(blank=False, default=0.0)
+    rating = models.FloatField(blank=False, default=1.0)
     is_featured = models.BooleanField(default=False)
     sizes = models.JSONField(blank=True, null=True)
     colors = models.JSONField(blank=True, null=True)
