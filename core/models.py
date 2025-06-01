@@ -148,8 +148,7 @@ class Product(models.Model):
     description = models.TextField(default='')
     image_urls = models.JSONField(
         help_text="List of image URLs",
-        default=list,
-        example=["https://www.abhmfg.com/images/thumbs/0002197_full-mortise_450.jpeg"]
+        default=list
     )
     
     stock = models.PositiveIntegerField(default=0)
