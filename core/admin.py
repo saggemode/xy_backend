@@ -9,6 +9,7 @@ admin.site.register(Post)
 
 admin.site.register(Store)
 admin.site.register(Category)
+admin.site.register(SubCategory)
 admin.site.register(Coupon)
 admin.site.register(Comment)
 admin.site.register(Product)
