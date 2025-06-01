@@ -60,7 +60,7 @@ class Store(models.Model):
 # Category model
 class Category(models.Model):
     name = models.CharField(max_length=100)
-    description = models.TextField(blank=True)
+    imageUrl = models.URLField(blank=False )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
