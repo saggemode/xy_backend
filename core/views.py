@@ -4,6 +4,11 @@ from rest_framework.response import Response
 from rest_framework import status, generics, viewsets
 from django.contrib.auth.models import User
 import random
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.decorators import action
 
 from .models import (
     Profile, Transaction, Post, Store, Category, Coupon, Product, Review, Order, OrderItem,
@@ -166,9 +171,66 @@ class CouponViewSet(viewsets.ModelViewSet):
     queryset = Coupon.objects.all()
     serializer_class = CouponSerializer
 
+# ModelViewSet (Multiple Endpoints)
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]  # Allow read access to anyone, but require authentication for writes
+    pagination_class = PageNumberPagination
+    filter_backends = [SearchFilter, OrderingFilter]
+    filterset_fields = ['category', 'price', 'is_active']
+    search_fields = ['title', 'description']
+    ordering_fields = ['price', 'created_at', 'rating']
+    ordering = ['-created_at']  # Default ordering
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Add any additional filtering logic here
+        return queryset
+    
+    def list(self, request, *args, **kwargs):
+        # Custom list behavior
+        return super().list(request, *args, **kwargs)
+    
+    def create(self, request, *args, **kwargs):
+        # Custom create behavior
+        return super().create(request, *args, **kwargs)
+    
+    def retrieve(self, request, *args, **kwargs):
+        # Custom retrieve behavior
+        return super().retrieve(request, *args, **kwargs)
+    
+    @action(detail=True, methods=['post'])
+    def add_to_wishlist(self, request, pk=None):
+        product = self.get_object()
+        wishlist, created = Wishlist.objects.get_or_create(user=request.user)
+        wishlist.products.add(product)
+        return Response({'status': 'product added to wishlist'})
+    
+    @action(detail=True, methods=['post'])
+    def remove_from_wishlist(self, request, pk=None):
+        product = self.get_object()
+        wishlist = Wishlist.objects.get(user=request.user)
+        wishlist.products.remove(product)
+        return Response({'status': 'product removed from wishlist'})
+    
+    @action(detail=True, methods=['post'])
+    def add_review(self, request, pk=None):
+        product = self.get_object()
+        serializer = ReviewSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(product=product, user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['get'])
+    def similar_products(self, request, pk=None):
+        product = self.get_object()
+        similar_products = Product.objects.filter(
+            category=product.category
+        ).exclude(id=product.id)[:5]
+        serializer = self.get_serializer(similar_products, many=True)
+        return Response(serializer.data)
 
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
