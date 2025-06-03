@@ -86,5 +86,5 @@ urlpatterns = [
     path('similar-products/<int:product_id>/', views.HomeSimilarProduct.as_view(), name='similar-products'),
     path('user-similar-products/<int:user_id>/', views.SimilarProductBasedOnUser.as_view(), name='user-similar-products'),
     path('user-products/<int:user_id>/', views.FilterProductsByUser.as_view(), name='user-products'),
-    path('category-products/', views.FilterProductsByCategory.as_view(), name='category-products'),
+    path('category/', views.FilterProductsByCategory.as_view(), name='category-products'),
 ]
