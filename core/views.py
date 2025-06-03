@@ -33,7 +33,6 @@ from .serializers import (
 )
 from django.db.models import Count
 
-from xy_backend.core import models
 
 # Create your views here.
 
@@ -146,7 +145,7 @@ class FilterProductsByCategory(APIView):
     def get(self, request):
         query = request.query_params.get('category', None)
         if query:
-            products = models.Product.objects.filter(category__name__icontains=query)
+            products = Product.objects.filter(category__name__icontains=query)
             serializer = ProductSerializer(products, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)     
         else:
