@@ -264,6 +264,9 @@ class Product(models.Model):
         )
 
         # Product Variants
+
+
+
 class ProductVariant(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
     sku = models.CharField(max_length=100, unique=True)
