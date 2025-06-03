@@ -257,7 +257,7 @@ class FilterProductsByStore(APIView):
 
 class FilterStoreById(APIView):
     def get(self, request):
-        query = request.query_params.get('id', None)
+        query = request.query_params.get('store-details', None)
         if query:
             try:
                 # Debug: Check if store exists
