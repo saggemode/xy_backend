@@ -145,11 +145,58 @@ class FilterProductsByCategory(APIView):
     def get(self, request):
         query = request.query_params.get('category', None)
         if query:
-            products = Product.objects.filter(category=query)
-            serializer = ProductSerializer(products, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)     
+            try:
+                # Debug: Check if category exists
+                category = Category.objects.filter(id=query).first()
+                if not category:
+                    return Response({
+                        "error": "Category not found",
+                        "debug_info": {
+                            "requested_category_id": query,
+                            "available_categories": list(Category.objects.values('id', 'name'))
+                        }
+                    }, status=status.HTTP_404_NOT_FOUND)
+
+                # Debug: Get products and check count
+                products = Product.objects.filter(category_id=query)
+                product_count = products.count()
+                
+                if product_count == 0:
+                    return Response({
+                        "error": "No products found for this category",
+                        "debug_info": {
+                            "category_id": query,
+                            "category_name": category.name,
+                            "total_products_in_category": product_count,
+                            "total_products_in_system": Product.objects.count()
+                        }
+                    }, status=status.HTTP_404_NOT_FOUND)
+
+                serializer = ProductSerializer(products, many=True)
+                return Response({
+                    "data": serializer.data,
+                    "debug_info": {
+                        "category_id": query,
+                        "category_name": category.name,
+                        "total_products_found": product_count
+                    }
+                }, status=status.HTTP_200_OK)
+
+            except ValueError as e:
+                return Response({
+                    "error": "Invalid category ID",
+                    "debug_info": {
+                        "error_details": str(e),
+                        "requested_category_id": query
+                    }
+                }, status=status.HTTP_400_BAD_REQUEST)
         else:
-            return Response({"error": "Category parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "Category parameter is required",
+                "debug_info": {
+                    "available_categories": list(Category.objects.values('id', 'name'))
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class SearchProductByTitle(APIView):
     def get(self, request):
