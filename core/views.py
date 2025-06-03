@@ -33,6 +33,8 @@ from .serializers import (
 )
 from django.db.models import Count
 
+from xy_backend.core import models
+
 # Create your views here.
 
 class MessageList(generics.ListCreateAPIView):
@@ -141,15 +143,14 @@ class FilterProductsByUser(APIView):
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
         
 class FilterProductsByCategory(APIView):
-    def get(self, request, category_id):
-        try:
-            category = Category.objects.get(id=category_id)
-            products = Product.objects.filter(category=category)
+    def get(self, request):
+        query = request.query_params.get('category', None)
+        if query:
+            products = models.Product.objects.filter(category__name__icontains=query)
             serializer = ProductSerializer(products, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except Category.DoesNotExist:
-            return Response({"error": "Category not found"}, status=status.HTTP_404_NOT_FOUND)        
-
+            return Response(serializer.data, status=status.HTTP_200_OK)     
+        else:
+            return Response({"error": "Category parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
 
 class SearchProductByTitle(APIView):
     def get(self, request):
