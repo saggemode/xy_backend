@@ -528,7 +528,7 @@ class SearchProductByTitle(APIView):
         query = request.query_params.get('q', None)
 
         if query:
-            products = Product.objects.filter(title__icontains=query)
+            products = Product.objects.filter(name__icontains=query)
             serializer = ProductSerializer(products, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
