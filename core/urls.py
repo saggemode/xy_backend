@@ -80,7 +80,7 @@ router.register(r'subcategories', SubCategoryViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     path('popular-products/', PopularProductList.as_view(), name='popular-products'),
-    path('search-products/', SearchProductByTitle.as_view(), name='search-products'),
+    path('search/', SearchProductByTitle.as_view(), name='search-products'),
     path('home-categories/', views.HomeCategoryList.as_view(), name='home-categories'),
     path('home-products/', views.ProductList.as_view(), name='home-products'),
     path('similar-products/<int:product_id>/', views.HomeSimilarProduct.as_view(), name='similar-products'),

@@ -523,12 +523,16 @@ class MentionViewSet(viewsets.ModelViewSet):
     queryset = Mention.objects.all()
     serializer_class = MentionSerializer
 
-class SearchProductByTitle(generics.ListAPIView):
-    serializer_class = ProductSerializer
+class SearchProductByTitle(APIView):
+    def get(self, request):
+        query = request.query_params.get('q', None)
 
-    def get_queryset(self):
-        title = self.request.query_params.get('title', '')
-        return Product.objects.filter(title__icontains=title)
+        if query:
+            products = Product.objects.filter(title__icontains=query)
+            serializer = ProductSerializer(products, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "Query parameter 'q' is required"}, status=status.HTTP_400_BAD_REQUEST)
 
 class SubCategoryViewSet(viewsets.ModelViewSet):
     queryset = SubCategory.objects.all()
