@@ -13,4 +13,4 @@ class Wishlist(models.Model):
         verbose_name_plural = 'Wishlists'
 
     def __str__(self):
-        return f"{self.userId.username, self.product.name}'s Wishlist" if self.userId else "Wishlist"
+        return f"{self.userId.username}'s Wishlist" if self.userId else "Wishlist"
