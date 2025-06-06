@@ -4,7 +4,7 @@ from core.serializers import ProductSerializer
 
 class WishlistSerializer(serializers.ModelSerializer):
     userId = serializers.PrimaryKeyRelatedField(read_only=True)
-    products = ProductSerializer(many=True, read_only=True)
+    products = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
 
@@ -12,6 +12,10 @@ class WishlistSerializer(serializers.ModelSerializer):
         model = Wishlist
         fields = ['id', 'userId', 'products', 'created_at', 'updated_at']
         read_only_fields = ['userId', 'created_at', 'updated_at']
+
+    def get_products(self, obj):
+        products = obj.product.all()
+        return ProductSerializer(products, many=True).data
 
 class WishlistCreateSerializer(serializers.ModelSerializer):
     class Meta:
