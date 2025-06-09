@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status, generics, viewsets
 from django.contrib.auth.models import User
 import random
+from django.db.models import Avg
 
 from .models import (
     Profile, Transaction, Post, Store, Category, Coupon, Product, Review, Order, OrderItem,
@@ -105,8 +106,12 @@ class ProductList(generics.ListAPIView):
         return queryset[:5]  # Randomly select 10 categories
 
 class PopularProductList(generics.ListAPIView):
-    queryset = Product.objects.all().order_by('-rating')  # Using rating field instead of popularity
     serializer_class = ProductSerializer
+
+    def get_queryset(self):
+        return Product.objects.annotate(
+            avg_rating=Avg('reviews__rating')
+        ).order_by('-avg_rating')
 
 
 class HomeSimilarProduct(APIView):
