@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 import random
 from django.db.models import Avg
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError, PermissionDenied
+
 from datetime import datetime
 from django.db.models import Count
 
