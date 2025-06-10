@@ -70,7 +70,7 @@ INSTALLED_APPS = [
     'report',
     'coupon',
     'authentication',
-    'corsheaders',
+    # 'corsheaders',
     
     # 'PILLOW',
 ]
