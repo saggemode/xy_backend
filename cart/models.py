@@ -3,25 +3,29 @@ from django.db.models import Sum
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
-from core.models import Product, ProductVariant, Store
+from product.models import Product, ProductVariant
+from store.models import Store
+from django.conf import settings
 
 # Create your models here.
 class Cart(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    store = models.ForeignKey(Store, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='carts')
+    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='carts')
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     expires_at = models.DateTimeField(null=True, blank=True)
-    notes = models.TextField(blank=True, null=True)
+    notes = models.TextField(null=True, blank=True)
     is_template = models.BooleanField(default=False)
-    template_name = models.CharField(max_length=100, blank=True, null=True)
+    template_name = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
-        unique_together = ['user', 'store', 'is_active']
+        unique_together = ('user', 'store', 'is_active')
+        verbose_name = 'Cart'
+        verbose_name_plural = 'Carts'
 
     def __str__(self):
-        return f"Cart for {self.user.username} at {self.store.name}"
+        return f"{self.user.username}'s cart - {self.store.name}"
 
     def save(self, *args, **kwargs):
         if not self.expires_at and not self.is_template:
@@ -81,7 +85,7 @@ class Cart(models.Model):
     def get_recommended_items(self, limit=5):
         """Get recommended items based on cart contents"""
         from django.db.models import Count
-        from core.models import Product
+        from product.models import Product
         
         # Get products from other users' carts that contain our products
         related_products = Product.objects.filter(
@@ -96,7 +100,7 @@ class Cart(models.Model):
 
     def get_recently_viewed(self, limit=5):
         """Get recently viewed products"""
-        from core.models import ProductView
+        from product.models import ProductView
         
         return ProductView.objects.filter(
             user=self.user
@@ -152,7 +156,7 @@ class Cart(models.Model):
 
     def apply_coupon(self, coupon_code):
         """Apply a coupon to the cart"""
-        from core.models import Coupon
+        from coupon.models import Coupon
         try:
             coupon = Coupon.objects.get(
                 code=coupon_code,
@@ -185,54 +189,36 @@ class Cart(models.Model):
 
     @property
     def total_items(self):
-        return self.items.aggregate(total=Sum('quantity'))['total'] or 0
+        return sum(item.quantity for item in self.items.all())
 
     @property
     def subtotal(self):
         return sum(item.total_price for item in self.items.all())
 
-    def add_item(self, product, quantity=1, size=None, color=None):
-        """Add an item to the cart"""
-        if not product.is_in_stock:
-            raise ValidationError("Product is out of stock")
-
-        # Check if product belongs to the same store as the cart
+    def add_item(self, product, quantity=1, variant=None):
+        if not self.is_active:
+            raise ValueError("Cannot add items to inactive cart")
+        
         if product.store != self.store:
-            raise ValidationError("Cannot add products from different stores to the same cart")
-
-        if product.has_variants:
-            if not size and not color:
-                raise ValidationError("Variant product requires size or color")
-            
-            variant = product.get_variant(size=size, color=color)
-            if not variant:
-                raise ValidationError("Invalid variant combination")
-            
-            if variant.stock < quantity:
-                raise ValidationError("Not enough stock available")
-            
-            cart_item, created = self.items.get_or_create(
-                product=product,
-                variant=variant,
-                defaults={'quantity': quantity}
-            )
-        else:
-            if product.stock < quantity:
-                raise ValidationError("Not enough stock available")
-            
-            cart_item, created = self.items.get_or_create(
-                product=product,
-                defaults={'quantity': quantity}
-            )
-
+            raise ValueError("Product does not belong to the cart's store")
+        
+        if variant and variant.product != product:
+            raise ValueError("Variant does not belong to the product")
+        
+        cart_item, created = CartItem.objects.get_or_create(
+            cart=self,
+            product=product,
+            variant=variant,
+            defaults={'quantity': quantity}
+        )
+        
         if not created:
             cart_item.quantity += quantity
             cart_item.save()
-
+        
         return cart_item
 
     def remove_item(self, item_id):
-        """Remove an item from the cart"""
         try:
             item = self.items.get(id=item_id)
             item.delete()
@@ -262,7 +248,6 @@ class Cart(models.Model):
             return False
 
     def clear(self):
-        """Remove all items from the cart"""
         self.items.all().delete()
 
     @classmethod
@@ -294,21 +279,22 @@ class CartItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     variant = models.ForeignKey(ProductVariant, on_delete=models.CASCADE, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
-    added_at = models.DateTimeField(default=timezone.now)
     is_saved_for_later = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ['cart', 'product', 'variant']
+        verbose_name = 'Cart Item'
+        verbose_name_plural = 'Cart Items'
 
     def __str__(self):
-        if self.variant:
-            return f"{self.quantity}x {self.product.name} ({self.variant})"
-        return f"{self.quantity}x {self.product.name}"
+        variant_str = f" - {self.variant.name}" if self.variant else ""
+        return f"{self.quantity}x {self.product.name}{variant_str} in {self.cart}"
 
     @property
     def unit_price(self):
         if self.variant:
-            return self.variant.price
+            return self.variant.current_price
         return self.product.base_price
 
     @property
@@ -332,3 +318,13 @@ class CartItem(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs) 
+
+
+class AbandonedCart(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    products = models.ManyToManyField(Product)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_reminder = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Abandoned Cart for {self.user.username}"

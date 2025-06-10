@@ -20,15 +20,17 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
-     path('', include('admin_berry.urls')),
     path('admin/', admin.site.urls),
-    path('auth/', include('djoser.urls')),
-  path('auth/', include('djoser.urls.authtoken')),
-path('api/products/', include('core.urls')),
-    path('api/wishlist/', include('wishlist.urls')),
+    path('api/auth/', include('authentication.urls')),
+    path('api/products/', include('store.urls')),
     path('api/cart/', include('cart.urls')),
-
+    path('api/orders/', include('order.urls')),
+    path('api/address/', include('address.urls')),
+    path('api/inventory/', include('inventory.urls')),
+    path('api/reports/', include('report.urls')),
+    path('api/wishlist/', include('wishlist.urls')),
+    path('api/coupons/', include('coupon.urls')),
 ]
 
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

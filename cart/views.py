@@ -13,7 +13,7 @@ from .serializers import (
     SaveCartTemplateSerializer, ApplyCouponSerializer,
     CartNoteSerializer, SaveForLaterSerializer
 )
-from core.models import Store
+from product.models import Product, ProductVariant
 from django.utils import timezone
 
 # Create your views here.
