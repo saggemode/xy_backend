@@ -22,7 +22,8 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/auth/', include('authentication.urls')),
-    path('api/products/', include('store.urls')),
+    path('api/store/', include('store.urls')),
+     path('api/products/', include('product.urls')),
     path('api/cart/', include('cart.urls')),
     path('api/orders/', include('order.urls')),
     path('api/address/', include('address.urls')),
@@ -30,6 +31,7 @@ urlpatterns = [
     path('api/reports/', include('report.urls')),
     path('api/wishlist/', include('wishlist.urls')),
     path('api/coupons/', include('coupon.urls')),
+
 ]
 
 if settings.DEBUG:

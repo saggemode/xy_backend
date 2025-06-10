@@ -9,10 +9,24 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError, PermissionDenied
 from datetime import datetime
 from django.db.models import Count
-from rest_framework.permissions import IsAuthenticated, IsStoreStaff
 
-from .models import ( Category, SubCategory, Product, ProductVariant, Coupon  )
-from .serializers import ( CategorySerializer, SubCategorySerializer, ProductSerializer, ProductVariantSerializer, CouponSerializer )   
+from .serializers import (
+    CategorySerializer, SubCategorySerializer, ProductSerializer,
+    ProductVariantSerializer, BundleSerializer, BundleItemSerializer,
+    CouponSerializer, CouponUsageSerializer, FlashSaleSerializer,
+    FlashSaleItemSerializer, DynamicPricingSerializer, SearchFilterSerializer,
+    ProductReviewSerializer, SubscriptionSerializer, SubscriptionItemSerializer,
+    UserSubscriptionSerializer, LoyaltyProgramSerializer, LoyaltyPointsSerializer,
+    GDPRComplianceSerializer, AuctionSerializer
+)
+
+from .models import (
+    Category, SubCategory, Product, ProductVariant, Coupon, Bundle,
+    BundleItem, CouponUsage, FlashSale, FlashSaleItem, DynamicPricing,
+    SearchFilter, ProductReview, Subscription, SubscriptionItem,
+    UserSubscription, LoyaltyProgram, LoyaltyPoints, GDPRCompliance,
+    Auction
+)
 
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
@@ -201,6 +215,54 @@ class SearchProductByTitle(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
             return Response({"error": "Query parameter 'q' is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+class ProductReviewViewSet(viewsets.ModelViewSet):
+    queryset = ProductReview.objects.all()
+    serializer_class = ProductReviewSerializer
+
+class FlashSaleViewSet(viewsets.ModelViewSet):
+    queryset = FlashSale.objects.all()
+    serializer_class = FlashSaleSerializer
+
+class FlashSaleItemViewSet(viewsets.ModelViewSet):
+    queryset = FlashSaleItem.objects.all()
+    serializer_class = FlashSaleItemSerializer
+
+class DynamicPricingViewSet(viewsets.ModelViewSet):
+    queryset = DynamicPricing.objects.all()
+    serializer_class = DynamicPricingSerializer
+
+class SearchFilterViewSet(viewsets.ModelViewSet):
+    queryset = SearchFilter.objects.all()
+    serializer_class = SearchFilterSerializer
+
+class SubscriptionViewSet(viewsets.ModelViewSet):
+    queryset = Subscription.objects.all()
+    serializer_class = SubscriptionSerializer
+
+class SubscriptionItemViewSet(viewsets.ModelViewSet):
+    queryset = SubscriptionItem.objects.all()
+    serializer_class = SubscriptionItemSerializer
+
+class UserSubscriptionViewSet(viewsets.ModelViewSet):
+    queryset = UserSubscription.objects.all()
+    serializer_class = UserSubscriptionSerializer
+
+class LoyaltyProgramViewSet(viewsets.ModelViewSet):
+    queryset = LoyaltyProgram.objects.all()
+    serializer_class = LoyaltyProgramSerializer
+
+class LoyaltyPointsViewSet(viewsets.ModelViewSet):
+    queryset = LoyaltyPoints.objects.all()
+    serializer_class = LoyaltyPointsSerializer
+
+class GDPRComplianceViewSet(viewsets.ModelViewSet):
+    queryset = GDPRCompliance.objects.all()
+    serializer_class = GDPRComplianceSerializer
+
+class AuctionViewSet(viewsets.ModelViewSet):
+    queryset = Auction.objects.all()
+    serializer_class = AuctionSerializer
 
 
 

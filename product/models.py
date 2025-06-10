@@ -14,6 +14,7 @@ from store.models import Store
 
 
 
+
 # Category model
 class Category(models.Model):
     name = models.CharField()
