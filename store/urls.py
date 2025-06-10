@@ -19,5 +19,5 @@ urlpatterns = [
     path('store-details/', views.FilterStoreById.as_view(), name='store-details'),   
     path('stores/<int:pk>/staff/', views.StoreStaffViewSet.as_view({'get': 'list', 'post': 'create'})),
     path('stores/<int:pk>/staff/<int:staff_id>/', views.StoreStaffViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'})),
-
+    path('all-stores/', views.ListAllStores.as_view(), name='all-stores'),
 ]

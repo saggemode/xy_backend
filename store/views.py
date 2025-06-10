@@ -138,3 +138,39 @@ class FilterStoreById(APIView):
                     "available_stores": list(Store.objects.values('id', 'name'))
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
+
+class ListAllStores(APIView):
+    def get(self, request):
+        try:
+            # Get all stores
+            stores = Store.objects.all()
+            
+            # Get store statistics
+            store_data = []
+            for store in stores:
+                store_dict = StoreSerializer(store).data
+                store_dict.update({
+                    'statistics': {
+                        'total_products': Product.objects.filter(store_id=store.id).count(),
+                        'total_staff': StoreStaff.objects.filter(store_id=store.id).count(),
+                        'store_rating': store.rating if hasattr(store, 'rating') else None,
+                        'store_created_at': store.created_at if hasattr(store, 'created_at') else None
+                    }
+                })
+                store_data.append(store_dict)
+            
+            return Response({
+                "data": store_data,
+                "total_stores": len(store_data),
+                "debug_info": {
+                    "total_stores_in_system": Store.objects.count()
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                "error": "Error retrieving stores",
+                "debug_info": {
+                    "error_details": str(e)
+                }
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
