@@ -29,7 +29,7 @@ class Migration(migrations.Migration):
                     model_name='wishlist',
                     name='product',
                     field=models.ForeignKey(
-                        db_column='productId_id',
+                        db_column='product_id',
                         on_delete=django.db.models.deletion.CASCADE,
                         to='product.product'
                     ),
