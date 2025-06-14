@@ -5,7 +5,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('wishlist', '0003_fix_user_column'),
+        ('wishlist', '0001_initial'),
     ]
 
     operations = [
@@ -16,19 +16,20 @@ class Migration(migrations.Migration):
             reverse_sql='',
             # Tell Django this is a no-op migration
             state_operations=[
-                migrations.AlterModelOptions(
-                    name='wishlist',
-                    options={
-                        'verbose_name': 'Wishlist',
-                        'verbose_name_plural': 'Wishlists',
-                        'unique_together': {('user', 'product')},
-                    },
+                migrations.AlterField(
+                    model_name='wishlist',
+                    name='user',
+                    field=models.ForeignKey(
+                        db_column='userId_id',
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to='auth.user'
+                    ),
                 ),
                 migrations.AlterField(
                     model_name='wishlist',
                     name='product',
                     field=models.ForeignKey(
-                        db_column='productId_id',
+                        db_column='product_id',
                         on_delete=django.db.models.deletion.CASCADE,
                         to='product.product'
                     ),
