@@ -15,9 +15,7 @@ class Cart(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     expires_at = models.DateTimeField(null=True, blank=True)
-    notes = models.TextField(null=True, blank=True)
-    is_template = models.BooleanField(default=False)
-    template_name = models.CharField(max_length=100, null=True, blank=True)
+   
 
     class Meta:
         unique_together = ('user', 'store', 'is_active')
