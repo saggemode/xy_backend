@@ -4,9 +4,9 @@ from product.models import Product
 from store.models import Store
 
 class Cart(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    store = models.ForeignKey(Store, on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, db_column='userId_id')
+    store = models.ForeignKey(Store, on_delete=models.CASCADE, db_column='storeId_id')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, db_column='productId_id')
     quantity = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

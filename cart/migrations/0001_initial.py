@@ -19,9 +19,9 @@ class Migration(migrations.Migration):
                 ('quantity', models.PositiveIntegerField(default=1)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('product', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='product.product')),
-                ('store', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='store.store')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='auth.user')),
+                ('product', models.ForeignKey(db_column='productId_id', on_delete=django.db.models.deletion.CASCADE, to='product.product')),
+                ('store', models.ForeignKey(db_column='storeId_id', on_delete=django.db.models.deletion.CASCADE, to='store.store')),
+                ('user', models.ForeignKey(db_column='userId_id', on_delete=django.db.models.deletion.CASCADE, to='auth.user')),
             ],
             options={
                 'verbose_name': 'Cart',
