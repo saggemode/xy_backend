@@ -5,13 +5,16 @@ from django.db.models import Q, Sum, F
 from .models import Cart
 from .serializers import CartSerializer
 from product.models import Product
+from store.models import Store
 
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Cart.objects.filter(user=self.request.user).select_related('product', 'product__store', 'product__category')
+        return Cart.objects.filter(user=self.request.user).select_related(
+            'product', 'product__store', 'product__category', 'store'
+        )
 
     def create(self, request, *args, **kwargs):
         product_id = request.data.get('product_id')
@@ -26,9 +29,23 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        # Check if product is already in cart
+        # Get the store from the product
+        store = product.store
+
+        # Check if user has items from a different store in their cart
+        existing_cart_items = Cart.objects.filter(user=request.user)
+        if existing_cart_items.exists():
+            first_item = existing_cart_items.first()
+            if first_item.store != store:
+                return Response(
+                    {'error': 'Cannot add products from different stores. Please clear your cart first.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # Check if product is already in cart for this store
         cart_item, created = Cart.objects.get_or_create(
             user=request.user,
+            store=store,
             product=product,
             defaults={'quantity': quantity}
         )
@@ -69,18 +86,30 @@ class CartViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def my_cart(self, request):
-        """Get current user's cart with total"""
+        """Get current user's cart with totals"""
         cart_items = self.get_queryset()
-        total = cart_items.aggregate(
-            total_items=Sum('quantity'),
-            total_price=Sum(F('product__price') * F('quantity'))
-        )
         
+        if not cart_items.exists():
+            return Response({
+                'store': None,
+                'items': [],
+                'total_items': 0,
+                'total_price': 0
+            })
+
+        # Get store from first item (all items should be from same store)
+        store = cart_items.first().store
+        
+        # Calculate totals
+        total_items = sum(item.quantity for item in cart_items)
+        total_price = sum(item.total_price for item in cart_items)
+
         serializer = self.get_serializer(cart_items, many=True)
         return Response({
+            'store': StoreSerializer(store).data,
             'items': serializer.data,
-            'total_items': total['total_items'] or 0,
-            'total_price': total['total_price'] or 0
+            'total_items': total_items,
+            'total_price': total_price
         })
 
     @action(detail=False, methods=['post'])

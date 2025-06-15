@@ -1,9 +1,11 @@
 from django.db import models
 from django.contrib.auth.models import User
 from product.models import Product
+from store.models import Store
 
 class Cart(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    store = models.ForeignKey(Store, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -12,12 +14,12 @@ class Cart(models.Model):
     class Meta:
         verbose_name = 'Cart'
         verbose_name_plural = 'Carts'
-        unique_together = ('user', 'product')
+        unique_together = ('user', 'store', 'product')
         db_table = 'cart_cart'
         managed = True
 
     def __str__(self):
-        return f"{self.user.username}'s cart - {self.product.name}"
+        return f"{self.user.username}'s cart - {self.store.name} - {self.product.name}"
 
     @property
     def total_price(self):
