@@ -7,6 +7,7 @@ from .serializers import CartSerializer
 from product.models import Product, ProductVariant
 from store.models import Store
 from django.utils import timezone
+from django.contrib.auth.models import User
 
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
@@ -348,3 +349,88 @@ class CartViewSet(viewsets.ModelViewSet):
             })
         
         return Response(validation_results)
+
+    @action(detail=False, methods=['get'])
+    def count(self, request):
+        """Get the total number of items in the cart and total quantity"""
+        cart_items = self.get_queryset()
+        
+        # Get total number of unique items
+        unique_items_count = cart_items.count()
+        
+        # Get total quantity of all items
+        total_quantity = cart_items.aggregate(
+            total_quantity=Sum('quantity')
+        )['total_quantity'] or 0
+        
+        # Get count by store
+        store_counts = cart_items.values('store__name').annotate(
+            item_count=Count('id'),
+            total_quantity=Sum('quantity')
+        )
+
+        return Response({
+            'unique_items': unique_items_count,
+            'total_quantity': total_quantity,
+            'store_breakdown': store_counts,
+            'has_items': unique_items_count > 0
+        })
+
+    @action(detail=False, methods=['get'])
+    def user_cart_count(self, request):
+        """Get the cart count for a specific user"""
+        user_id = request.query_params.get('user_id')
+        
+        if not user_id:
+            return Response(
+                {'error': 'user_id is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get cart items for the specific user
+        cart_items = Cart.objects.filter(user=user)
+        
+        # Get total number of unique items
+        unique_items_count = cart_items.count()
+        
+        # Get total quantity of all items
+        total_quantity = cart_items.aggregate(
+            total_quantity=Sum('quantity')
+        )['total_quantity'] or 0
+        
+        # Get count by store
+        store_counts = cart_items.values('store__name').annotate(
+            item_count=Count('id'),
+            total_quantity=Sum('quantity')
+        )
+
+        # Get product categories breakdown
+        category_counts = cart_items.values(
+            'product__category__name'
+        ).annotate(
+            item_count=Count('id'),
+            total_quantity=Sum('quantity')
+        )
+
+        return Response({
+            'user': {
+                'id': user.id,
+                'username': user.username
+            },
+            'cart_summary': {
+                'unique_items': unique_items_count,
+                'total_quantity': total_quantity,
+                'has_items': unique_items_count > 0
+            },
+            'store_breakdown': store_counts,
+            'category_breakdown': category_counts,
+            'last_updated': cart_items.latest('updated_at').updated_at if cart_items.exists() else None
+        })
