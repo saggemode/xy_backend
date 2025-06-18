@@ -18,7 +18,7 @@ class AddressSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'address', 'city', 'state', 'postal_code', 'country',
             'latitude', 'longitude', 'phone', 'additional_phone', 'address_type',
-            'is_default', 'is_active', 'is_verified', 'verification_date',
+            'is_default',  
             'notes', 'created_at', 'updated_at', 'full_address'
         ]
         read_only_fields = ['id', 'user', 'created_at', 'updated_at', 'verification_date']

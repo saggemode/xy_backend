@@ -131,29 +131,10 @@ class Address(models.Model):
         verbose_name=_('Default Address'),
         help_text=_('Whether this is the user\'s default address')
     )
-    is_active = models.BooleanField(
-        default=True,
-        verbose_name=_('Active'),
-        help_text=_('Whether this address is currently active')
-    )
-    is_verified = models.BooleanField(
-        default=False,
-        verbose_name=_('Verified'),
-        help_text=_('Whether this address has been verified')
-    )
-    verification_date = models.DateTimeField(
-        null=True,
-        blank=True,
-        verbose_name=_('Verification Date'),
-        help_text=_('When this address was verified')
-    )
-    notes = models.TextField(
-        blank=True,
-        null=True,
-        verbose_name=_('Notes'),
-        help_text=_('Additional notes about this address')
-    )
 
+
+
+  
     # Timestamps
     created_at = models.DateTimeField(
         auto_now_add=True,
@@ -174,8 +155,7 @@ class Address(models.Model):
         indexes = [
             models.Index(fields=['user', 'is_default']),
             models.Index(fields=['address_type']),
-            models.Index(fields=['is_active']),
-            models.Index(fields=['is_verified'])
+           
         ]
 
     def __str__(self):
@@ -207,24 +187,10 @@ class Address(models.Model):
         """Return the complete formatted address"""
         return f"{self.address}, {self.city}, {self.state} {self.postal_code}, {self.country}"
 
-    def deactivate(self):
-        """Deactivate the address"""
-        self.is_active = False
-        self.save()
+ 
 
-    def verify(self):
-        """Mark address as verified"""
-        self.is_verified = True
-        self.verification_date = timezone.now()
-        self.save()
+    
 
-    def is_valid_for_banking(self):
-        """Check if address is valid for banking purposes"""
-        return (
-            self.is_active and
-            self.is_verified and
-            self.address_type in [self.AddressType.HOME, self.AddressType.OFFICE]
-        )
 
 
 class UserVerification(models.Model):
