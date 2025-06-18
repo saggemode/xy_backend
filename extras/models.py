@@ -157,12 +157,7 @@ class Address(models.Model):
 
     def clean(self):
         """Validate the address data"""
-        if self.latitude and self.longitude:
-            if not (-90 <= self.latitude <= 90):
-                raise ValidationError({'latitude': _('Latitude must be between -90 and 90')})
-            if not (-180 <= self.longitude <= 180):
-                raise ValidationError({'longitude': _('Longitude must be between -180 and 180')})
-        
+       
         # Validate postal code format based on country
         if self.country == 'United States':
             if not re.match(r'^\d{5}(-\d{4})?$', self.postal_code):
