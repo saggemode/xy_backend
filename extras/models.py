@@ -65,6 +65,7 @@ class Address(models.Model):
         max_length=20,
         verbose_name=_('Postal Code'),
         help_text=_('Postal or ZIP code'),
+        default='12345',
         validators=[
             RegexValidator(
                 regex=r'^\d{5}(-\d{4})?$',
