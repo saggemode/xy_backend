@@ -37,18 +37,12 @@ class Address(models.Model):
     latitude = models.FloatField(
         verbose_name=_('Latitude'),
         help_text=_('Geographic latitude coordinate'),
-        validators=[
-            MinValueValidator(-90),
-            MaxValueValidator(90)
-        ]
+        
     )
     longitude = models.FloatField(
         verbose_name=_('Longitude'),
         help_text=_('Geographic longitude coordinate'),
-        validators=[
-            MinValueValidator(-180),
-            MaxValueValidator(180)
-        ]
+        
     )
 
     # Address details
