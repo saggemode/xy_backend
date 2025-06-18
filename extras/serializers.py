@@ -1,8 +1,6 @@
 from rest_framework import serializers
-from .models import Address, UserVerification
 from django.contrib.auth.models import User
-from django.core.exceptions import ValidationError
-from decimal import Decimal
+from .models import Address, UserVerification
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -18,17 +16,18 @@ class AddressSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'address', 'city', 'state', 'postal_code', 'country',
             'latitude', 'longitude', 'phone', 'additional_phone', 'address_type',
-            'is_default',  
-            'notes', 'created_at', 'updated_at', 'full_address'
+            'is_default', 'created_at', 'updated_at', 'full_address'
         ]
-        read_only_fields = ['id', 'user', 'created_at', 'updated_at', 'verification_date']
+        read_only_fields = ['id', 'user', 'created_at', 'updated_at']
 
     def validate(self, data):
         """Validate address data"""
-        if data.get('is_default') and not data.get('is_verified'):
-            raise serializers.ValidationError(
-                "Address must be verified before setting as default"
-            )
+        if data.get('is_default'):
+            # Set all other addresses of this user to non-default
+            Address.objects.filter(
+                user=self.context['request'].user,
+                is_default=True
+            ).update(is_default=False)
         return data
 
 class UserVerificationSerializer(serializers.ModelSerializer):
