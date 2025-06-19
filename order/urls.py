@@ -12,7 +12,7 @@ app_name = 'order'
 
 urlpatterns = [
     # Include all router URLs
-    path('api/', include(router.urls)),
+    path('', include(router.urls)),
     
     # Additional custom endpoints (if needed)
     path('api/orders/<int:pk>/status/', views.OrderViewSet.as_view({'patch': 'update_status'}), name='order-update-status'),

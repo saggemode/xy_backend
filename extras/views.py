@@ -61,7 +61,7 @@ class UserVerificationViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
     @action(detail=False, methods=['post'])
-    def generate_otp(self, request):
+    def generateotp(self, request):
         """Generate a new OTP"""
         verification = self.get_queryset().first()
         if not verification:
@@ -83,7 +83,7 @@ class UserVerificationViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=False, methods=['post'])
-    def verify_otp(self, request):
+    def verifyotp(self, request):
         """Verify OTP"""
         verification = self.get_queryset().first()
         if not verification:
@@ -119,7 +119,7 @@ class UserVerificationViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=False, methods=['post'])
-    def verify_security_questions(self, request):
+    def verifysecurityquestions(self, request):
         """Verify security questions"""
         verification = self.get_queryset().first()
         if not verification:
@@ -147,7 +147,7 @@ class UserVerificationViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=False, methods=['post'])
-    def verify_document(self, request):
+    def verifydocument(self, request):
         """Verify document"""
         verification = self.get_queryset().first()
         if not verification:
@@ -168,7 +168,7 @@ class UserVerificationViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=False, methods=['post'])
-    def verify_biometric(self, request):
+    def verifybiometric(self, request):
         """Verify biometric data"""
         verification = self.get_queryset().first()
         if not verification:
@@ -200,7 +200,7 @@ class UserVerificationViewSet(viewsets.ModelViewSet):
         return Response(verification.get_verification_summary())
 
     @action(detail=False, methods=['post'])
-    def reset_attempts(self, request):
+    def resetattempts(self, request):
         """Reset verification attempts"""
         verification = self.get_queryset().first()
         if not verification:
