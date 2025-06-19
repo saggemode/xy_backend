@@ -27,14 +27,31 @@ class AddressViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(address)
         return Response(serializer.data)
 
+    # @action(detail=True, methods=['post'])
+    # def set_default(self, request, pk=None):
+    #     """Set an address as default"""
+    #     address = self.get_object()
+    #     address.is_default = True
+    #     address.save()
+    #     serializer = self.get_serializer(address)
+    #     return Response(serializer.data)
+
     @action(detail=True, methods=['post'])
     def set_default(self, request, pk=None):
         """Set an address as default"""
+        # Get all addresses for this user and set is_default to False
+        self.get_queryset().update(is_default=False)
+        
+        # Set the selected address as default
         address = self.get_object()
         address.is_default = True
         address.save()
+        
         serializer = self.get_serializer(address)
         return Response(serializer.data)
+
+
+
 
 class UserVerificationViewSet(viewsets.ModelViewSet):
     serializer_class = UserVerificationSerializer
