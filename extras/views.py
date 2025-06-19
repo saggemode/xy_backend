@@ -37,7 +37,7 @@ class AddressViewSet(viewsets.ModelViewSet):
     #     return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
-    def set_default(self, request, pk=None):
+    def setdefault(self, request, pk=None):
         """Set an address as default"""
         address = self.get_object()
         # Unset all other addresses for this user
