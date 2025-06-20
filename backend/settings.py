@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     'order',
     'address',
     'inventory',
+    'notification',
     'report',
     'coupon',
     'allauth',
