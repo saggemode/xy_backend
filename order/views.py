@@ -46,7 +46,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
     @action(detail=True, methods=['patch'])
-    def update_status(self, request, pk=None):
+    def updatestatus(self, request, pk=None):
         """Update order status."""
         order = self.get_object()
         serializer = OrderStatusUpdateSerializer(order, data=request.data, partial=True)
@@ -57,7 +57,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'])
-    def cancel_order(self, request, pk=None):
+    def cancelorder(self, request, pk=None):
         """Cancel an order."""
         order = self.get_object()
         
@@ -72,14 +72,14 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Response({'message': 'Order cancelled successfully'})
 
     @action(detail=False, methods=['get'])
-    def my_orders(self, request):
+    def myorders(self, request):
         """Get current user's orders."""
         orders = self.get_queryset().filter(user=request.user)
         serializer = self.get_serializer(orders, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
-    def recent_orders(self, request):
+    def recentorders(self, request):
         """Get recent orders (last 30 days)."""
         thirty_days_ago = timezone.now() - timedelta(days=30)
         orders = self.get_queryset().filter(created_at__gte=thirty_days_ago)
@@ -87,7 +87,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
-    def order_stats(self, request):
+    def orderstats(self, request):
         """Get order statistics."""
         queryset = self.get_queryset()
         
@@ -145,7 +145,7 @@ class OrderItemViewSet(viewsets.ModelViewSet):
         order_item.order.calculate_totals()
 
     @action(detail=False, methods=['get'])
-    def by_order(self, request):
+    def byorder(self, request):
         """Get order items for a specific order."""
         order_id = request.query_params.get('order_id')
         if not order_id:
@@ -187,7 +187,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             serializer.save(transaction_id=f"TXN-{uuid.uuid4().hex[:16].upper()}")
 
     @action(detail=True, methods=['post'])
-    def process_payment(self, request, pk=None):
+    def processpayment(self, request, pk=None):
         """Process a payment."""
         payment = self.get_object()
         
@@ -206,7 +206,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=['post'])
-    def refund_payment(self, request, pk=None):
+    def refundpayment(self, request, pk=None):
         """Refund a payment."""
         payment = self.get_object()
         
@@ -225,7 +225,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=False, methods=['get'])
-    def payment_stats(self, request):
+    def paymentstats(self, request):
         """Get payment statistics."""
         queryset = self.get_queryset()
         
