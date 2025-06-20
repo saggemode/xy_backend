@@ -8,10 +8,11 @@ from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from datetime import datetime
 import random
+import uuid
 from decimal import Decimal
 from store.models import Store
 from product.models import Product, ProductVariant
-
+from extras.models import Address
 
 # Order model
 class Order(models.Model):
@@ -38,24 +39,30 @@ class Order(models.Model):
         ('bank_transfer', 'Bank Transfer'),
     ]
 
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name=_('ID')
+    )
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='orders')
     store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='orders')
-    order_number = models.CharField(max_length=20, unique=True)
+    customer_id = models.CharField(max_length=255, unique=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2)
-    tax = models.DecimalField(max_digits=10, decimal_places=2)
-    shipping_cost = models.DecimalField(max_digits=10, decimal_places=2)
-    total = models.DecimalField(max_digits=10, decimal_places=2)
-    shipping_address = models.TextField()
-    billing_address = models.TextField()
+    subtotal = models.FloatField()
+    tax = models.FloatField(default=0.0)
+    total = models.IntegerField()
+    order_number = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    address = models.ForeignKey(Address, on_delete=models.CASCADE, related_name='orders')
     tracking_number = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Order {self.order_number} - {self.user.email}"
+        return f"Order {self.tracking_number} - {self.user.email}"
 
     def save(self, *args, **kwargs):
         if not self.order_number:
@@ -80,6 +87,12 @@ class Order(models.Model):
 
 # OrderItem model
 class OrderItem(models.Model):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name=_('ID')
+    )
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_items')
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
     variant = models.ForeignKey(ProductVariant, on_delete=models.PROTECT, null=True, blank=True)
@@ -103,6 +116,13 @@ class Payment(models.Model):
         ('failed', 'Failed'),
         ('refunded', 'Refunded'),
     ]
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name=_('ID')
+    )
 
     order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='payment')
     transaction_id = models.CharField(max_length=100, unique=True)

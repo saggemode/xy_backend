@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -14,7 +15,16 @@ from decimal import Decimal
 from django.db import models
 from django.conf import settings
 
-class Store(models.Model):
+class Store(models.Model): 
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name=_('ID')
+    ) 
+
+
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     location = models.CharField(max_length=255)
@@ -46,6 +56,13 @@ class Store(models.Model):
 
 
 class StoreStaff(models.Model):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name=_('ID')
+    )
+     
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     role = models.CharField(max_length=50)  # owner, manager, staff
@@ -57,6 +74,14 @@ class StoreStaff(models.Model):
 
 # Customer Lifetime Value (CLTV) Calculation
 class CustomerLifetimeValue(models.Model):
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name=_('ID')
+    )
+     
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     total_spent = models.DecimalField(max_digits=12, decimal_places=2, default=0.0)
     first_purchase_date = models.DateTimeField(null=True, blank=True)
@@ -69,6 +94,13 @@ class CustomerLifetimeValue(models.Model):
 
 # Store Analytics Enhancements
 class StoreAnalytics(models.Model):
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name=_('ID')
+    )
     store = models.OneToOneField(Store, on_delete=models.CASCADE)
     total_views = models.PositiveIntegerField(default=0)
     total_sales = models.PositiveIntegerField(default=0)
