@@ -1,9 +1,8 @@
 from rest_framework import serializers
 from .models import (
-    Product, ProductVariant, Category, SubCategory, Coupon, Bundle, BundleItem, 
-    CouponUsage, FlashSale, FlashSaleItem, DynamicPricing, SearchFilter,
-    ProductReview, Subscription, SubscriptionItem, UserSubscription,
-    LoyaltyProgram, LoyaltyPoints, GDPRCompliance, Auction
+    Product, ProductVariant, Category, SubCategory, Coupon,  
+    CouponUsage, FlashSale, FlashSaleItem, SearchFilter,
+    ProductReview
 )
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -35,16 +34,6 @@ class CouponSerializer(serializers.ModelSerializer):
         model = Coupon
         fields = '__all__'
 
-class BundleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Bundle
-        fields = '__all__'
-
-class BundleItemSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BundleItem
-        fields = '__all__'
-
 class CouponUsageSerializer(serializers.ModelSerializer):
     class Meta:
         model = CouponUsage
@@ -60,10 +49,6 @@ class FlashSaleItemSerializer(serializers.ModelSerializer):
         model = FlashSaleItem
         fields = '__all__'
 
-class DynamicPricingSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DynamicPricing
-        fields = '__all__'
 
 class SearchFilterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -73,39 +58,4 @@ class SearchFilterSerializer(serializers.ModelSerializer):
 class ProductReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductReview
-        fields = '__all__'
-
-class SubscriptionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Subscription
-        fields = '__all__'
-
-class SubscriptionItemSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SubscriptionItem
-        fields = '__all__'
-
-class UserSubscriptionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UserSubscription
-        fields = '__all__'
-
-class LoyaltyProgramSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LoyaltyProgram
-        fields = '__all__'
-
-class LoyaltyPointsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = LoyaltyPoints
-        fields = '__all__'
-
-class GDPRComplianceSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = GDPRCompliance
-        fields = '__all__'
-
-class AuctionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Auction
         fields = '__all__'

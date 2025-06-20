@@ -4,7 +4,7 @@ from . import views
 from rest_framework.routers import DefaultRouter
 
 from .views import (CategoryViewSet,
-                    CouponViewSet,
+                 
                       ProductViewSet, 
                       ProductVariantViewSet,
                       SubCategoryViewSet,
@@ -21,7 +21,6 @@ from .views import (CategoryViewSet,
 router = DefaultRouter()
 router.register(r'categories', CategoryViewSet)
 router.register(r'subcategories', SubCategoryViewSet)
-router.register(r'coupons', CouponViewSet)
 router.register(r'products', ProductViewSet)
 router.register(r'product-variants', ProductVariantViewSet)
 

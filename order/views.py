@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import uuid
 
 from .models import Order, OrderItem, Payment
+from notification.models import Notification
 from .serializers import (
     OrderSerializer, 
     OrderItemSerializer, 
@@ -197,6 +198,28 @@ class PaymentViewSet(viewsets.ModelViewSet):
             payment.order.payment_status = 'paid'
             payment.order.save()
             payment.save()
+            
+            # --- Create Notification ---
+            order = payment.order
+            product_list = ", ".join([item.product.name for item in order.items.all()])
+            address_details = order.address.full_address if order.address else "No address specified"
+            
+            message_content = (
+                f"Your order {order.order_number} has been successfully placed.\n"
+                f"Total: ${order.total}\n"
+                f"Products: {product_list}\n"
+                f"Shipping to: {address_details}"
+            )
+
+            Notification.objects.create(
+                recipient=order.user,
+                title=f"Order Confirmed: {order.order_number}",
+                message=message_content,
+                notification_type=Notification.NotificationType.NEW_ORDER,
+                level=Notification.NotificationLevel.SUCCESS,
+                link=f'/orders/{order.id}/' # Optional: link to the order detail page
+            )
+            # --- End Notification ---
             
             return Response({'message': 'Payment processed successfully'})
         

@@ -12,20 +12,16 @@ from django.db.models import Count
 
 from .serializers import (
     CategorySerializer, SubCategorySerializer, ProductSerializer,
-    ProductVariantSerializer, BundleSerializer, BundleItemSerializer,
-    CouponSerializer, CouponUsageSerializer, FlashSaleSerializer,
-    FlashSaleItemSerializer, DynamicPricingSerializer, SearchFilterSerializer,
-    ProductReviewSerializer, SubscriptionSerializer, SubscriptionItemSerializer,
-    UserSubscriptionSerializer, LoyaltyProgramSerializer, LoyaltyPointsSerializer,
-    GDPRComplianceSerializer, AuctionSerializer
+    ProductVariantSerializer,
+      FlashSaleSerializer,
+    FlashSaleItemSerializer, SearchFilterSerializer,
+    ProductReviewSerializer
 )
 
 from .models import (
-    Category, SubCategory, Product, ProductVariant, Coupon, Bundle,
-    BundleItem, CouponUsage, FlashSale, FlashSaleItem, DynamicPricing,
-    SearchFilter, ProductReview, Subscription, SubscriptionItem,
-    UserSubscription, LoyaltyProgram, LoyaltyPoints, GDPRCompliance,
-    Auction
+    Category, SubCategory, Product, ProductVariant,
+      FlashSale, FlashSaleItem,
+    SearchFilter, ProductReview, 
 )
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -178,10 +174,6 @@ class SearchProductByTitle(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
    
 
-class CouponViewSet(viewsets.ModelViewSet):
-    queryset = Coupon.objects.all()
-    serializer_class = CouponSerializer
-
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
@@ -202,7 +194,6 @@ class SubCategoryViewSet(viewsets.ModelViewSet):
         if category_id:
             return SubCategory.objects.filter(category_id=category_id)
         return SubCategory.objects.all()
-    
 
 
 class SearchProductByTitle(APIView):
@@ -228,41 +219,9 @@ class FlashSaleItemViewSet(viewsets.ModelViewSet):
     queryset = FlashSaleItem.objects.all()
     serializer_class = FlashSaleItemSerializer
 
-class DynamicPricingViewSet(viewsets.ModelViewSet):
-    queryset = DynamicPricing.objects.all()
-    serializer_class = DynamicPricingSerializer
-
 class SearchFilterViewSet(viewsets.ModelViewSet):
     queryset = SearchFilter.objects.all()
     serializer_class = SearchFilterSerializer
-
-class SubscriptionViewSet(viewsets.ModelViewSet):
-    queryset = Subscription.objects.all()
-    serializer_class = SubscriptionSerializer
-
-class SubscriptionItemViewSet(viewsets.ModelViewSet):
-    queryset = SubscriptionItem.objects.all()
-    serializer_class = SubscriptionItemSerializer
-
-class UserSubscriptionViewSet(viewsets.ModelViewSet):
-    queryset = UserSubscription.objects.all()
-    serializer_class = UserSubscriptionSerializer
-
-class LoyaltyProgramViewSet(viewsets.ModelViewSet):
-    queryset = LoyaltyProgram.objects.all()
-    serializer_class = LoyaltyProgramSerializer
-
-class LoyaltyPointsViewSet(viewsets.ModelViewSet):
-    queryset = LoyaltyPoints.objects.all()
-    serializer_class = LoyaltyPointsSerializer
-
-class GDPRComplianceViewSet(viewsets.ModelViewSet):
-    queryset = GDPRCompliance.objects.all()
-    serializer_class = GDPRComplianceSerializer
-
-class AuctionViewSet(viewsets.ModelViewSet):
-    queryset = Auction.objects.all()
-    serializer_class = AuctionSerializer
 
 
 

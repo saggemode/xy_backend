@@ -71,7 +71,6 @@ INSTALLED_APPS = [
     'inventory',
     'notification',
     'report',
-    'coupon',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',

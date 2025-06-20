@@ -58,7 +58,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         serializer.save(sender=self.request.user)
 
     @action(detail=True, methods=['patch'])
-    def mark_as_read(self, request, pk=None):
+    def markasread(self, request, pk=None):
         """Mark a notification as read."""
         notification = self.get_object()
         notification.mark_as_read()
@@ -66,7 +66,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=['patch'])
-    def mark_as_unread(self, request, pk=None):
+    def markasunread(self, request, pk=None):
         """Mark a notification as unread."""
         notification = self.get_object()
         notification.mark_as_unread()
@@ -74,14 +74,14 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
-    def my_notifications(self, request):
+    def mynotifications(self, request):
         """Get current user's notifications."""
         notifications = self.get_queryset().filter(recipient=request.user)
         serializer = self.get_serializer(notifications, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
-    def unread_notifications(self, request):
+    def unreadnotifications(self, request):
         """Get current user's unread notifications."""
         notifications = self.get_queryset().filter(
             recipient=request.user,
@@ -91,7 +91,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'])
-    def bulk_mark_read(self, request):
+    def bulkmarkread(self, request):
         """Mark multiple notifications as read."""
         serializer = NotificationBulkUpdateSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
@@ -104,7 +104,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'])
-    def bulk_mark_unread(self, request):
+    def bulkmarkunread(self, request):
         """Mark multiple notifications as unread."""
         serializer = NotificationBulkUpdateSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
@@ -117,7 +117,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'])
-    def notification_stats(self, request):
+    def notificationstats(self, request):
         """Get notification statistics for the current user."""
         queryset = self.get_queryset().filter(recipient=request.user)
         
@@ -137,13 +137,13 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['delete'])
-    def clear_all(self, request):
+    def clearall(self, request):
         """Clear all notifications for the current user."""
         count = self.get_queryset().filter(recipient=request.user).delete()[0]
         return Response({'message': f'Cleared {count} notifications'})
 
     @action(detail=False, methods=['get'])
-    def recent_notifications(self, request):
+    def recentnotifications(self, request):
         """Get recent notifications (last 7 days)."""
         seven_days_ago = timezone.now() - timedelta(days=7)
         notifications = self.get_queryset().filter(
@@ -154,7 +154,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
-    def by_type(self, request):
+    def bytype(self, request):
         """Get notifications filtered by type."""
         notification_type = request.query_params.get('type')
         if not notification_type:

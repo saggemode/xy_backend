@@ -12,10 +12,6 @@ import random
 from decimal import Decimal
 from store.models import Store
 
-
-
-
-
 # Category model
 class Category(models.Model):
     id = models.UUIDField(
@@ -261,135 +257,7 @@ class CouponUsage(models.Model):
 
     def __str__(self):
         return f"{self.coupon.code} used by {self.user.username}"
-
-class Bundle(models.Model):
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-        verbose_name=_('ID')
-    )
-    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='bundles')
-    name = models.CharField(max_length=100)
-    description = models.TextField()
-    products = models.ManyToManyField(Product, through='BundleItem')
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    is_active = models.BooleanField(default=True)
-    start_date = models.DateTimeField(null=True, blank=True)
-    end_date = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.name} - {self.store.name}"
-
-    @property
-    def is_valid(self):
-        now = timezone.now()
-        if not self.is_active:
-            return False
-        if self.start_date and now < self.start_date:
-            return False
-        if self.end_date and now > self.end_date:
-            return False
-        return True
-
-    @property
-    def total_original_price(self):
-        return sum(item.product.base_price * item.quantity for item in self.items.all())
-
-    @property
-    def savings_amount(self):
-        return self.total_original_price - self.price
-
-    @property
-    def savings_percentage(self):
-        if self.total_original_price == 0:
-            return 0
-        return (self.savings_amount / self.total_original_price) * 100
-
-
-class BundleItem(models.Model):
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-        verbose_name=_('ID')
-    )
-    bundle = models.ForeignKey(Bundle, on_delete=models.CASCADE, related_name='items')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(default=1)
-
-    class Meta:
-        unique_together = ['bundle', 'product']
-
-    def __str__(self):
-        return f"{self.quantity}x {self.product.name} in {self.bundle.name}"
-
-class Subscription(models.Model):
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-        verbose_name=_('ID')
-    )
-    SUBSCRIPTION_TYPES = [
-        ('monthly', 'Monthly'),
-        ('quarterly', 'Quarterly'),
-        ('yearly', 'Yearly'),
-    ]
-
-    store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name='subscriptions')
-    name = models.CharField(max_length=100)
-    description = models.TextField()
-    subscription_type = models.CharField(max_length=20, choices=SUBSCRIPTION_TYPES)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    products = models.ManyToManyField(Product, through='SubscriptionItem')
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.name} - {self.store.name}"
-
-class SubscriptionItem(models.Model):
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-        verbose_name=_('ID')
-    )
-    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE, related_name='items')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(default=1)
-    frequency = models.PositiveIntegerField(default=1)  # How often to deliver (in days)
-
-    class Meta:
-        unique_together = ['subscription', 'product']
-
-    def __str__(self):
-        return f"{self.quantity}x {self.product.name} in {self.subscription.name}"
-
-class UserSubscription(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='subscriptions')
-    subscription = models.ForeignKey(Subscription, on_delete=models.CASCADE)
-    start_date = models.DateTimeField(default=timezone.now)
-    next_delivery_date = models.DateTimeField()
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.user.username}'s subscription to {self.subscription.name}"
-
-    def calculate_next_delivery(self):
-        if self.subscription.subscription_type == 'monthly':
-            return self.next_delivery_date + timezone.timedelta(days=30)
-        elif self.subscription.subscription_type == 'quarterly':
-            return self.next_delivery_date + timezone.timedelta(days=90)
-        else:  # yearly
-            return self.next_delivery_date + timezone.timedelta(days=365)
-        
+ 
 class ProductReview(models.Model):
     id = models.UUIDField(
         primary_key=True,
@@ -416,45 +284,6 @@ class ProductReview(models.Model):
         return f"Review by {self.user.username} for {self.product.name}"
 
 
-class DynamicPricing(models.Model):
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-        verbose_name=_('ID')
-    )
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    min_quantity = models.PositiveIntegerField()
-    price = models.DecimalField(max_digits=10, decimal_places=2)
-    start_date = models.DateTimeField()
-    end_date = models.DateTimeField()
-
-    def __str__(self):
-        return f"Dynamic Pricing for {self.product.name}"
-    
-
-
-# GDPR Compliance Features
-class GDPRCompliance(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    data_downloaded = models.BooleanField(default=False)
-    account_deleted = models.BooleanField(default=False)
-    cookie_policy_viewed = models.BooleanField(default=False)
-    last_updated = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"GDPR Compliance for {self.user.username}"
-
-
-# Loyalty Points System
-class LoyaltyPoints(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    points = models.PositiveIntegerField(default=0)
-    last_updated = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"Loyalty Points for {self.user.username}"
-
 # Advanced Search & Filters
 class SearchFilter(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
@@ -466,28 +295,6 @@ class SearchFilter(models.Model):
 
     def __str__(self):
         return f"Search Filter for {self.product.name}"
-
-# Auction System
-class Auction(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    start_price = models.DecimalField(max_digits=10, decimal_places=2)
-    current_price = models.DecimalField(max_digits=10, decimal_places=2)
-    end_time = models.DateTimeField()
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return f"Auction for {self.product.name}"
-
-
-# Loyalty Program
-class LoyaltyProgram(models.Model):
-    store = models.ForeignKey(Store, on_delete=models.CASCADE)
-    points_per_purchase = models.PositiveIntegerField()
-    points_redeemed = models.PositiveIntegerField(default=0)
-
-    def __str__(self):
-        return f"Loyalty Program for {self.store.name}"
-
 
 
 class FlashSale(models.Model):
