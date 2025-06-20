@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.contrib.auth.models import User
 from product.models import Product, ProductVariant
@@ -5,8 +6,16 @@ from store.models import Store
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from decimal import Decimal
+from django.utils.translation import gettext_lazy as _
 
 class Cart(models.Model):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name=_('ID')
+    )
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, db_column='userId_id')
     store = models.ForeignKey(Store, on_delete=models.CASCADE, db_column='storeId_id')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, db_column='productId_id')
