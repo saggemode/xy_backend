@@ -24,34 +24,22 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         model = ProductVariant
         fields = '__all__'
 
-# Temporarily simplified for debugging the 500 error.
-# The original, more complex serializer is commented out below.
 class ProductSerializer(serializers.ModelSerializer):
+    variants = ProductVariantSerializer(many=True, read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
+    rating = serializers.FloatField(read_only=True)
+    review_count = serializers.IntegerField(source='review_count', read_only=True)
+
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'brand', 'base_price', 'description', 'image_urls',
-            'stock', 'is_featured', 'has_variants',
+            'stock', 'is_featured', 'has_variants', 'rating', 'review_count',
             'available_sizes', 'available_colors', 'created_at', 'updated_at', 
-            'store', 'category', 'subcategory',
+            'store', 'category', 'subcategory', 'variants', 'category_name', 
+            'subcategory_name'
         ]
-
-# class ProductSerializer(serializers.ModelSerializer):
-#     variants = ProductVariantSerializer(many=True, read_only=True)
-#     category_name = serializers.CharField(source='category.name', read_only=True)
-#     subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
-#     rating = serializers.FloatField(read_only=True)
-#     review_count = serializers.IntegerField(source='review_count', read_only=True)
-
-#     class Meta:
-#         model = Product
-#         fields = [
-#             'id', 'name', 'brand', 'base_price', 'description', 'image_urls',
-#             'stock', 'is_featured', 'has_variants', 'rating', 'review_count',
-#             'available_sizes', 'available_colors', 'created_at', 'updated_at', 
-#             'store', 'category', 'subcategory', 'variants', 'category_name', 
-#             'subcategory_name'
-#         ]
 
 class CouponSerializer(serializers.ModelSerializer):
     class Meta:
