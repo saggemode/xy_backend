@@ -27,17 +27,16 @@ class StoreViewSet(viewsets.ModelViewSet):
     queryset = Store.objects.all()
     serializer_class = StoreSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_active', 'is_verified', 'status']
-    search_fields = ['name', 'description', 'address']
-    ordering_fields = ['name', 'created_at', 'rating', 'total_products']
+    filterset_fields = ['is_active', 'is_verified']
+    search_fields = ['name', 'description', 'location']
+    ordering_fields = ['name', 'created_at']
     ordering = ['-created_at']
 
     def get_queryset(self):
         """Enhanced queryset with annotations for better performance."""
         return Store.objects.annotate(
             total_products=Count('products'),
-            total_staff=Count('staff'),
-            avg_rating=Avg('rating')
+            total_staff=Count('staff')
         )
 
     @action(detail=False, methods=['get'], url_path='search')
@@ -46,7 +45,6 @@ class StoreViewSet(viewsets.ModelViewSet):
         query = request.query_params.get('q', '')
         category = request.query_params.get('category', '')
         location = request.query_params.get('location', '')
-        min_rating = request.query_params.get('min_rating', '')
         is_verified = request.query_params.get('is_verified', '')
         
         queryset = self.get_queryset()
@@ -55,17 +53,14 @@ class StoreViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(
                 Q(name__icontains=query) |
                 Q(description__icontains=query) |
-                Q(address__icontains=query)
+                Q(location__icontains=query)
             )
         
         if category:
             queryset = queryset.filter(products__category__name__icontains=category).distinct()
         
         if location:
-            queryset = queryset.filter(address__icontains=location)
-        
-        if min_rating:
-            queryset = queryset.filter(rating__gte=float(min_rating))
+            queryset = queryset.filter(location__icontains=location)
         
         if is_verified in ['true', 'false']:
             queryset = queryset.filter(is_verified=is_verified == 'true')
@@ -78,23 +73,22 @@ class StoreViewSet(viewsets.ModelViewSet):
                 'query': query,
                 'category': category,
                 'location': location,
-                'min_rating': min_rating,
                 'is_verified': is_verified
             }
         })
 
     @action(detail=False, methods=['get'], url_path='recommended')
     def recommended_stores(self, request):
-        """Get recommended stores based on rating and activity."""
+        """Get recommended stores based on activity."""
         queryset = self.get_queryset().filter(
             is_active=True,
             is_verified=True
-        ).order_by('-rating', '-total_products')[:10]
+        ).order_by('-total_products')[:10]
         
         serializer = self.get_serializer(queryset, many=True)
         return Response({
             'recommended_stores': serializer.data,
-            'criteria': 'Top rated and active stores'
+            'criteria': 'Active and verified stores with most products'
         })
 
     @action(detail=False, methods=['get'], url_path='statistics')
@@ -105,9 +99,6 @@ class StoreViewSet(viewsets.ModelViewSet):
         verified_stores = Store.objects.filter(is_verified=True).count()
         total_products = Product.objects.count()
         total_staff = StoreStaff.objects.count()
-        
-        # Average ratings
-        avg_store_rating = Store.objects.aggregate(Avg('rating'))['rating__avg'] or 0
         
         # Store categories distribution
         store_categories = Store.objects.values('products__category__name').annotate(
@@ -122,7 +113,6 @@ class StoreViewSet(viewsets.ModelViewSet):
             'unverified_stores': total_stores - verified_stores,
             'total_products': total_products,
             'total_staff': total_staff,
-            'average_store_rating': round(avg_store_rating, 2),
             'store_categories': list(store_categories),
             'verification_rate': round((verified_stores / total_stores) * 100, 2) if total_stores > 0 else 0,
             'activation_rate': round((active_stores / total_stores) * 100, 2) if total_stores > 0 else 0
@@ -140,8 +130,6 @@ class StoreViewSet(viewsets.ModelViewSet):
         
         store = self.get_object()
         store.is_verified = True
-        store.verified_at = datetime.now()
-        store.verified_by = request.user
         store.save()
         
         serializer = self.get_serializer(store)
@@ -155,7 +143,6 @@ class StoreViewSet(viewsets.ModelViewSet):
         """Activate a store."""
         store = self.get_object()
         store.is_active = True
-        store.activated_at = datetime.now()
         store.save()
         
         serializer = self.get_serializer(store)
@@ -169,7 +156,6 @@ class StoreViewSet(viewsets.ModelViewSet):
         """Deactivate a store."""
         store = self.get_object()
         store.is_active = False
-        store.deactivated_at = datetime.now()
         store.save()
         
         serializer = self.get_serializer(store)
@@ -189,9 +175,6 @@ class StoreViewSet(viewsets.ModelViewSet):
         active_products = products.filter(status='published').count()
         featured_products = products.filter(is_featured=True).count()
         on_sale_products = products.filter(discount_price__isnull=False).count()
-        
-        # Revenue calculation (if you have order data)
-        # total_revenue = Order.objects.filter(store=store).aggregate(Sum('total_amount'))['total_amount__sum'] or 0
         
         # Staff statistics
         total_staff = StoreStaff.objects.filter(store=store).count()
@@ -225,7 +208,6 @@ class StoreViewSet(viewsets.ModelViewSet):
             'store_status': {
                 'is_active': store.is_active,
                 'is_verified': store.is_verified,
-                'rating': store.rating,
                 'created_at': store.created_at,
                 'last_updated': store.updated_at
             }
@@ -285,8 +267,6 @@ class StoreViewSet(viewsets.ModelViewSet):
         
         for store in stores:
             store.is_verified = True
-            store.verified_at = datetime.now()
-            store.verified_by = request.user
             store.save()
             verified_count += 1
         
@@ -393,8 +373,8 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['store', 'role', 'is_active']
     search_fields = ['user__username', 'user__first_name', 'user__last_name', 'role']
-    ordering_fields = ['created_at', 'role', 'is_active']
-    ordering = ['-created_at']
+    ordering_fields = ['joined_at', 'role', 'is_active']
+    ordering = ['-joined_at']
 
     def get_queryset(self):
         """Enhanced queryset with related data."""
@@ -451,7 +431,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Validate role (you can add more roles as needed)
-        valid_roles = ['manager', 'staff', 'cashier', 'inventory']
+        valid_roles = ['owner', 'manager', 'staff']
         if new_role not in valid_roles:
             return Response({
                 "error": f"Invalid role. Valid roles are: {', '.join(valid_roles)}"
@@ -471,7 +451,6 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
         """Activate a staff member."""
         staff_member = self.get_object()
         staff_member.is_active = True
-        staff_member.activated_at = datetime.now()
         staff_member.save()
         
         serializer = self.get_serializer(staff_member)
@@ -485,7 +464,6 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
         """Deactivate a staff member."""
         staff_member = self.get_object()
         staff_member.is_active = False
-        staff_member.deactivated_at = datetime.now()
         staff_member.save()
         
         serializer = self.get_serializer(staff_member)
@@ -512,12 +490,12 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             'role': staff_member.role,
             'store_name': store.name,
             'is_active': staff_member.is_active,
-            'joined_at': staff_member.created_at,
+            'joined_at': staff_member.joined_at,
             'performance_metrics': {
                 'total_products_managed': total_products,
                 'active_products': active_products,
                 'product_activation_rate': round((active_products / total_products) * 100, 2) if total_products > 0 else 0,
-                'days_with_store': (datetime.now().date() - staff_member.created_at.date()).days
+                'days_with_store': (datetime.now().date() - staff_member.joined_at.date()).days
             }
         }
         
@@ -540,7 +518,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Validate role
-        valid_roles = ['manager', 'staff', 'cashier', 'inventory']
+        valid_roles = ['owner', 'manager', 'staff']
         if role not in valid_roles:
             return Response({
                 "error": f"Invalid role. Valid roles are: {', '.join(valid_roles)}"
