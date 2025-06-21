@@ -1,8 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Product, ProductVariant, Category, SubCategory, Coupon,  
-    CouponUsage, FlashSale, FlashSaleItem, SearchFilter,
-    ProductReview
+    CouponUsage, FlashSale, FlashSaleItem, ProductReview
 )
 
 class SubCategorySerializer(serializers.ModelSerializer):
@@ -36,7 +35,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'name', 'brand', 'base_price', 'description', 'image_urls',
-            'stock', 'rating', 'review_count', 'is_featured', 'has_variants', 
+            'stock', 'is_featured', 'has_variants', 'rating', 'review_count',
             'available_sizes', 'available_colors', 'created_at', 'updated_at', 
             'store', 'category', 'subcategory', 'variants', 'category_name', 
             'subcategory_name'
@@ -62,13 +61,14 @@ class FlashSaleItemSerializer(serializers.ModelSerializer):
         model = FlashSaleItem
         fields = '__all__'
 
-
-class SearchFilterSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SearchFilter
-        fields = '__all__'
-
 class ProductReviewSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    store = serializers.UUIDField(source='store.id', read_only=True)
+
     class Meta:
         model = ProductReview
-        fields = '__all__'
+        fields = [
+            'id', 'user', 'user_name', 'product', 'store', 'rating', 'title', 'content', 
+            'is_verified_purchase', 'helpful_votes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['user']

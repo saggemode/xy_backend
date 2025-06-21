@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, generics, viewsets
@@ -7,6 +7,7 @@ import random
 from django.db.models import Avg, Count
 from django.db.models.functions import Coalesce
 from django.contrib.auth.decorators import login_required
+from rest_framework.decorators import action
 
 from datetime import datetime
 
@@ -14,179 +15,102 @@ from .serializers import (
     CategorySerializer, SubCategorySerializer, ProductSerializer,
     ProductVariantSerializer,
       FlashSaleSerializer,
-    FlashSaleItemSerializer, SearchFilterSerializer,
-    ProductReviewSerializer
+    FlashSaleItemSerializer, ProductReviewSerializer
 )
 
 from .models import (
     Category, SubCategory, Product, ProductVariant,
       FlashSale, FlashSaleItem,
-    SearchFilter, ProductReview, 
+    ProductReview, 
 )
 
 class CategoryViewSet(viewsets.ModelViewSet):
-    queryset = Category.objects.all()
     serializer_class = CategorySerializer
-
-class CategoryList(generics.ListAPIView):
-    # queryset = Category.objects.annotate(product_count=Count('products')).order_by('-product_count')
-    serializer_class = CategorySerializer 
     queryset = Category.objects.all()
-    def get_queryset(self):
-        return Category.objects.annotate(product_count=Count('products')).order_by('-product_count')  
-
-
-class HomeCategoryList(generics.ListAPIView):
-    serializer_class = CategorySerializer
 
     def get_queryset(self):
-        # Assuming you want to return a random selection of categories
-        queryset = Category.objects.all()
+        return Category.objects.annotate(product_count=Count('products')).order_by('-product_count')
 
-        queryset = queryset.annotate(random_order=Count('id'))
+    @action(detail=False, methods=['get'], url_path='home')
+    def homecategories(self, request):
+        """Returns 5 random categories for the homepage."""
+        queryset = self.get_queryset()
+        shuffled_queryset = list(queryset)
+        random.shuffle(shuffled_queryset)
         
-        queryset = list(queryset)
-        random.shuffle(queryset)
-        
-        return queryset[:5]  # Randomly select 10 categories
+        paginated_queryset = self.paginate_queryset(shuffled_queryset[:5])
+        serializer = self.get_serializer(paginated_queryset, many=True)
+        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
 
-class ProductList(generics.ListAPIView):
-    serializer_class = ProductSerializer
-
-    def get_queryset(self):
-        # Assuming you want to return a random selection of categories
-        queryset = Product.objects.all()
-
-        queryset = queryset.annotate(random_order=Count('id'))
-        
-        queryset = list(queryset)
-        random.shuffle(queryset)
-        
-        return queryset[:5]  # Randomly select 10 categories
-
-class PopularProductList(generics.ListAPIView):
-    serializer_class = ProductSerializer
-
-    def get_queryset(self):
-        return Product.objects.annotate(
-            rating=Coalesce(Avg('reviews__rating'), 0.0)
-        ).order_by('-rating')
-
-
-class HomeSimilarProduct(APIView):
-    def get(self, request, product_id):
-        try:
-            product = Product.objects.get(id=product_id)
-            similar_products = Product.objects.filter(category=product.category).exclude(id=product.id)[:10]
-            serializer = ProductSerializer(similar_products, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except Product.DoesNotExist:
-            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
-
-
-class SimilarProductBasedOnUser(APIView):
-    def get(self, request, user_id):
-        try:
-            user = User.objects.get(id=user_id)
-            # Assuming you have a method to get similar products based on user preferences
-            similar_products = Product.objects.filter(preferences__user=user)[:10]
-            serializer = ProductSerializer(similar_products, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-
-class FilterProductsByUser(APIView):
-    def get(self, request, user_id):
-        try:
-            user = User.objects.get(id=user_id)
-            products = Product.objects.filter(user=user)
-            serializer = ProductSerializer(products, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-        
-class FilterProductsByCategory(APIView):
-    def get(self, request):
-        query = request.query_params.get('category', None)
-        if query:
-            try:
-                # Debug: Check if category exists
-                category = Category.objects.filter(id=query).first()
-                if not category:
-                    return Response({
-                        "error": "Category not found",
-                        "debug_info": {
-                            "requested_category_id": query,
-                            "available_categories": list(Category.objects.values('id', 'name'))
-                        }
-                    }, status=status.HTTP_404_NOT_FOUND)
-
-                # Debug: Get products and check count
-                products = Product.objects.filter(category_id=query)
-                product_count = products.count()
-                
-                if product_count == 0:
-                    return Response({
-                        "error": "No products found for this category",
-                        "debug_info": {
-                            "category_id": query,
-                            "category_name": category.name,
-                            "total_products_in_category": product_count,
-                            "total_products_in_system": Product.objects.count()
-                        }
-                    }, status=status.HTTP_404_NOT_FOUND)
-
-                serializer = ProductSerializer(products, many=True)
-                return Response({
-                    "data": serializer.data,
-                    "debug_info": {
-                        "category_id": query,
-                        "category_name": category.name,
-                        "total_products_found": product_count
-                    }
-                }, status=status.HTTP_200_OK)
-
-            except ValueError as e:
-                return Response({
-                    "error": "Invalid category ID",
-                    "debug_info": {
-                        "error_details": str(e),
-                        "requested_category_id": query
-                    }
-                }, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response({
-                "error": "Category parameter is required",
-                "debug_info": {
-                    "available_categories": list(Category.objects.values('id', 'name'))
-                }
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-
-class SearchProductByTitle(APIView):
-    def get(self, request):
-        title = request.query_params.get('title', '')
-        if not title:
-            return Response({"error": "Title parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        products = Product.objects.filter(title__icontains=title)
-        serializer = ProductSerializer(products, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-   
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.prefetch_related('variants').annotate(
-        rating=Coalesce(Avg('reviews__rating'), 0.0),
-        review_count=Count('reviews')
-    )
     serializer_class = ProductSerializer
+    queryset = Product.objects.all()
+
+    def get_queryset(self):
+        """
+        Optionally restricts the returned products by filtering against a
+        'category' or 'q' (search) query parameter in the URL.
+        """
+        queryset = Product.objects.prefetch_related('variants').annotate(
+            rating=Coalesce(Avg('reviews__rating'), 0.0),
+            review_count=Count('reviews')
+        )
+
+        category_id = self.request.query_params.get('category', None)
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+
+        search_query = self.request.query_params.get('q', None)
+        if search_query:
+            queryset = queryset.filter(name__icontains=search_query)
+
+        return queryset
+
+    @action(detail=False, methods=['get'])
+    def popular(self, request):
+        """Returns products ordered by their average rating."""
+        queryset = self.get_queryset().order_by('-rating')
+        paginated_queryset = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(paginated_queryset, many=True)
+        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='home')
+    def homeproducts(self, request):
+        """Returns 5 random products for the homepage."""
+        queryset = list(self.get_queryset())
+        random.shuffle(queryset)
+        paginated_queryset = self.paginate_queryset(queryset[:5])
+        serializer = self.get_serializer(paginated_queryset, many=True)
+        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def similar(self, request, pk=None):
+        """Returns products from the same category, excluding the product itself."""
+        product = self.get_object()
+        queryset = self.get_queryset().filter(category=product.category).exclude(id=product.id)[:10]
+        paginated_queryset = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(paginated_queryset, many=True)
+        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='myproducts')
+    def myproducts(self, request):
+        """
+        Returns products for the currently authenticated user, based on
+        the stores they own.
+        """
+        if not request.user.is_authenticated:
+            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        queryset = self.get_queryset().filter(store__owner=request.user)
+        paginated_queryset = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(paginated_queryset, many=True)
+        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
 
 
 class ProductVariantViewSet(viewsets.ModelViewSet):
     queryset = ProductVariant.objects.all()
     serializer_class = ProductVariantSerializer
-
-
 
 class SubCategoryViewSet(viewsets.ModelViewSet):
     queryset = SubCategory.objects.all()
@@ -198,21 +122,18 @@ class SubCategoryViewSet(viewsets.ModelViewSet):
             return SubCategory.objects.filter(category_id=category_id)
         return SubCategory.objects.all()
 
-
-class SearchProductByTitle(APIView):
-    def get(self, request):
-        query = request.query_params.get('q', None)
-
-        if query:
-            products = Product.objects.filter(name__icontains=query)
-            serializer = ProductSerializer(products, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        else:
-            return Response({"error": "Query parameter 'q' is required"}, status=status.HTTP_400_BAD_REQUEST)
-
 class ProductReviewViewSet(viewsets.ModelViewSet):
-    queryset = ProductReview.objects.all()
     serializer_class = ProductReviewSerializer
+    queryset = ProductReview.objects.all()
+
+    def get_queryset(self):
+        if 'product_pk' in self.kwargs:
+            return ProductReview.objects.filter(product_id=self.kwargs['product_pk'])
+        return ProductReview.objects.all()
+
+    def perform_create(self, serializer):
+        product = get_object_or_404(Product, pk=self.kwargs['product_pk'])
+        serializer.save(user=self.request.user, product=product)
 
 class FlashSaleViewSet(viewsets.ModelViewSet):
     queryset = FlashSale.objects.all()
@@ -221,10 +142,6 @@ class FlashSaleViewSet(viewsets.ModelViewSet):
 class FlashSaleItemViewSet(viewsets.ModelViewSet):
     queryset = FlashSaleItem.objects.all()
     serializer_class = FlashSaleItemSerializer
-
-class SearchFilterViewSet(viewsets.ModelViewSet):
-    queryset = SearchFilter.objects.all()
-    serializer_class = SearchFilterSerializer
 
 
 

@@ -67,7 +67,7 @@ class Product(models.Model):
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField()
     image_urls = models.JSONField(default=list)  # List of image URLs
-    stock = models.IntegerField()
+    stock = models.PositiveIntegerField()
     is_featured = models.BooleanField(default=False)
     has_variants = models.BooleanField(default=False)
     available_sizes = models.JSONField(default=list)   # List of strings like ["S", "M", "L"]
@@ -86,14 +86,12 @@ class Product(models.Model):
     def clean(self):
         if not self.store.is_active:
             raise ValidationError("Cannot create product for inactive store")
-        # Optional: Add check for store verification
         if not self.store.is_verified:
             raise ValidationError("Store must be verified to create products")
 
     @property
     def rating(self):
         """Calculate the average rating for the product"""
-        from django.db.models import Avg
         return self.reviews.aggregate(Avg('rating'))['rating__avg'] or 0.0
 
     @property
@@ -168,7 +166,6 @@ class ProductVariant(models.Model):
     def current_price(self):
         return self.product.base_price + self.price_adjustment
     
-
 class Coupon(models.Model):
     id = models.UUIDField(
         primary_key=True,
@@ -289,11 +286,10 @@ class ProductReview(models.Model):
         verbose_name=_('ID')
     )
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='product_reviews')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='product_reviews')
     rating = models.PositiveSmallIntegerField(choices=[(i, i) for i in range(1, 6)])
     title = models.CharField(max_length=200)
     content = models.TextField()
-    images = models.JSONField(default=list, blank=True)
     is_verified_purchase = models.BooleanField(default=False)
     helpful_votes = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(default=timezone.now)
@@ -305,20 +301,10 @@ class ProductReview(models.Model):
 
     def __str__(self):
         return f"Review by {self.user.username} for {self.product.name}"
-
-
-# Advanced Search & Filters
-class SearchFilter(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    price_min = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    price_max = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
-    rating_min = models.FloatField(null=True, blank=True)
-    color = models.CharField(max_length=50, blank=True)
-
-    def __str__(self):
-        return f"Search Filter for {self.product.name}"
-
+    
+    @property
+    def store(self):
+        return self.product.store
 
 class FlashSale(models.Model):
     id = models.UUIDField(
