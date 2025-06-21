@@ -212,7 +212,31 @@ class ProductVariant(models.Model):
     @property
     def current_price(self):
         return self.product.base_price + self.price_adjustment
-    
+
+class ProductReview(models.Model):
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name=_('ID')
+    )
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reviews')
+    rating = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    review_text = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('product', 'user')
+        ordering = ['-created_at']
+        verbose_name = _('Product Review')
+        verbose_name_plural = _('Product Reviews')
+
+    def __str__(self):
+        return f'Review for {self.product.name} by {self.user.username}'
+
 class Coupon(models.Model):
     id = models.UUIDField(
         primary_key=True,
