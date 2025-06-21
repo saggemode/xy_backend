@@ -65,11 +65,6 @@ class ProductViewSet(viewsets.ModelViewSet):
         """
         queryset = super().get_queryset()
 
-        # Category filter
-        category_id = self.request.query_params.get('category', None)
-        if category_id:
-            queryset = queryset.filter(category_id=category_id)
-
         # Subcategory filter
         subcategory_id = self.request.query_params.get('subcategory', None)
         if subcategory_id:
@@ -247,6 +242,35 @@ class ProductViewSet(viewsets.ModelViewSet):
         }
         
         return Response(analytics_data)
+
+    @action(detail=False, methods=['get'], url_path='debug-category')
+    def debug_category(self, request):
+        """Debug endpoint to check category filtering."""
+        category_id = self.request.query_params.get('category', None)
+        if not category_id:
+            return Response({"error": "No category ID provided"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if category exists
+        try:
+            from .models import Category
+            category = Category.objects.get(id=category_id)
+            products_in_category = Product.objects.filter(category=category).count()
+            
+            debug_info = {
+                'category_id': category_id,
+                'category_name': category.name,
+                'category_exists': True,
+                'total_products_in_category': products_in_category,
+                'products': list(Product.objects.filter(category=category).values('id', 'name', 'status'))
+            }
+        except Category.DoesNotExist:
+            debug_info = {
+                'category_id': category_id,
+                'category_exists': False,
+                'error': 'Category not found'
+            }
+        
+        return Response(debug_info)
 
     @action(detail=False, methods=['post'], url_path='bulk-create')
     def bulkcreate(self, request):
