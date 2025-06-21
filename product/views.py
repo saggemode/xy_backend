@@ -272,6 +272,25 @@ class ProductViewSet(viewsets.ModelViewSet):
         
         return Response(debug_info)
 
+    @action(detail=False, methods=['get'], url_path='debug-categories')
+    def debug_categories(self, request):
+        """Debug endpoint to show all categories with product counts."""
+        from .models import Category
+        from django.db.models import Count
+        
+        categories = Category.objects.annotate(
+            product_count=Count('products')
+        ).values('id', 'name', 'product_count').order_by('-product_count')
+        
+        debug_info = {
+            'total_categories': categories.count(),
+            'categories_with_products': categories.filter(product_count__gt=0).count(),
+            'categories_without_products': categories.filter(product_count=0).count(),
+            'all_categories': list(categories)
+        }
+        
+        return Response(debug_info)
+
     @action(detail=False, methods=['post'], url_path='bulk-create')
     def bulkcreate(self, request):
         """Create multiple products at once."""
