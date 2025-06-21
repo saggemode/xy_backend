@@ -33,13 +33,21 @@ class CategoryViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='home')
     def homecategories(self, request):
         """Returns 5 random categories for the homepage."""
-        queryset = self.get_queryset()
+        # Use a simpler queryset for random selection
+        queryset = Category.objects.all()
         shuffled_queryset = list(queryset)
         random.shuffle(shuffled_queryset)
         
-        paginated_queryset = self.paginate_queryset(shuffled_queryset[:5])
-        serializer = self.get_serializer(paginated_queryset, many=True)
-        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+        # Take first 5 items
+        selected_categories = shuffled_queryset[:5]
+        
+        # Now get the full data with annotations for the selected categories
+        full_queryset = Category.objects.prefetch_related('subcategories').annotate(
+            product_count=Count('products')
+        ).filter(id__in=[cat.id for cat in selected_categories])
+        
+        serializer = self.get_serializer(full_queryset, many=True)
+        return Response(serializer.data)
 
 
 class ProductViewSet(viewsets.ModelViewSet):
@@ -126,11 +134,21 @@ class ProductViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='homeproducts')
     def homeproducts(self, request):
         """Returns 5 random products for the homepage."""
-        queryset = list(self.get_queryset())
-        random.shuffle(queryset)
-        paginated_queryset = self.paginate_queryset(queryset[:5])
-        serializer = self.get_serializer(paginated_queryset, many=True)
-        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+        # Use a simpler queryset for random selection
+        queryset = Product.objects.all()
+        shuffled_queryset = list(queryset)
+        random.shuffle(shuffled_queryset)
+        
+        # Take first 5 items
+        selected_products = shuffled_queryset[:5]
+        
+        # Now get the full data with related fields for the selected products
+        full_queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related(
+            'variants', 'reviews'
+        ).filter(id__in=[prod.id for prod in selected_products])
+        
+        serializer = self.get_serializer(full_queryset, many=True)
+        return Response(serializer.data)
 
     @action(detail=True, methods=['get'])
     def similar(self, request, pk=None):
@@ -231,7 +249,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return Response(analytics_data)
 
     @action(detail=False, methods=['post'], url_path='bulk-create')
-    def bulk_create(self, request):
+    def bulkcreate(self, request):
         """Create multiple products at once."""
         if not request.user.is_authenticated:
             return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -264,7 +282,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             return Response({'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['patch'], url_path='bulk-update')
-    def bulk_update(self, request):
+    def bulkupdate(self, request):
         """Update multiple products at once."""
         if not request.user.is_authenticated:
             return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
