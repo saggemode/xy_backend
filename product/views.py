@@ -126,6 +126,24 @@ class ProductReviewViewSet(viewsets.ModelViewSet):
             return ProductReview.objects.filter(product_id=product_pk)
         return ProductReview.objects.none()
 
+    def create(self, request, *args, **kwargs):
+        product_pk = self.kwargs.get('product_pk')
+        product = get_object_or_404(Product, pk=product_pk)
+        user = request.user
+
+        try:
+            review = ProductReview.objects.get(product=product, user=user)
+            serializer = self.get_serializer(review, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response(serializer.data)
+        except ProductReview.DoesNotExist:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
     def perform_create(self, serializer):
         product_pk = self.kwargs.get('product_pk')
         product = get_object_or_404(Product, pk=product_pk)
