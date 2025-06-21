@@ -4,11 +4,11 @@ from rest_framework.response import Response
 from rest_framework import status, generics, viewsets
 from django.contrib.auth.models import User
 import random
-from django.db.models import Avg
+from django.db.models import Avg, Count
+from django.db.models.functions import Coalesce
 from django.contrib.auth.decorators import login_required
 
 from datetime import datetime
-from django.db.models import Count
 
 from .serializers import (
     CategorySerializer, SubCategorySerializer, ProductSerializer,
@@ -69,8 +69,8 @@ class PopularProductList(generics.ListAPIView):
 
     def get_queryset(self):
         return Product.objects.annotate(
-            avg_rating=Avg('reviews__rating')
-        ).order_by('-avg_rating')
+            rating=Coalesce(Avg('reviews__rating'), 0.0)
+        ).order_by('-rating')
 
 
 class HomeSimilarProduct(APIView):
@@ -175,7 +175,10 @@ class SearchProductByTitle(APIView):
    
 
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
+    queryset = Product.objects.prefetch_related('variants').annotate(
+        rating=Coalesce(Avg('reviews__rating'), 0.0),
+        review_count=Count('reviews')
+    )
     serializer_class = ProductSerializer
 
 
