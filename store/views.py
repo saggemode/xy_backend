@@ -25,17 +25,27 @@ class StoreAnalyticsViewSet(viewsets.ModelViewSet):
 class StoreViewSet(viewsets.ModelViewSet):
     queryset = Store.objects.all()
     serializer_class = StoreSerializer
-    filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['name', 'description', 'location']
+    filter_backends = [OrderingFilter]
     ordering_fields = ['name', 'created_at']
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """Enhanced queryset with basic annotations."""
-        return Store.objects.annotate(
+        """Enhanced queryset with basic annotations and custom search."""
+        queryset = Store.objects.annotate(
             total_products=Count('products'),
             total_staff=Count('staff')
         )
+        
+        # Custom search functionality
+        search_query = self.request.query_params.get('search', None)
+        if search_query:
+            queryset = queryset.filter(
+                Q(name__icontains=search_query) |
+                Q(description__icontains=search_query) |
+                Q(location__icontains=search_query)
+            )
+        
+        return queryset
 
     @action(detail=False, methods=['get'], url_path='search')
     def search_stores(self, request):
@@ -368,16 +378,27 @@ class StoreViewSet(viewsets.ModelViewSet):
 class StoreStaffViewSet(viewsets.ModelViewSet):
     queryset = StoreStaff.objects.all()
     serializer_class = StoreStaffSerializer
-    filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['user__username', 'user__first_name', 'user__last_name', 'role']
+    filter_backends = [OrderingFilter]
     ordering_fields = ['joined_at', 'role', 'is_active']
     ordering = ['-joined_at']
 
     def get_queryset(self):
-        """Enhanced queryset with related data."""
-        return StoreStaff.objects.select_related('user', 'store').annotate(
+        """Enhanced queryset with related data and custom search."""
+        queryset = StoreStaff.objects.select_related('user', 'store').annotate(
             total_products_managed=Count('store__products')
         )
+        
+        # Custom search functionality
+        search_query = self.request.query_params.get('search', None)
+        if search_query:
+            queryset = queryset.filter(
+                Q(user__username__icontains=search_query) |
+                Q(user__first_name__icontains=search_query) |
+                Q(user__last_name__icontains=search_query) |
+                Q(role__icontains=search_query)
+            )
+        
+        return queryset
 
     @action(detail=False, methods=['get'], url_path='by-store')
     def staff_by_store(self, request):
