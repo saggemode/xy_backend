@@ -9,9 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError, PermissionDenied
 from datetime import datetime, timedelta
 from rest_framework.decorators import action
-# Temporarily comment out django-filter imports to debug 500 error
-# from django_filters.rest_framework import DjangoFilterBackend
-# from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.filters import SearchFilter, OrderingFilter
 
 from .models import Store, StoreAnalytics, StoreStaff
 from product.models import Product, ProductVariant
@@ -27,16 +25,17 @@ class StoreAnalyticsViewSet(viewsets.ModelViewSet):
 class StoreViewSet(viewsets.ModelViewSet):
     queryset = Store.objects.all()
     serializer_class = StoreSerializer
-    # Temporarily remove filter backends to debug 500 error
-    # filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    # filterset_fields = ['is_active', 'is_verified']
-    # search_fields = ['name', 'description', 'location']
-    # ordering_fields = ['name', 'created_at']
-    # ordering = ['-created_at']
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ['name', 'description', 'location']
+    ordering_fields = ['name', 'created_at']
+    ordering = ['-created_at']
 
     def get_queryset(self):
-        """Simplified queryset for debugging."""
-        return Store.objects.all()
+        """Enhanced queryset with basic annotations."""
+        return Store.objects.annotate(
+            total_products=Count('products'),
+            total_staff=Count('staff')
+        )
 
     @action(detail=False, methods=['get'], url_path='search')
     def search_stores(self, request):
@@ -369,16 +368,16 @@ class StoreViewSet(viewsets.ModelViewSet):
 class StoreStaffViewSet(viewsets.ModelViewSet):
     queryset = StoreStaff.objects.all()
     serializer_class = StoreStaffSerializer
-    # Temporarily remove filter backends to debug 500 error
-    # filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    # filterset_fields = ['store', 'role', 'is_active']
-    # search_fields = ['user__username', 'user__first_name', 'user__last_name', 'role']
-    # ordering_fields = ['joined_at', 'role', 'is_active']
-    # ordering = ['-joined_at']
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ['user__username', 'user__first_name', 'user__last_name', 'role']
+    ordering_fields = ['joined_at', 'role', 'is_active']
+    ordering = ['-joined_at']
 
     def get_queryset(self):
-        """Simplified queryset for debugging."""
-        return StoreStaff.objects.select_related('user', 'store')
+        """Enhanced queryset with related data."""
+        return StoreStaff.objects.select_related('user', 'store').annotate(
+            total_products_managed=Count('store__products')
+        )
 
     @action(detail=False, methods=['get'], url_path='by-store')
     def staff_by_store(self, request):
