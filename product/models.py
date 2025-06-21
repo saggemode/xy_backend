@@ -68,7 +68,6 @@ class Product(models.Model):
     description = models.TextField()
     image_urls = models.JSONField(default=list)  # List of image URLs
     stock = models.IntegerField()
-    rating = models.FloatField(default=1.0)
     is_featured = models.BooleanField(default=False)
     has_variants = models.BooleanField(default=False)
     available_sizes = models.JSONField(default=list)   # List of strings like ["S", "M", "L"]
