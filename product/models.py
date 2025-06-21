@@ -13,6 +13,7 @@ import random
 from decimal import Decimal
 from store.models import Store
 import secrets
+from django.utils.text import slugify
 
 # Category model
 class Category(models.Model):
@@ -66,9 +67,25 @@ class Product(models.Model):
     name = models.CharField(max_length=255)
     brand = models.CharField(max_length=255)
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
+    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     description = models.TextField()
     image_urls = models.JSONField(default=list)  # List of image URLs
     stock = models.PositiveIntegerField()
+    sku = models.CharField(max_length=100, unique=True, blank=True)
+    slug = models.SlugField(max_length=255, unique=True, blank=True, allow_unicode=True)
+    
+    STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('published', 'Published'),
+        ('archived', 'Archived'),
+    ]
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default='draft',
+        db_index=True
+    )
+
     is_featured = models.BooleanField(default=False)
     has_variants = models.BooleanField(default=False)
     available_sizes = models.JSONField(default=list)   # List of strings like ["S", "M", "L"]
@@ -84,10 +101,50 @@ class Product(models.Model):
         return f"{self.name} - {self.store.name}"
 
     def clean(self):
+        if self.discount_price and self.discount_price >= self.base_price:
+            raise ValidationError("Discount price must be less than the base price.")
         if not self.store.is_active:
             raise ValidationError("Cannot create product for inactive store")
         if not self.store.is_verified:
             raise ValidationError("Store must be verified to create products")
+
+    def _generate_unique_slug(self):
+        """
+        Generates a unique slug by combining the store and product names.
+        If a slug with the same name already exists, appends a counter.
+        e.g., "my-store-classic-t-shirt-2"
+        """
+        if self.slug: # If slug is already set, do nothing.
+             return self.slug
+
+        store_slug = slugify(self.store.name, allow_unicode=True) if self.store else 'no-store'
+        product_slug = slugify(self.name, allow_unicode=True) or 'product'
+        base_slug = f"{store_slug}-{product_slug}"
+        
+        slug = base_slug
+        counter = 1
+        # Append a counter until the slug is unique
+        while Product.objects.filter(slug=slug).exclude(id=self.id).exists():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+        return slug
+
+    def save(self, *args, **kwargs):
+        if not self.sku:
+            self.sku = f"sku-{uuid.uuid4().hex[:8].upper()}"
+        
+        if not self.slug:
+            self.slug = self._generate_unique_slug()
+        
+        super().save(*args, **kwargs)
+
+    @property
+    def on_sale(self):
+        return self.discount_price is not None and self.discount_price < self.base_price
+
+    @property
+    def current_price(self):
+        return self.discount_price if self.on_sale else self.base_price
 
     @classmethod
     def create_product(cls, store, name, description, base_price, categories=None):

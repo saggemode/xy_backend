@@ -28,16 +28,20 @@ class ProductSerializer(serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
+    on_sale = serializers.BooleanField(read_only=True)
+    current_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'brand', 'base_price', 'description', 'image_urls',
-            'stock', 'is_featured', 'has_variants',
+            'id', 'name', 'brand', 'base_price', 'discount_price', 'current_price', 'on_sale',
+            'description', 'image_urls', 'stock', 'is_featured', 'has_variants',
+            'sku', 'slug', 'status',
             'available_sizes', 'available_colors', 'created_at', 'updated_at', 
             'store', 'category', 'subcategory', 'variants', 'category_name', 
             'subcategory_name'
         ]
+        read_only_fields = ['sku', 'slug']
 
 class CouponSerializer(serializers.ModelSerializer):
     class Meta:
