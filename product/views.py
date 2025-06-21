@@ -43,69 +43,75 @@ class CategoryViewSet(viewsets.ModelViewSet):
         return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
 
 
+# Temporarily simplified for debugging the 500 error.
+# The original, more complex view is commented out below.
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     queryset = Product.objects.all()
 
-    def get_queryset(self):
-        """
-        Optionally restricts the returned products by filtering against a
-        'category' or 'q' (search) query parameter in the URL.
-        """
-        queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants').annotate(
-            rating=Coalesce(Avg('reviews__rating'), 0.0),
-            review_count=Count('reviews')
-        )
+# class ProductViewSet(viewsets.ModelViewSet):
+#     serializer_class = ProductSerializer
+#     queryset = Product.objects.all()
 
-        category_id = self.request.query_params.get('category', None)
-        if category_id:
-            queryset = queryset.filter(category_id=category_id)
+#     def get_queryset(self):
+#         """
+#         Optionally restricts the returned products by filtering against a
+#         'category' or 'q' (search) query parameter in the URL.
+#         """
+#         queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants').annotate(
+#             rating=Coalesce(Avg('reviews__rating'), 0.0),
+#             review_count=Count('reviews')
+#         )
 
-        search_query = self.request.query_params.get('q', None)
-        if search_query:
-            queryset = queryset.filter(name__icontains=search_query)
+#         category_id = self.request.query_params.get('category', None)
+#         if category_id:
+#             queryset = queryset.filter(category_id=category_id)
 
-        return queryset
+#         search_query = self.request.query_params.get('q', None)
+#         if search_query:
+#             queryset = queryset.filter(name__icontains=search_query)
 
-    @action(detail=False, methods=['get'])
-    def popular(self, request):
-        """Returns products ordered by their average rating."""
-        queryset = self.get_queryset().order_by('-rating')
-        paginated_queryset = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(paginated_queryset, many=True)
-        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+#         return queryset
 
-    @action(detail=False, methods=['get'], url_path='home')
-    def homeproducts(self, request):
-        """Returns 5 random products for the homepage."""
-        queryset = list(self.get_queryset())
-        random.shuffle(queryset)
-        paginated_queryset = self.paginate_queryset(queryset[:5])
-        serializer = self.get_serializer(paginated_queryset, many=True)
-        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+#     @action(detail=False, methods=['get'])
+#     def popular(self, request):
+#         """Returns products ordered by their average rating."""
+#         queryset = self.get_queryset().order_by('-rating')
+#         paginated_queryset = self.paginate_queryset(queryset)
+#         serializer = self.get_serializer(paginated_queryset, many=True)
+#         return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
 
-    @action(detail=True, methods=['get'])
-    def similar(self, request, pk=None):
-        """Returns products from the same category, excluding the product itself."""
-        product = self.get_object()
-        queryset = self.get_queryset().filter(category=product.category).exclude(id=product.id)[:10]
-        paginated_queryset = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(paginated_queryset, many=True)
-        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+#     @action(detail=False, methods=['get'], url_path='homeproducts')
+#     def homeproducts(self, request):
+#         """Returns 5 random products for the homepage."""
+#         queryset = list(self.get_queryset())
+#         random.shuffle(queryset)
+#         paginated_queryset = self.paginate_queryset(queryset[:5])
+#         serializer = self.get_serializer(paginated_queryset, many=True)
+#         return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
 
-    @action(detail=False, methods=['get'], url_path='myproducts')
-    def myproducts(self, request):
-        """
-        Returns products for the currently authenticated user, based on
-        the stores they own.
-        """
-        if not request.user.is_authenticated:
-            return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+#     @action(detail=True, methods=['get'])
+#     def similar(self, request, pk=None):
+#         """Returns products from the same category, excluding the product itself."""
+#         product = self.get_object()
+#         queryset = self.get_queryset().filter(category=product.category).exclude(id=product.id)[:10]
+#         paginated_queryset = self.paginate_queryset(queryset)
+#         serializer = self.get_serializer(paginated_queryset, many=True)
+#         return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
 
-        queryset = self.get_queryset().filter(store__owner=request.user)
-        paginated_queryset = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(paginated_queryset, many=True)
-        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+#     @action(detail=False, methods=['get'], url_path='myproducts')
+#     def myproducts(self, request):
+#         """
+#         Returns products for the currently authenticated user, based on
+#         the stores they own.
+#         """
+#         if not request.user.is_authenticated:
+#             return Response({"error": "Authentication required"}, status=status.HTTP_401_UNAUTHORIZED)
+
+#         queryset = self.get_queryset().filter(store__owner=request.user)
+#         paginated_queryset = self.paginate_queryset(queryset)
+#         serializer = self.get_serializer(paginated_queryset, many=True)
+#         return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
 
 
 class ProductVariantViewSet(viewsets.ModelViewSet):
