@@ -89,16 +89,6 @@ class Product(models.Model):
         if not self.store.is_verified:
             raise ValidationError("Store must be verified to create products")
 
-    @property
-    def rating(self):
-        """Calculate the average rating for the product"""
-        return self.reviews.aggregate(Avg('rating'))['rating__avg'] or 0.0
-
-    @property
-    def review_count(self):
-        """Get the total number of reviews for the product"""
-        return self.reviews.count()
-
     @classmethod
     def create_product(cls, store, name, description, base_price, categories=None):
         if not store.is_active:
