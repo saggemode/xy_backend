@@ -5,15 +5,20 @@ from .models import (
     ProductReview
 )
 
-class CategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Category
-        fields = '__all__'
-
 class SubCategorySerializer(serializers.ModelSerializer):
+    """Serializer for the SubCategory model."""
     class Meta:
         model = SubCategory
-        fields = '__all__'
+        fields = ['id', 'name', 'image_url']
+
+class CategorySerializer(serializers.ModelSerializer):
+    """Serializer for the Category model, including nested subcategories."""
+    subcategories = SubCategorySerializer(many=True, read_only=True)
+    product_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'image_url', 'subcategories', 'product_count', 'created_at']
 
 class ProductVariantSerializer(serializers.ModelSerializer):
     class Meta:
