@@ -40,6 +40,17 @@ class ProductSerializer(serializers.ModelSerializer):
     subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
     on_sale = serializers.BooleanField(read_only=True)
     current_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    review_count = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+
+    def get_review_count(self, obj):
+        return obj.reviews.count()
+
+    def get_average_rating(self, obj):
+        reviews = obj.reviews.all()
+        if reviews.exists():
+            return round(sum(review.rating for review in reviews) / reviews.count(), 2)
+        return 0.0
 
     class Meta:
         model = Product
@@ -49,7 +60,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'sku', 'slug', 'status',
             'available_sizes', 'available_colors', 'created_at', 'updated_at', 
             'store', 'category', 'subcategory', 'variants', 'category_name', 
-            'subcategory_name', 'reviews'
+            'subcategory_name', 'reviews', 'review_count', 'average_rating'
         ]
         read_only_fields = ['sku', 'slug']
 
