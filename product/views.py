@@ -127,13 +127,19 @@ class ProductReviewViewSet(viewsets.ModelViewSet):
     queryset = ProductReview.objects.all()
 
     def get_queryset(self):
-        if 'product_pk' in self.kwargs:
-            return ProductReview.objects.filter(product_id=self.kwargs['product_pk'])
-        return ProductReview.objects.all()
+        """
+        Optionally restricts the returned reviews to a given product
+        by filtering against a `product` query parameter in the URL.
+        """
+        queryset = ProductReview.objects.all()
+        product_id = self.request.query_params.get('product', None)
+        if product_id:
+            queryset = queryset.filter(product_id=product_id)
+        return queryset
 
     def perform_create(self, serializer):
-        product = get_object_or_404(Product, pk=self.kwargs['product_pk'])
-        serializer.save(user=self.request.user, product=product)
+        """Associate the review with the currently authenticated user."""
+        serializer.save(user=self.request.user)
 
 class FlashSaleViewSet(viewsets.ModelViewSet):
     queryset = FlashSale.objects.all()
