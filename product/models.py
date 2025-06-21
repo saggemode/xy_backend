@@ -68,7 +68,7 @@ class Product(models.Model):
     description = models.TextField()
     image_urls = models.JSONField(default=list)  # List of image URLs
     stock = models.IntegerField()
-    rating = models.FloatField(default=0.0)
+    rating = models.FloatField(default=1.0)
     is_featured = models.BooleanField(default=False)
     has_variants = models.BooleanField(default=False)
     available_sizes = models.JSONField(default=list)   # List of strings like ["S", "M", "L"]
@@ -88,8 +88,8 @@ class Product(models.Model):
         if not self.store.is_active:
             raise ValidationError("Cannot create product for inactive store")
         # Optional: Add check for store verification
-        # if not self.store.is_verified:
-        #     raise ValidationError("Store must be verified to create products")
+        if not self.store.is_verified:
+            raise ValidationError("Store must be verified to create products")
 
     @property
     def rating(self):
