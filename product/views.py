@@ -13,12 +13,12 @@ from .serializers import (
     CategorySerializer, SubCategorySerializer, ProductSerializer,
     ProductVariantSerializer,
       FlashSaleSerializer,
-    FlashSaleItemSerializer
+    FlashSaleItemSerializer, ProductReviewSerializer
 )
 
 from .models import (
     Category, SubCategory, Product, ProductVariant,
-      FlashSale, FlashSaleItem,
+      FlashSale, FlashSaleItem, ProductReview
 )
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -115,6 +115,21 @@ class FlashSaleViewSet(viewsets.ModelViewSet):
 class FlashSaleItemViewSet(viewsets.ModelViewSet):
     queryset = FlashSaleItem.objects.all()
     serializer_class = FlashSaleItemSerializer
+
+class ProductReviewViewSet(viewsets.ModelViewSet):
+    serializer_class = ProductReviewSerializer
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def get_queryset(self):
+        product_pk = self.kwargs.get('product_pk')
+        if product_pk:
+            return ProductReview.objects.filter(product_id=product_pk)
+        return ProductReview.objects.none()
+
+    def perform_create(self, serializer):
+        product_pk = self.kwargs.get('product_pk')
+        product = get_object_or_404(Product, pk=product_pk)
+        serializer.save(user=self.request.user, product=product)
 
 
 

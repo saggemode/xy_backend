@@ -1,8 +1,17 @@
 from rest_framework import serializers
 from .models import (
     Product, ProductVariant, Category, SubCategory, Coupon,  
-    CouponUsage, FlashSale, FlashSaleItem
+    CouponUsage, FlashSale, FlashSaleItem, ProductReview
 )
+
+class ProductReviewSerializer(serializers.ModelSerializer):
+    user = serializers.StringRelatedField(read_only=True)
+    product = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = ProductReview
+        fields = ['id', 'user', 'product', 'rating', 'review_text', 'created_at']
+        read_only_fields = ['user', 'product', 'created_at']
 
 class SubCategorySerializer(serializers.ModelSerializer):
     """Serializer for the SubCategory model."""
