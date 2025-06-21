@@ -11,6 +11,7 @@ from datetime import datetime
 import random
 from decimal import Decimal
 from store.models import Store
+import secrets
 
 # Category model
 class Category(models.Model):
@@ -131,7 +132,7 @@ class ProductVariant(models.Model):
     )
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
     name = models.CharField(max_length=100)
-    sku = models.CharField(max_length=50, unique=True)
+    sku = models.CharField(max_length=50, unique=True, blank=True)
     price_adjustment = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     stock = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
@@ -140,6 +141,29 @@ class ProductVariant(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.name}"
+
+    def _generate_sku(self):
+        """Generate a unique SKU."""
+        # Get the first 3 letters of product and variant name, or as many as available
+        product_prefix = self.product.name[:3].upper()
+        variant_prefix = self.name[:3].upper()
+        # Generate a random 6-character hex string
+        random_suffix = secrets.token_hex(3).upper()
+        
+        sku = f"{product_prefix}-{variant_prefix}-{random_suffix}"
+        
+        # Ensure the SKU is unique
+        while ProductVariant.objects.filter(sku=sku).exists():
+            random_suffix = secrets.token_hex(3).upper()
+            sku = f"{product_prefix}-{variant_prefix}-{random_suffix}"
+            
+        return sku
+
+    def save(self, *args, **kwargs):
+        """Override save to generate SKU if it's not set."""
+        if not self.sku:
+            self.sku = self._generate_sku()
+        super().save(*args, **kwargs)
 
     @property
     def current_price(self):
