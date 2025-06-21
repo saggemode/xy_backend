@@ -52,10 +52,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         Optionally restricts the returned products by filtering against a
         'category' or 'q' (search) query parameter in the URL.
         """
-        queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants').annotate(
-            rating=Coalesce(Avg('reviews__rating'), 0.0),
-            review_count=Count('reviews')
-        )
+        queryset = super().get_queryset()
 
         category_id = self.request.query_params.get('category', None)
         if category_id:
