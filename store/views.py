@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError, PermissionDenied
 from datetime import datetime, timedelta
 from rest_framework.decorators import action
-from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.filters import OrderingFilter
 
 from .models import Store, StoreAnalytics, StoreStaff
 from product.models import Product, ProductVariant
@@ -31,21 +31,25 @@ class StoreViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Enhanced queryset with basic annotations and custom search."""
-        queryset = Store.objects.annotate(
-            total_products=Count('products'),
-            total_staff=Count('staff')
-        )
-        
-        # Custom search functionality
-        search_query = self.request.query_params.get('search', None)
-        if search_query:
-            queryset = queryset.filter(
-                Q(name__icontains=search_query) |
-                Q(description__icontains=search_query) |
-                Q(location__icontains=search_query)
+        try:
+            queryset = Store.objects.annotate(
+                total_products=Count('products'),
+                total_staff=Count('staff')
             )
-        
-        return queryset
+            
+            # Custom search functionality
+            search_query = self.request.query_params.get('search', None)
+            if search_query and search_query.strip():
+                queryset = queryset.filter(
+                    Q(name__icontains=search_query) |
+                    Q(description__icontains=search_query) |
+                    Q(location__icontains=search_query)
+                )
+            
+            return queryset
+        except Exception as e:
+            # Fallback to basic queryset if annotations fail
+            return Store.objects.all()
 
     @action(detail=False, methods=['get'], url_path='search')
     def search_stores(self, request):
@@ -384,21 +388,25 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Enhanced queryset with related data and custom search."""
-        queryset = StoreStaff.objects.select_related('user', 'store').annotate(
-            total_products_managed=Count('store__products')
-        )
-        
-        # Custom search functionality
-        search_query = self.request.query_params.get('search', None)
-        if search_query:
-            queryset = queryset.filter(
-                Q(user__username__icontains=search_query) |
-                Q(user__first_name__icontains=search_query) |
-                Q(user__last_name__icontains=search_query) |
-                Q(role__icontains=search_query)
+        try:
+            queryset = StoreStaff.objects.select_related('user', 'store').annotate(
+                total_products_managed=Count('store__products')
             )
-        
-        return queryset
+            
+            # Custom search functionality
+            search_query = self.request.query_params.get('search', None)
+            if search_query and search_query.strip():
+                queryset = queryset.filter(
+                    Q(user__username__icontains=search_query) |
+                    Q(user__first_name__icontains=search_query) |
+                    Q(user__last_name__icontains=search_query) |
+                    Q(role__icontains=search_query)
+                )
+            
+            return queryset
+        except Exception as e:
+            # Fallback to basic queryset if annotations fail
+            return StoreStaff.objects.select_related('user', 'store')
 
     @action(detail=False, methods=['get'], url_path='by-store')
     def staff_by_store(self, request):
