@@ -35,6 +35,7 @@ class ProductVariantSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, read_only=True)
+    reviews = ProductReviewSerializer(many=True, read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
     on_sale = serializers.BooleanField(read_only=True)
@@ -48,7 +49,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'sku', 'slug', 'status',
             'available_sizes', 'available_colors', 'created_at', 'updated_at', 
             'store', 'category', 'subcategory', 'variants', 'category_name', 
-            'subcategory_name'
+            'subcategory_name', 'reviews'
         ]
         read_only_fields = ['sku', 'slug']
 

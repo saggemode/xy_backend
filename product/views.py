@@ -42,7 +42,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
-    queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants')
+    queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants', 'reviews')
 
     def get_queryset(self):
         """
