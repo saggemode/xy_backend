@@ -3,7 +3,8 @@ from django.db import models
 from django.contrib.auth.models import User, AbstractUser
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-from django.db.models import Avg, Min, Max, Sum
+from django.db.models import Avg, Min, Max, Sum, Count
+from django.db.models.functions import Coalesce
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
@@ -55,6 +56,21 @@ class SubCategory(models.Model):
         return f"{self.category.name} - {self.name}"
     
 
+class ProductQuerySet(models.QuerySet):
+    def with_details(self):
+        return self.select_related(
+            'store', 'category', 'subcategory'
+        ).prefetch_related(
+            'variants'
+        ).annotate(
+            rating=Coalesce(Avg('reviews__rating'), 0.0),
+            review_count=Count('reviews')
+        )
+
+class ProductManager(models.Manager):
+    def get_queryset(self):
+        return ProductQuerySet(self.model, using=self._db).with_details()
+
 class Product(models.Model):
     id = models.UUIDField(
         primary_key=True,
@@ -79,6 +95,7 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="products")
     subcategory = models.ForeignKey(SubCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="products")
 
+    objects = ProductManager()
 
     def __str__(self):
         return f"{self.name} - {self.store.name}"
