@@ -29,13 +29,14 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
     
     path('api/store/', include('store.urls')),
-    path('api/products/', include('product.urls')),
+    path('api/', include('product.urls')),
     path('api/cart/', include('cart.urls')),
     path('api/order/', include('order.urls')),
     path('api/address/', include('address.urls')),
     path('api/inventory/', include('inventory.urls')),
     path('api/report/', include('report.urls')),
     path('api/wishlist/', include('wishlist.urls')),
+
     path('api/extras/', include('extras.urls')),
     path('api/notification/', include('notification.urls')),
     
