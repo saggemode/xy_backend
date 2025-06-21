@@ -29,7 +29,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
 
     def get_queryset(self):
-        return Category.objects.annotate(product_count=Count('products')).order_by('-product_count')
+        return Category.objects.prefetch_related('subcategories').annotate(product_count=Count('products')).order_by('-product_count')
 
     @action(detail=False, methods=['get'], url_path='home')
     def homecategories(self, request):
@@ -52,7 +52,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         Optionally restricts the returned products by filtering against a
         'category' or 'q' (search) query parameter in the URL.
         """
-        queryset = Product.objects.prefetch_related('variants').annotate(
+        queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants').annotate(
             rating=Coalesce(Avg('reviews__rating'), 0.0),
             review_count=Count('reviews')
         )
@@ -131,7 +131,7 @@ class ProductReviewViewSet(viewsets.ModelViewSet):
         Optionally restricts the returned reviews to a given product
         by filtering against a `product` query parameter in the URL.
         """
-        queryset = ProductReview.objects.all()
+        queryset = ProductReview.objects.select_related('user', 'product__store')
         product_id = self.request.query_params.get('product', None)
         if product_id:
             queryset = queryset.filter(product_id=product_id)
