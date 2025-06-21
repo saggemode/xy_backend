@@ -9,8 +9,9 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError, PermissionDenied
 from datetime import datetime, timedelta
 from rest_framework.decorators import action
-from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter, OrderingFilter
+# Temporarily comment out django-filter imports to debug 500 error
+# from django_filters.rest_framework import DjangoFilterBackend
+# from rest_framework.filters import SearchFilter, OrderingFilter
 
 from .models import Store, StoreAnalytics, StoreStaff
 from product.models import Product, ProductVariant
@@ -26,18 +27,16 @@ class StoreAnalyticsViewSet(viewsets.ModelViewSet):
 class StoreViewSet(viewsets.ModelViewSet):
     queryset = Store.objects.all()
     serializer_class = StoreSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_active', 'is_verified']
-    search_fields = ['name', 'description', 'location']
-    ordering_fields = ['name', 'created_at']
-    ordering = ['-created_at']
+    # Temporarily remove filter backends to debug 500 error
+    # filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    # filterset_fields = ['is_active', 'is_verified']
+    # search_fields = ['name', 'description', 'location']
+    # ordering_fields = ['name', 'created_at']
+    # ordering = ['-created_at']
 
     def get_queryset(self):
-        """Enhanced queryset with annotations for better performance."""
-        return Store.objects.annotate(
-            total_products=Count('products'),
-            total_staff=Count('staff')
-        )
+        """Simplified queryset for debugging."""
+        return Store.objects.all()
 
     @action(detail=False, methods=['get'], url_path='search')
     def search_stores(self, request):
@@ -83,12 +82,12 @@ class StoreViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset().filter(
             is_active=True,
             is_verified=True
-        ).order_by('-total_products')[:10]
+        )[:10]
         
         serializer = self.get_serializer(queryset, many=True)
         return Response({
             'recommended_stores': serializer.data,
-            'criteria': 'Active and verified stores with most products'
+            'criteria': 'Active and verified stores'
         })
 
     @action(detail=False, methods=['get'], url_path='statistics')
@@ -370,17 +369,16 @@ class StoreViewSet(viewsets.ModelViewSet):
 class StoreStaffViewSet(viewsets.ModelViewSet):
     queryset = StoreStaff.objects.all()
     serializer_class = StoreStaffSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['store', 'role', 'is_active']
-    search_fields = ['user__username', 'user__first_name', 'user__last_name', 'role']
-    ordering_fields = ['joined_at', 'role', 'is_active']
-    ordering = ['-joined_at']
+    # Temporarily remove filter backends to debug 500 error
+    # filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    # filterset_fields = ['store', 'role', 'is_active']
+    # search_fields = ['user__username', 'user__first_name', 'user__last_name', 'role']
+    # ordering_fields = ['joined_at', 'role', 'is_active']
+    # ordering = ['-joined_at']
 
     def get_queryset(self):
-        """Enhanced queryset with related data."""
-        return StoreStaff.objects.select_related('user', 'store').annotate(
-            total_products_managed=Count('store__products')
-        )
+        """Simplified queryset for debugging."""
+        return StoreStaff.objects.select_related('user', 'store')
 
     @action(detail=False, methods=['get'], url_path='by-store')
     def staff_by_store(self, request):
