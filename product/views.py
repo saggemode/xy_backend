@@ -4,9 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status, generics, viewsets
 from django.contrib.auth.models import User
 import random
-from django.db.models import Avg, Count
-from django.db.models.functions import Coalesce
-from django.contrib.auth.decorators import login_required
+from django.db.models import Count
 from rest_framework.decorators import action
 
 from datetime import datetime
@@ -15,13 +13,12 @@ from .serializers import (
     CategorySerializer, SubCategorySerializer, ProductSerializer,
     ProductVariantSerializer,
       FlashSaleSerializer,
-    FlashSaleItemSerializer, ProductReviewSerializer
+    FlashSaleItemSerializer
 )
 
 from .models import (
     Category, SubCategory, Product, ProductVariant,
       FlashSale, FlashSaleItem,
-    ProductReview, 
 )
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -45,7 +42,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
-    queryset = Product.objects.all()
+    queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants')
 
     def get_queryset(self):
         """
@@ -63,14 +60,6 @@ class ProductViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(name__icontains=search_query)
 
         return queryset
-
-    @action(detail=False, methods=['get'])
-    def popular(self, request):
-        """Returns products ordered by their average rating."""
-        queryset = self.get_queryset().order_by('-rating')
-        paginated_queryset = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(paginated_queryset, many=True)
-        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='homeproducts')
     def homeproducts(self, request):
@@ -118,25 +107,6 @@ class SubCategoryViewSet(viewsets.ModelViewSet):
         if category_id:
             return SubCategory.objects.filter(category_id=category_id)
         return SubCategory.objects.all()
-
-class ProductReviewViewSet(viewsets.ModelViewSet):
-    serializer_class = ProductReviewSerializer
-    queryset = ProductReview.objects.all()
-
-    def get_queryset(self):
-        """
-        Optionally restricts the returned reviews to a given product
-        by filtering against a `product` query parameter in the URL.
-        """
-        queryset = ProductReview.objects.select_related('user', 'product__store')
-        product_id = self.request.query_params.get('product', None)
-        if product_id:
-            queryset = queryset.filter(product_id=product_id)
-        return queryset
-
-    def perform_create(self, serializer):
-        """Associate the review with the currently authenticated user."""
-        serializer.save(user=self.request.user)
 
 class FlashSaleViewSet(viewsets.ModelViewSet):
     queryset = FlashSale.objects.all()

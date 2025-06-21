@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Product, ProductVariant, Category, SubCategory, Coupon,  
-    CouponUsage, FlashSale, FlashSaleItem, ProductReview
+    CouponUsage, FlashSale, FlashSaleItem
 )
 
 class SubCategorySerializer(serializers.ModelSerializer):
@@ -28,14 +28,12 @@ class ProductSerializer(serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
-    rating = serializers.FloatField(read_only=True)
-    review_count = serializers.IntegerField(source='review_count', read_only=True)
 
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'brand', 'base_price', 'description', 'image_urls',
-            'stock', 'is_featured', 'has_variants', 'rating', 'review_count',
+            'stock', 'is_featured', 'has_variants',
             'available_sizes', 'available_colors', 'created_at', 'updated_at', 
             'store', 'category', 'subcategory', 'variants', 'category_name', 
             'subcategory_name'
@@ -60,15 +58,3 @@ class FlashSaleItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = FlashSaleItem
         fields = '__all__'
-
-class ProductReviewSerializer(serializers.ModelSerializer):
-    user_name = serializers.CharField(source='user.username', read_only=True)
-    store = serializers.UUIDField(source='store.id', read_only=True)
-
-    class Meta:
-        model = ProductReview
-        fields = [
-            'id', 'user', 'user_name', 'product', 'store', 'rating', 'title', 'content', 
-            'is_verified_purchase', 'helpful_votes', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['user']

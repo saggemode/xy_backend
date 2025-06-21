@@ -7,7 +7,6 @@ from .views import (
     ProductViewSet,
     ProductVariantViewSet,
     SubCategoryViewSet,
-    ProductReviewViewSet,
     FlashSaleViewSet,
     FlashSaleItemViewSet,
 )
@@ -17,7 +16,6 @@ router.register(r'categories', CategoryViewSet)
 router.register(r'subcategories', SubCategoryViewSet)
 router.register(r'products', ProductViewSet)
 router.register(r'product-variants', ProductVariantViewSet)
-router.register(r'reviews', ProductReviewViewSet)
 router.register(r'flash-sales', FlashSaleViewSet)
 router.register(r'flash-sale-items', FlashSaleItemViewSet)
 

@@ -56,21 +56,6 @@ class SubCategory(models.Model):
         return f"{self.category.name} - {self.name}"
     
 
-class ProductQuerySet(models.QuerySet):
-    def with_details(self):
-        return self.select_related(
-            'store', 'category', 'subcategory'
-        ).prefetch_related(
-            'variants'
-        ).annotate(
-            rating=Coalesce(Avg('reviews__rating'), 0.0),
-            review_count=Count('reviews')
-        )
-
-class ProductManager(models.Manager):
-    def get_queryset(self):
-        return ProductQuerySet(self.model, using=self._db).with_details()
-
 class Product(models.Model):
     id = models.UUIDField(
         primary_key=True,
@@ -94,8 +79,6 @@ class Product(models.Model):
     store = models.ForeignKey(Store, on_delete=models.CASCADE, related_name="products")
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="products")
     subcategory = models.ForeignKey(SubCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="products")
-
-    objects = ProductManager()
 
     def __str__(self):
         return f"{self.name} - {self.store.name}"
@@ -285,34 +268,6 @@ class CouponUsage(models.Model):
     def __str__(self):
         return f"{self.coupon.code} used by {self.user.username}"
  
-class ProductReview(models.Model):
-    id = models.UUIDField(
-        primary_key=True,
-        default=uuid.uuid4,
-        editable=False,
-        verbose_name=_('ID')
-    )
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='product_reviews')
-    rating = models.PositiveSmallIntegerField(choices=[(i, i) for i in range(1, 6)])
-    title = models.CharField(max_length=200)
-    content = models.TextField()
-    is_verified_purchase = models.BooleanField(default=False)
-    helpful_votes = models.PositiveIntegerField(default=0)
-    created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        unique_together = ['product', 'user']
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"Review by {self.user.username} for {self.product.name}"
-    
-    @property
-    def store(self):
-        return self.product.store
-
 class FlashSale(models.Model):
     id = models.UUIDField(
         primary_key=True,
