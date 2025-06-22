@@ -218,6 +218,12 @@ class StoreViewSet(viewsets.ModelViewSet):
             top_stores = stores_with_views[:5]
             selected_stores = [item['store'] for item in top_stores]
             
+            # Set query parameters to include products and staff
+            request.query_params._mutable = True
+            request.query_params['include_products'] = 'true'
+            request.query_params['include_staff'] = 'true'
+            request.query_params._mutable = False
+            
             # Create a custom serializer context to include products and staff
             context = self.get_serializer_context()
             context['include_products'] = True
@@ -240,6 +246,12 @@ class StoreViewSet(viewsets.ModelViewSet):
                 'ranking_info': {
                     'sort_by': 'total_views',
                     'order': 'descending'
+                },
+                'debug_info': {
+                    'context_include_products': context.get('include_products'),
+                    'context_include_staff': context.get('include_staff'),
+                    'query_include_products': request.query_params.get('include_products'),
+                    'query_include_staff': request.query_params.get('include_staff')
                 }
             }, status=status.HTTP_200_OK)
             
