@@ -20,9 +20,3 @@ class ShippingAddress(models.Model):
 
     def __str__(self):
         return f"{self.full_name} - {self.city}, {self.country}"
-
-    def save(self, *args, **kwargs):
-        if self.is_default:
-            # Set all other addresses of this user to non-default
-            ShippingAddress.objects.filter(user=self.user, is_default=True).update(is_default=False)
-        super().save(*args, **kwargs)
