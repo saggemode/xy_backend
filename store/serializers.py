@@ -38,7 +38,7 @@ class StoreSerializer(serializers.ModelSerializer):
         return obj.products.count()
 
     def get_total_staff(self, obj):
-        return obj.staff.count()
+        return obj.storestaff_set.count()
 
     class Meta:
         model = Store
