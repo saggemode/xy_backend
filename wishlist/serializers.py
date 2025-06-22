@@ -1,13 +1,20 @@
 from rest_framework import serializers
 from .models import Wishlist
 from product.models import Product
+from store.models import Store
+
+class SimpleStoreSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Store
+        fields = ['id', 'name', 'logo', 'is_verified', 'location']
 
 class ProductSerializer(serializers.ModelSerializer):
+    store = SimpleStoreSerializer(read_only=True)
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'brand', 'base_price', 'description', 
-            'image_urls', 'stock', 'rating', 'is_featured',
+            'image_urls', 'stock', 'is_featured',
             'has_variants', 'available_sizes', 'available_colors',
             'created_at', 'updated_at', 'store', 'category', 'subcategory'
         ]
