@@ -30,9 +30,12 @@ class StoreViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """Enhanced queryset with basic annotations and custom search."""
+        """Enhanced queryset with related data and custom search."""
         try:
-            queryset = Store.objects.annotate(
+            queryset = Store.objects.select_related('owner').prefetch_related(
+                'products', 'products__category', 'products__subcategory', 
+                'products__variants', 'products__reviews', 'staff', 'staff__user'
+            ).annotate(
                 total_products=Count('products'),
                 total_staff=Count('staff')
             )
@@ -49,7 +52,9 @@ class StoreViewSet(viewsets.ModelViewSet):
             return queryset
         except Exception as e:
             # Fallback to basic queryset if annotations fail
-            return Store.objects.all()
+            return Store.objects.select_related('owner').prefetch_related(
+                'products', 'staff'
+            )
 
     @action(detail=False, methods=['get'], url_path='search')
     def search_stores(self, request):
