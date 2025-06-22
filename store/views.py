@@ -30,11 +30,9 @@ class StoreViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """Simplified queryset with basic related data."""
+        """Minimal queryset to debug 500 error."""
         try:
-            queryset = Store.objects.select_related('owner').prefetch_related(
-                'products', 'staff'
-            )
+            queryset = Store.objects.all()
             
             # Custom search functionality
             search_query = self.request.query_params.get('search', None)
