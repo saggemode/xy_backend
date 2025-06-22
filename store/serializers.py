@@ -8,32 +8,14 @@ from .models import (
 from product.models import Product, ProductVariant
 from django.contrib.auth.models import User
 
-class StoreProductSerializer(serializers.ModelSerializer):
-    """Simplified product serializer for store context."""
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
-    review_count = serializers.SerializerMethodField()
-    average_rating = serializers.SerializerMethodField()
-    on_sale = serializers.BooleanField(read_only=True)
-    current_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-
-    def get_review_count(self, obj):
-        return obj.reviews.count()
-
-    def get_average_rating(self, obj):
-        reviews = obj.reviews.all()
-        if reviews.exists():
-            return round(sum(review.rating for review in reviews) / reviews.count(), 2)
-        return 0.0
-
+class SimpleProductSerializer(serializers.ModelSerializer):
+    """Simple product serializer for store context."""
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'brand', 'base_price', 'discount_price', 'current_price', 'on_sale',
-            'description', 'image_urls', 'stock', 'is_featured', 'has_variants',
-            'sku', 'slug', 'status', 'available_sizes', 'available_colors', 
-            'created_at', 'updated_at', 'category_name', 'subcategory_name',
-            'review_count', 'average_rating'
+            'id', 'name', 'brand', 'base_price', 'discount_price', 'description', 
+            'image_urls', 'stock', 'is_featured', 'sku', 'slug', 'status', 
+            'available_sizes', 'available_colors', 'created_at', 'updated_at'
         ]
 
 class StoreStaffSerializer(serializers.ModelSerializer):
@@ -52,7 +34,7 @@ class StoreAnalyticsSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class StoreSerializer(serializers.ModelSerializer):
-    products = StoreProductSerializer(many=True, read_only=True)
+    products = SimpleProductSerializer(many=True, read_only=True)
     staff = StoreStaffSerializer(many=True, read_only=True)
     total_products = serializers.SerializerMethodField()
     total_staff = serializers.SerializerMethodField()
