@@ -510,6 +510,17 @@ class StoreViewSet(viewsets.ModelViewSet):
                 }
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'], url_path='byid')
+    def byid(self, request):
+        store_id = request.query_params.get('store')
+        if not store_id:
+            return Response({'error': 'store parameter is required'}, status=400)
+        store = self.get_queryset().filter(id=store_id).first()
+        if not store:
+            return Response({'error': 'Store not found'}, status=404)
+        serializer = self.get_serializer(store)
+        return Response(serializer.data)
+
 class StoreStaffViewSet(viewsets.ModelViewSet):
     queryset = StoreStaff.objects.all()
     serializer_class = StoreStaffSerializer
