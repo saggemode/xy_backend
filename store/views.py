@@ -186,6 +186,71 @@ class StoreViewSet(viewsets.ModelViewSet):
         
         return Response(statistics)
 
+    @action(detail=False, methods=['get'], url_path='homestore')
+    def homestore(self, request):
+        """Get 5 stores with highest product views for home page display with products and staff included."""
+        try:
+            # Get all active and verified stores with their analytics
+            stores = Store.objects.filter(
+                is_active=True,
+                is_verified=True
+            ).prefetch_related('storeanalytics')
+            
+            # Create a list of stores with their total views
+            stores_with_views = []
+            for store in stores:
+                # Get total views for this store from analytics
+                try:
+                    analytics = store.storeanalytics
+                    total_views = analytics.total_views if analytics else 0
+                except StoreAnalytics.DoesNotExist:
+                    total_views = 0
+                
+                stores_with_views.append({
+                    'store': store,
+                    'total_views': total_views
+                })
+            
+            # Sort stores by total views (highest first)
+            stores_with_views.sort(key=lambda x: x['total_views'], reverse=True)
+            
+            # Take the top 5 stores (or all if less than 5)
+            top_stores = stores_with_views[:5]
+            selected_stores = [item['store'] for item in top_stores]
+            
+            # Create a custom serializer context to include products and staff
+            context = self.get_serializer_context()
+            context['include_products'] = True
+            context['include_staff'] = True
+            
+            # Serialize the stores with products and staff included
+            serializer = self.get_serializer(selected_stores, many=True, context=context)
+            
+            # Add view information to the response
+            response_data = []
+            for i, store_data in enumerate(serializer.data):
+                store_data['total_views'] = top_stores[i]['total_views']
+                response_data.append(store_data)
+            
+            return Response({
+                'home_stores': response_data,
+                'total_stores_returned': len(selected_stores),
+                'criteria': 'Top stores by product views (active and verified)',
+                'message': 'Stores ranked by highest product views for home page display',
+                'ranking_info': {
+                    'sort_by': 'total_views',
+                    'order': 'descending'
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': 'Error retrieving home stores',
+                'debug_info': {
+                    'error_details': str(e)
+                }
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=True, methods=['post'], url_path='verify')
     def verify_store(self, request, pk=None):
         """Verify a store (admin only)."""
