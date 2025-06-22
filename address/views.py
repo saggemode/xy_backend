@@ -20,7 +20,10 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return ShippingAddress.objects.filter(user=self.request.user)
+        user = self.request.user
+        if user.is_superuser:
+            return ShippingAddress.objects.all()
+        return ShippingAddress.objects.filter(user=user)
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
