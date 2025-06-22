@@ -90,3 +90,19 @@ class WishlistViewSet(viewsets.ModelViewSet):
         wishlist_items = self.get_queryset().filter(product__category_id=category_id)
         serializer = self.get_serializer(wishlist_items, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='toggle')
+    def toggle(self, request):
+        product_id = request.data.get('product_id')
+        try:
+            product = Product.objects.get(id=product_id)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found'}, status=404)
+
+        wishlist_item = Wishlist.objects.filter(user=request.user, product=product).first()
+        if wishlist_item:
+            wishlist_item.delete()
+            return Response({'message': 'Product removed from wishlist'})
+        else:
+            Wishlist.objects.create(user=request.user, product=product)
+            return Response({'message': 'Product added to wishlist'})
