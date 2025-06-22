@@ -10,6 +10,8 @@ from django.core.exceptions import ValidationError, PermissionDenied
 from datetime import datetime, timedelta
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter
 
 from .models import Store, StoreAnalytics, StoreStaff
 from product.models import Product, ProductVariant
@@ -23,30 +25,85 @@ class StoreAnalyticsViewSet(viewsets.ModelViewSet):
     serializer_class = StoreAnalyticsSerializer
 
 class StoreViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing stores with filtering, search, and analytics.
+    """
     queryset = Store.objects.all()
     serializer_class = StoreSerializer
-    filter_backends = [OrderingFilter]
-    ordering_fields = ['name', 'created_at']
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['is_active', 'is_verified', 'owner']
+    search_fields = ['name', 'description', 'location', 'contact_email']
+    ordering_fields = ['name', 'created_at', 'updated_at']
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """Minimal queryset to debug 500 error."""
-        try:
-            queryset = Store.objects.all()
-            
-            # Custom search functionality
-            search_query = self.request.query_params.get('search', None)
-            if search_query and search_query.strip():
-                queryset = queryset.filter(
-                    Q(name__icontains=search_query) |
-                    Q(description__icontains=search_query) |
-                    Q(location__icontains=search_query)
-                )
-            
-            return queryset
-        except Exception as e:
-            # Fallback to basic queryset if anything fails
-            return Store.objects.all()
+        queryset = Store.objects.all()
+        
+        # Filter by active status
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        
+        # Filter by verification status
+        is_verified = self.request.query_params.get('is_verified')
+        if is_verified is not None:
+            queryset = queryset.filter(is_verified=is_verified.lower() == 'true')
+        
+        # Filter by owner
+        owner_id = self.request.query_params.get('owner')
+        if owner_id:
+            queryset = queryset.filter(owner_id=owner_id)
+        
+        # Search functionality
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(description__icontains=search) |
+                Q(location__icontains=search) |
+                Q(contact_email__icontains=search)
+            )
+        
+        return queryset
+
+    @action(detail=True, methods=['get'])
+    def products(self, request, pk=None):
+        """Get all products for a specific store."""
+        store = self.get_object()
+        products = store.products.all()
+        serializer = ProductSerializer(products, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def staff(self, request, pk=None):
+        """Get all staff members for a specific store."""
+        store = self.get_object()
+        staff = store.storestaff_set.all()
+        serializer = StoreStaffSerializer(staff, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def analytics(self, request, pk=None):
+        """Get analytics for a specific store."""
+        store = self.get_object()
+        analytics, created = StoreAnalytics.objects.get_or_create(store=store)
+        serializer = StoreAnalyticsSerializer(analytics)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def verified(self, request):
+        """Get only verified stores."""
+        stores = self.get_queryset().filter(is_verified=True)
+        serializer = self.get_serializer(stores, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def active(self, request):
+        """Get only active stores."""
+        stores = self.get_queryset().filter(is_active=True)
+        serializer = self.get_serializer(stores, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=['get'], url_path='search')
     def search_stores(self, request):
