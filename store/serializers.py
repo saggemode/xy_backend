@@ -29,6 +29,17 @@ class StoreAnalyticsSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class StoreSerializer(serializers.ModelSerializer):
+    total_products = serializers.SerializerMethodField()
+    total_staff = serializers.SerializerMethodField()
+    owner_username = serializers.CharField(source='owner.username', read_only=True)
+    owner_email = serializers.CharField(source='owner.email', read_only=True)
+
+    def get_total_products(self, obj):
+        return obj.products.count()
+
+    def get_total_staff(self, obj):
+        return obj.staff.count()
+
     class Meta:
         model = Store
         fields = '__all__'
