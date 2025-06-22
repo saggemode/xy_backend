@@ -49,13 +49,19 @@ class StoreSerializer(serializers.ModelSerializer):
     
     def get_products(self, obj):
         request = self.context.get('request')
-        if request and request.query_params.get('include_products') == 'true':
+        include_products = self.context.get('include_products', False)
+        
+        # Check both query parameters and context variables
+        if (request and request.query_params.get('include_products') == 'true') or include_products:
             return SimpleProductSerializer(obj.products.all(), many=True, context=self.context).data
         return None
     
     def get_staff(self, obj):
         request = self.context.get('request')
-        if request and request.query_params.get('include_staff') == 'true':
+        include_staff = self.context.get('include_staff', False)
+        
+        # Check both query parameters and context variables
+        if (request and request.query_params.get('include_staff') == 'true') or include_staff:
             return StoreStaffSerializer(obj.storestaff_set.all(), many=True, context=self.context).data
         return None
 
