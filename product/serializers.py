@@ -3,6 +3,7 @@ from .models import (
     Product, ProductVariant, Category, SubCategory, Coupon,  
     CouponUsage, FlashSale, FlashSaleItem, ProductReview
 )
+from store.models import Store
 
 class ProductReviewSerializer(serializers.ModelSerializer):
     user = serializers.StringRelatedField(read_only=True)
@@ -33,9 +34,18 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         model = ProductVariant
         fields = '__all__'
 
+class SimpleStoreSerializer(serializers.ModelSerializer):
+    """A simple serializer for store details to be nested in products."""
+    class Meta:
+        model = Store
+        fields = [
+            'id', 'name', 'logo', 'is_verified', 'location'
+        ]
+
 class ProductSerializer(serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, read_only=True)
     reviews = ProductReviewSerializer(many=True, read_only=True)
+    store = SimpleStoreSerializer(read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
     on_sale = serializers.BooleanField(read_only=True)
