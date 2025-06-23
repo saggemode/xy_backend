@@ -10,7 +10,9 @@ Test1ViewSet,
 Test2ViewSet,
 Test3ViewSet,
 Test4ViewSet,
-Test5ViewSet
+Test5ViewSet,
+Test6ViewSet,
+Test7ViewSet
 )
 
 router = DefaultRouter()
@@ -22,6 +24,8 @@ router.register(r'test2-shipping-addresses', Test2ViewSet, basename='test2-shipp
 router.register(r'test3-shipping-addresses', Test3ViewSet, basename='test3-shipping-address')
 router.register(r'test4-shipping-addresses', Test4ViewSet, basename='test4-shipping-address')
 router.register(r'test5-shipping-addresses', Test5ViewSet, basename='test5-shipping-address')
+router.register(r'test6-shipping-addresses', Test6ViewSet, basename='test6-shipping-address')
+router.register(r'test7-shipping-addresses', Test7ViewSet, basename='test7-shipping-address')
 
 urlpatterns = [
     path('', include(router.urls)),

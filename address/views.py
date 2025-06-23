@@ -15,7 +15,9 @@ from .serializers import (
     Test2Serializer,
     Test3Serializer,
     Test4Serializer,
-    Test5Serializer
+    Test5Serializer,
+    Test6Serializer,
+    Test7Serializer
 )
 
 logger = logging.getLogger(__name__)
@@ -103,6 +105,28 @@ class Test4ViewSet(viewsets.ModelViewSet):
 class Test5ViewSet(viewsets.ModelViewSet):
     """Test 5: Add full_address property"""
     serializer_class = Test5Serializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return ShippingAddress.objects.all()
+        return ShippingAddress.objects.filter(user=user)
+
+class Test6ViewSet(viewsets.ModelViewSet):
+    """Test 6: Add all remaining fields with simple config"""
+    serializer_class = Test6Serializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return ShippingAddress.objects.all()
+        return ShippingAddress.objects.filter(user=user)
+
+class Test7ViewSet(viewsets.ModelViewSet):
+    """Test 7: Original serializer but without validation method"""
+    serializer_class = Test7Serializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
