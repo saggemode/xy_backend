@@ -113,3 +113,45 @@ class Test7Serializer(serializers.ModelSerializer):
             'phone', 'additional_phone', 'is_default', 'address_type', 'created_at', 'updated_at', 'full_address'
         ]
         read_only_fields = ['user', 'created_at', 'updated_at', 'full_address']
+
+class Test8Serializer(serializers.ModelSerializer):
+    """Test 8: PrimaryKeyRelatedField with callable queryset"""
+    country = serializers.PrimaryKeyRelatedField(
+        queryset=lambda: Country.objects.all(), 
+        required=False, 
+        allow_null=True
+    )
+    state = serializers.PrimaryKeyRelatedField(
+        queryset=lambda: Region.objects.all(), 
+        required=False, 
+        allow_null=True
+    )
+    phone = PhoneNumberField(required=False, allow_null=True)
+    additional_phone = PhoneNumberField(required=False, allow_null=True)
+    id = serializers.UUIDField(read_only=True)
+    full_address = serializers.CharField(source='full_address', read_only=True)
+    address_type = serializers.ChoiceField(choices=ShippingAddress.AddressType.choices, required=False)
+
+    class Meta:
+        model = ShippingAddress
+        fields = [
+            'id', 'user', 'address', 'city', 'state', 'postal_code', 'country',
+            'phone', 'additional_phone', 'is_default', 'address_type', 'created_at', 'updated_at', 'full_address'
+        ]
+        read_only_fields = ['user', 'created_at', 'updated_at', 'full_address']
+
+class Test9Serializer(serializers.ModelSerializer):
+    """Test 9: Use simple integer fields instead of PrimaryKeyRelatedField"""
+    phone = PhoneNumberField(required=False, allow_null=True)
+    additional_phone = PhoneNumberField(required=False, allow_null=True)
+    id = serializers.UUIDField(read_only=True)
+    full_address = serializers.CharField(source='full_address', read_only=True)
+    address_type = serializers.ChoiceField(choices=ShippingAddress.AddressType.choices, required=False)
+
+    class Meta:
+        model = ShippingAddress
+        fields = [
+            'id', 'user', 'address', 'city', 'state', 'postal_code', 'country',
+            'phone', 'additional_phone', 'is_default', 'address_type', 'created_at', 'updated_at', 'full_address'
+        ]
+        read_only_fields = ['user', 'created_at', 'updated_at', 'full_address']

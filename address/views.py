@@ -17,7 +17,8 @@ from .serializers import (
     Test4Serializer,
     Test5Serializer,
     Test6Serializer,
-    Test7Serializer
+    Test7Serializer,
+    Test8Serializer
 )
 
 logger = logging.getLogger(__name__)
@@ -127,6 +128,17 @@ class Test6ViewSet(viewsets.ModelViewSet):
 class Test7ViewSet(viewsets.ModelViewSet):
     """Test 7: Original serializer but without validation method"""
     serializer_class = Test7Serializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return ShippingAddress.objects.all()
+        return ShippingAddress.objects.filter(user=user)
+
+class Test8ViewSet(viewsets.ModelViewSet):
+    """Test 8: PrimaryKeyRelatedField with callable queryset"""
+    serializer_class = Test8Serializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
