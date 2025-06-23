@@ -11,6 +11,16 @@ from phonenumber_field.modelfields import PhoneNumberField
 # Create your models here.
 
 class ShippingAddress(models.Model):
+
+    class AddressType(models.TextChoices):
+        HOME = 'home', _('Home')
+        OFFICE = 'office', _('Office')
+        SCHOOL = 'school', _('School')
+        MARKET = 'market', _('Market')
+        OTHER = 'other', _('Other')
+        BUSINESS = 'business', _('Business')
+        MAILING = 'mailing', _('Mailing')
+
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
@@ -32,18 +42,17 @@ class ShippingAddress(models.Model):
     )
 
     # Address details
-    full_name = models.CharField(
-        max_length=100,
-        help_text="Full name of the recipient"
-    )
+   
     address = models.CharField(
-        max_length=200,
-        help_text="Street address, P.O. box, company name"
+        max_length=255,
+        verbose_name=_('Address'),
+        help_text=_('Full address including street, city, state, and postal code')
     )
 
     city = models.CharField(
         max_length=100,
-        help_text="City or town"
+        verbose_name=_('City'),
+        help_text=_('City name')
     )
     state = models.ForeignKey(
         Region,
@@ -61,7 +70,15 @@ class ShippingAddress(models.Model):
     )
     postal_code = models.CharField(
         max_length=20,
-        help_text="ZIP or postal code"
+        verbose_name=_('Postal Code'),
+        help_text=_('Postal or ZIP code'),
+        default='12345',
+        validators=[
+            RegexValidator(
+                regex=r'^\d{5}(-\d{4})?$',
+                message=_('Enter a valid postal code (e.g., 12345 or 12345-6789)')
+            )
+        ]
     )
     phone = PhoneNumberField(region=None, help_text="Contact phone number")
 
@@ -70,25 +87,26 @@ class ShippingAddress(models.Model):
     # Address status
     is_default = models.BooleanField(
         default=False,
-        help_text="Whether this is the default shipping address"
+        verbose_name=_('Default Address'),
+        help_text=_('Whether this is the user\'s default address')
     )
 
     # Address type
-    ADDRESS_TYPE_CHOICES = [
-        ('home', 'Home'),
-        ('work', 'Work'),
-        ('school','School'),
-        ('market','Market'),
-        ('business', 'Business'),
-        ('other', 'Other'),
-        
-
-    ]
+  
     address_type = models.CharField(
         max_length=10,
-        choices=ADDRESS_TYPE_CHOICES,
-        default='home',
-        help_text="Type of address (Home, Work, Other)"
+        choices=AddressType.choices,
+        default=AddressType.HOME,
+        verbose_name=_('Address Type'),
+        help_text=_('Type of address (home, office, etc.)')
+    )
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='addresses',
+        verbose_name=_('User'),
+        help_text=_('User who owns this address')
     )
 
     # Timestamps
@@ -131,19 +149,5 @@ class ShippingAddress(models.Model):
 
     @property
     def full_address(self):
-        """
-        Returns the full address as a single string, including all relevant fields.
-        """
-        parts = [
-            self.full_name,
-            self.address,
-            self.city,
-            str(self.state) if self.state else "",
-            str(self.country) if self.country else "",
-            self.postal_code,
-            f"Phone: {self.phone}" if self.phone else "",
-            f"Additional Phone: {self.additional_phone}" if self.additional_phone else "",
-            f"Type: {self.get_address_type_display()}" if self.address_type else "",
-        ]
-        # Filter out empty parts and join with commas
-        return ', '.join([part for part in parts if part])
+        """Return the complete formatted address"""
+        return f"{self.address}, {self.city}, {self.state} {self.postal_code}, {self.country}"

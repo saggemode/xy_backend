@@ -10,11 +10,12 @@ class ShippingAddressSerializer(serializers.ModelSerializer):
     additional_phone = PhoneNumberField(required=False, allow_null=True)
     id = serializers.UUIDField(read_only=True)
     full_address = serializers.CharField(source='full_address', read_only=True)
+    address_type = serializers.ChoiceField(choices=ShippingAddress.AddressType.choices, required=False)
 
     class Meta:
         model = ShippingAddress
         fields = [
-            'id', 'user', 'full_name', 'address', 'city', 'state', 'postal_code', 'country',
+            'id', 'user', 'address', 'city', 'state', 'postal_code', 'country',
             'phone', 'additional_phone', 'is_default', 'address_type', 'created_at', 'updated_at', 'full_address'
         ]
         read_only_fields = ['user', 'created_at', 'updated_at', 'full_address']

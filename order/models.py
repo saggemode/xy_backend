@@ -12,7 +12,9 @@ import uuid
 from decimal import Decimal
 from store.models import Store
 from product.models import Product, ProductVariant
-from extras.models import Address
+
+from address.models import ShippingAddress
+
 
 # Order model
 class Order(models.Model):
@@ -56,7 +58,7 @@ class Order(models.Model):
     tax = models.FloatField(default=0.0)
     total = models.IntegerField()
     order_number = models.CharField(max_length=50, unique=True, blank=True, null=True)
-    address = models.ForeignKey(Address, on_delete=models.CASCADE, related_name='orders')
+    address = models.ForeignKey(ShippingAddress, on_delete=models.CASCADE, related_name='orders')
     tracking_number = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

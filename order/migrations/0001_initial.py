@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('extras', '0001_initial'),
+       
         ('store', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
@@ -45,7 +45,7 @@ class Migration(migrations.Migration):
                 ('tracking_number', models.CharField(blank=True, max_length=100, null=True)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('address', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='orders', to='extras.address')),
+                ('address', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='orders', to='address.shippingaddress')),
                 ('store', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='orders', to='store.store')),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='orders', to=settings.AUTH_USER_MODEL)),
             ],
