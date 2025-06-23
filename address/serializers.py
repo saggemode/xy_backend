@@ -3,6 +3,14 @@ from .models import ShippingAddress
 from phonenumber_field.serializerfields import PhoneNumberField
 from cities_light.models import Country, Region
 
+class SimpleShippingAddressSerializer(serializers.ModelSerializer):
+    """Simple serializer for debugging - minimal fields only"""
+    
+    class Meta:
+        model = ShippingAddress
+        fields = ['id', 'address', 'city', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
 class ShippingAddressSerializer(serializers.ModelSerializer):
     country = serializers.PrimaryKeyRelatedField(queryset=Country.objects.all(), required=False, allow_null=True)
     state = serializers.PrimaryKeyRelatedField(queryset=Region.objects.all(), required=False, allow_null=True)

@@ -8,9 +8,45 @@ import logging
 from django.core.exceptions import ValidationError, PermissionDenied
 from datetime import datetime
 from .models import ShippingAddress
-from .serializers import ShippingAddressSerializer
+from .serializers import ShippingAddressSerializer, SimpleShippingAddressSerializer
 
 logger = logging.getLogger(__name__)
+
+class SimpleShippingAddressViewSet(viewsets.ModelViewSet):
+    """
+    Simple ViewSet for debugging - minimal fields only
+    """
+    serializer_class = SimpleShippingAddressSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        try:
+            user = self.request.user
+            logger.info(f"Simple view - User: {user.username} (id: {user.id})")
+            
+            if user.is_superuser:
+                addresses = ShippingAddress.objects.all()
+            else:
+                addresses = ShippingAddress.objects.filter(user=user)
+            
+            logger.info(f"Simple view - Found {addresses.count()} addresses")
+            return addresses
+            
+        except Exception as e:
+            logger.error(f"Simple view - Error: {str(e)}")
+            return ShippingAddress.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        """Override list method to add debugging"""
+        try:
+            logger.info("Simple view - list method called")
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Simple view - list error: {str(e)}")
+            return Response(
+                {"error": f"List error: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class ShippingAddressViewSet(viewsets.ModelViewSet):
     """
