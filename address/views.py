@@ -18,7 +18,8 @@ from .serializers import (
     Test5Serializer,
     Test6Serializer,
     Test7Serializer,
-    Test8Serializer
+    Test8Serializer,
+    Test9Serializer
 )
 
 logger = logging.getLogger(__name__)
@@ -139,6 +140,17 @@ class Test7ViewSet(viewsets.ModelViewSet):
 class Test8ViewSet(viewsets.ModelViewSet):
     """Test 8: PrimaryKeyRelatedField with callable queryset"""
     serializer_class = Test8Serializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return ShippingAddress.objects.all()
+        return ShippingAddress.objects.filter(user=user)
+
+class Test9ViewSet(viewsets.ModelViewSet):
+    """Test 9: Use simple integer fields instead of PrimaryKeyRelatedField"""
+    serializer_class = Test9Serializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
