@@ -49,18 +49,15 @@ class ShippingAddress(models.Model):
         verbose_name=_('City'),
         help_text=_('City name')
     )
-    state = models.ForeignKey(
-        Region,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
+    state = models.CharField(
+       
+        max_length=100,
+        verbose_name=_('State'),
         help_text="State, province, or region"
     )
-    country = models.ForeignKey(
-        Country,
-        on_delete=models.SET_NULL,
-        blank=True,
-        null=True,
+    country = models.CharField(
+       max_length=100,
+        verbose_name=_('Country'),
         help_text="Country"
     )
     postal_code = models.CharField(
