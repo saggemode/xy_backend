@@ -115,7 +115,9 @@ class ShippingAddress(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.address}, {self.city}, {self.state}, {self.country}"
+        state_name = self.state.name if self.state else ""
+        country_name = self.country.name if self.country else ""
+        return f"{self.address}, {self.city}, {state_name}, {country_name}"
 
     def clean(self):
         """Validate the model instance."""
@@ -136,4 +138,6 @@ class ShippingAddress(models.Model):
     @property
     def full_address(self):
         """Return the complete formatted address"""
-        return f"{self.address}, {self.city}, {self.state} {self.postal_code}, {self.country}"
+        state_name = self.state.name if self.state else ""
+        country_name = self.country.name if self.country else ""
+        return f"{self.address}, {self.city}, {state_name} {self.postal_code}, {country_name}"
