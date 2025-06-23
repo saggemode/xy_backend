@@ -6,7 +6,7 @@ from cities_light.models import Country, Region
 class ShippingAddressSerializer(serializers.ModelSerializer):
     country = serializers.PrimaryKeyRelatedField(queryset=Country.objects.all(), required=False, allow_null=True)
     state = serializers.PrimaryKeyRelatedField(queryset=Region.objects.all(), required=False, allow_null=True)
-    phone = PhoneNumberField(required=True)
+    phone = PhoneNumberField(required=False, allow_null=True)
     additional_phone = PhoneNumberField(required=False, allow_null=True)
     id = serializers.UUIDField(read_only=True)
     full_address = serializers.CharField(source='full_address', read_only=True)
@@ -22,9 +22,11 @@ class ShippingAddressSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         # If this is being set as default, unset any existing default addresses
-        if data.get('is_default'):
-            ShippingAddress.objects.filter(
-                user=self.context['request'].user,
-                is_default=True
-            ).update(is_default=False)
+        if data.get('is_default') and 'request' in self.context:
+            user = self.context['request'].user
+            if user.is_authenticated:
+                ShippingAddress.objects.filter(
+                    user=user,
+                    is_default=True
+                ).update(is_default=False)
         return data

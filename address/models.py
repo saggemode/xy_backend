@@ -67,17 +67,18 @@ class ShippingAddress(models.Model):
         max_length=20,
         verbose_name=_('Postal Code'),
         help_text=_('Postal or ZIP code'),
-        default='12345',
+        blank=True,
+        null=True,
         validators=[
             RegexValidator(
-                regex=r'^\d{5}(-\d{4})?$',
-                message=_('Enter a valid postal code (e.g., 12345 or 12345-6789)')
+                regex=r'^[A-Za-z0-9\s\-]+$',
+                message=_('Enter a valid postal code')
             )
         ]
     )
-    phone = PhoneNumberField(region=None, help_text="Contact phone number")
+    phone = PhoneNumberField(blank=True, null=True, help_text="Contact phone number")
 
-    additional_phone = PhoneNumberField(region=None, blank=True, null=True, help_text="Additional contact phone number (optional)")
+    additional_phone = PhoneNumberField(blank=True, null=True, help_text="Additional contact phone number (optional)")
 
     # Address status
     is_default = models.BooleanField(
@@ -115,9 +116,18 @@ class ShippingAddress(models.Model):
         ]
 
     def __str__(self):
-        state_name = self.state.name if self.state else ""
-        country_name = self.country.name if self.country else ""
-        return f"{self.address}, {self.city}, {state_name}, {country_name}"
+        parts = []
+        
+        if self.address:
+            parts.append(self.address)
+        if self.city:
+            parts.append(self.city)
+        if self.state and self.state.name:
+            parts.append(self.state.name)
+        if self.country and self.country.name:
+            parts.append(self.country.name)
+            
+        return ", ".join(parts) if parts else f"Shipping Address {self.id}"
 
     def clean(self):
         """Validate the model instance."""
@@ -127,7 +137,9 @@ class ShippingAddress(models.Model):
 
     def save(self, *args, **kwargs):
         """Override save to handle validation and default address logic."""
-        self.full_clean()
+        # Clean the postal code before saving
+        if self.postal_code:
+            self.postal_code = self.postal_code.strip().replace(" ", "")
         
         # If this is the user's first address, make it default
         if not self.pk and not ShippingAddress.objects.filter(user=self.user).exists():
@@ -138,6 +150,17 @@ class ShippingAddress(models.Model):
     @property
     def full_address(self):
         """Return the complete formatted address"""
-        state_name = self.state.name if self.state else ""
-        country_name = self.country.name if self.country else ""
-        return f"{self.address}, {self.city}, {state_name} {self.postal_code}, {country_name}"
+        parts = []
+        
+        if self.address:
+            parts.append(self.address)
+        if self.city:
+            parts.append(self.city)
+        if self.state and self.state.name:
+            parts.append(self.state.name)
+        if self.postal_code:
+            parts.append(self.postal_code)
+        if self.country and self.country.name:
+            parts.append(self.country.name)
+            
+        return ", ".join(parts) if parts else "No address provided"
