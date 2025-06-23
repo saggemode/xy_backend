@@ -11,6 +11,49 @@ class SimpleShippingAddressSerializer(serializers.ModelSerializer):
         fields = ['id', 'address', 'city', 'created_at']
         read_only_fields = ['id', 'created_at']
 
+class Test1Serializer(serializers.ModelSerializer):
+    """Test 1: Add user field"""
+    
+    class Meta:
+        model = ShippingAddress
+        fields = ['id', 'user', 'address', 'city', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+class Test2Serializer(serializers.ModelSerializer):
+    """Test 2: Add state field"""
+    
+    class Meta:
+        model = ShippingAddress
+        fields = ['id', 'user', 'address', 'city', 'state', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+class Test3Serializer(serializers.ModelSerializer):
+    """Test 3: Add country field"""
+    
+    class Meta:
+        model = ShippingAddress
+        fields = ['id', 'user', 'address', 'city', 'state', 'country', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+class Test4Serializer(serializers.ModelSerializer):
+    """Test 4: Add phone field"""
+    phone = PhoneNumberField(required=False, allow_null=True)
+    
+    class Meta:
+        model = ShippingAddress
+        fields = ['id', 'user', 'address', 'city', 'state', 'country', 'phone', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+class Test5Serializer(serializers.ModelSerializer):
+    """Test 5: Add full_address property"""
+    phone = PhoneNumberField(required=False, allow_null=True)
+    full_address = serializers.CharField(source='full_address', read_only=True)
+    
+    class Meta:
+        model = ShippingAddress
+        fields = ['id', 'user', 'address', 'city', 'state', 'country', 'phone', 'full_address', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
 class ShippingAddressSerializer(serializers.ModelSerializer):
     country = serializers.PrimaryKeyRelatedField(queryset=Country.objects.all(), required=False, allow_null=True)
     state = serializers.PrimaryKeyRelatedField(queryset=Region.objects.all(), required=False, allow_null=True)

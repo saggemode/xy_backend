@@ -8,7 +8,15 @@ import logging
 from django.core.exceptions import ValidationError, PermissionDenied
 from datetime import datetime
 from .models import ShippingAddress
-from .serializers import ShippingAddressSerializer, SimpleShippingAddressSerializer
+from .serializers import (
+    ShippingAddressSerializer, 
+    SimpleShippingAddressSerializer,
+    Test1Serializer,
+    Test2Serializer,
+    Test3Serializer,
+    Test4Serializer,
+    Test5Serializer
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +55,61 @@ class SimpleShippingAddressViewSet(viewsets.ModelViewSet):
                 {"error": f"List error: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class Test1ViewSet(viewsets.ModelViewSet):
+    """Test 1: Add user field"""
+    serializer_class = Test1Serializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return ShippingAddress.objects.all()
+        return ShippingAddress.objects.filter(user=user)
+
+class Test2ViewSet(viewsets.ModelViewSet):
+    """Test 2: Add state field"""
+    serializer_class = Test2Serializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return ShippingAddress.objects.all()
+        return ShippingAddress.objects.filter(user=user)
+
+class Test3ViewSet(viewsets.ModelViewSet):
+    """Test 3: Add country field"""
+    serializer_class = Test3Serializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return ShippingAddress.objects.all()
+        return ShippingAddress.objects.filter(user=user)
+
+class Test4ViewSet(viewsets.ModelViewSet):
+    """Test 4: Add phone field"""
+    serializer_class = Test4Serializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return ShippingAddress.objects.all()
+        return ShippingAddress.objects.filter(user=user)
+
+class Test5ViewSet(viewsets.ModelViewSet):
+    """Test 5: Add full_address property"""
+    serializer_class = Test5Serializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return ShippingAddress.objects.all()
+        return ShippingAddress.objects.filter(user=user)
 
 class ShippingAddressViewSet(viewsets.ModelViewSet):
     """
