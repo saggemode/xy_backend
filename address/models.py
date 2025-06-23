@@ -129,7 +129,7 @@ class ShippingAddress(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.full_name} - {self.city}, {self.region}, {self.country}"
+        return f"{self.user} - {self.address}, {self.city}, {self.state}, {self.country}"
 
     def clean(self):
         """Validate the model instance."""
