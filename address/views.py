@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class ShippingAddressViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing shipping addresses. Uses django-cities-light for country and state fields, and django-phonenumber-field for phone numbers.
-    Fields: id (UUID), user, full_name, address, city, state (region), country, postal_code, phone, additional_phone, is_default, address_type, created_at, updated_at, full_address (computed).
+    Fields: id (UUID), user, address, city, state (region), country, postal_code, phone, additional_phone, is_default, address_type, created_at, updated_at, full_address (computed).
     """
     serializer_class = ShippingAddressSerializer
     permission_classes = [permissions.IsAuthenticated]

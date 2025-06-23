@@ -26,11 +26,6 @@ class ShippingAddress(models.Model):
         default=uuid.uuid4,
         editable=False,
         verbose_name=_('ID')
-    ),
-    # Phone number validator
-    phone_regex = RegexValidator(
-        regex=r'^\+?1?\d{9,15}$',
-        message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
     )
 
     # User relationship
@@ -92,21 +87,12 @@ class ShippingAddress(models.Model):
     )
 
     # Address type
-  
     address_type = models.CharField(
         max_length=10,
         choices=AddressType.choices,
         default=AddressType.HOME,
         verbose_name=_('Address Type'),
         help_text=_('Type of address (home, office, etc.)')
-    )
-
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='addresses',
-        verbose_name=_('User'),
-        help_text=_('User who owns this address')
     )
 
     # Timestamps
@@ -129,7 +115,7 @@ class ShippingAddress(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.user} - {self.address}, {self.city}, {self.state}, {self.country}"
+        return f"{self.address}, {self.city}, {self.state}, {self.country}"
 
     def clean(self):
         """Validate the model instance."""
