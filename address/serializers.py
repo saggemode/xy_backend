@@ -25,7 +25,7 @@ class ShippingAddressSerializer(serializers.ModelSerializer):
             'state': {'required': False, 'allow_blank': True},
             'country': {'required': False, 'allow_blank': True},
             'postal_code': {'required': False, 'allow_blank': True},
-            'phone': {'required': True, 'allow_blank': True},
+            'phone': {'required': True, 'allow_blank': False},
             'additional_phone': {'required': False, 'allow_blank': True},
             'is_default': {'required': False},
             'address_type': {'required': False},

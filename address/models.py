@@ -43,13 +43,12 @@ class ShippingAddress(models.Model):
     )
 
     city = models.CharField(
-        max_length=100,
+        max_length=255,
         verbose_name=_('City'),
         help_text=_('City name')
     )
     state = models.CharField(
-       
-        max_length=100,
+        max_length=255,
         verbose_name=_('State'),
         help_text="State, province, or region"
     )
@@ -76,7 +75,7 @@ class ShippingAddress(models.Model):
         verbose_name=_('Phone'),
         help_text="Phone",
         blank=False,
-        null=True
+        null=False
     )
     additional_phone = models.CharField(
        max_length=100,
@@ -138,6 +137,20 @@ class ShippingAddress(models.Model):
             return ", ".join(parts) if parts else f"Shipping Address {self.id}"
         except Exception:
             return f"Shipping Address {self.id}"
+
+    def clean(self):
+        """Validate the model instance."""
+        super().clean()
+        
+        # Ensure required fields are not empty
+        if not self.address or not self.address.strip():
+            raise ValidationError({'address': 'Address is required.'})
+        
+        if not self.city or not self.city.strip():
+            raise ValidationError({'city': 'City is required.'})
+            
+        if not self.phone or not self.phone.strip():
+            raise ValidationError({'phone': 'Phone number is required.'})
 
     def save(self, *args, **kwargs):
         """Override save to handle default address logic"""
