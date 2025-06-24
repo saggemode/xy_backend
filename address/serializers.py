@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import ShippingAddress
 
 class ShippingAddressSerializer(serializers.ModelSerializer):
-    full_address = serializers.CharField(source='full_address', read_only=True)
+    full_address = serializers.CharField(read_only=True)
 
     class Meta:
         model = ShippingAddress
