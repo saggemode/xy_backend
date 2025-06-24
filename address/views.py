@@ -21,11 +21,11 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        logger.info(f"User requesting shipping addresses: {user.username} (id: {user.id})")
-        logger.info(f"Is superuser: {user.is_superuser}")
-        
         try:
+            user = self.request.user
+            logger.info(f"User requesting shipping addresses: {user.username} (id: {user.id})")
+            logger.info(f"Is superuser: {user.is_superuser}")
+            
             if user.is_superuser:
                 addresses = ShippingAddress.objects.all()
             else:
@@ -38,6 +38,28 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
             logger.error(f"Error fetching shipping addresses: {str(e)}")
             return ShippingAddress.objects.none()
 
+    def list(self, request, *args, **kwargs):
+        """Override list method to add error handling"""
+        try:
+            return super().list(request, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Error in list method: {str(e)}")
+            return Response(
+                {"error": "An error occurred while fetching addresses"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def retrieve(self, request, *args, **kwargs):
+        """Override retrieve method to add error handling"""
+        try:
+            return super().retrieve(request, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Error in retrieve method: {str(e)}")
+            return Response(
+                {"error": "Address not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
     def perform_create(self, serializer):
         try:
             serializer.save(user=self.request.user)
@@ -45,27 +67,45 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
             logger.error(f"Error creating shipping address: {str(e)}")
             raise
 
+    def perform_update(self, serializer):
+        try:
+            serializer.save()
+        except Exception as e:
+            logger.error(f"Error updating shipping address: {str(e)}")
+            raise
+
+    def perform_destroy(self, instance):
+        try:
+            instance.delete()
+        except Exception as e:
+            logger.error(f"Error deleting shipping address: {str(e)}")
+            raise
+
     @action(detail=False, methods=['get'])
     def debug_info(self, request):
         """
         Debug endpoint to check authentication and user status.
         """
-        if not request.user.is_superuser:
-            return Response({"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
-            
-        return Response({
-            "user_info": {
-                "username": request.user.username,
-                "id": request.user.id,
-                "is_authenticated": request.user.is_authenticated,
-                "is_superuser": request.user.is_superuser,
-            },
-            "request_info": {
-                "method": request.method,
-                "headers": dict(request.headers),
-                "query_params": dict(request.query_params),
-            }
-        })
+        try:
+            if not request.user.is_superuser:
+                return Response({"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)
+                
+            return Response({
+                "user_info": {
+                    "username": request.user.username,
+                    "id": request.user.id,
+                    "is_authenticated": request.user.is_authenticated,
+                    "is_superuser": request.user.is_superuser,
+                },
+                "request_info": {
+                    "method": request.method,
+                    "headers": dict(request.headers),
+                    "query_params": dict(request.query_params),
+                }
+            })
+        except Exception as e:
+            logger.error(f"Error in debug_info: {str(e)}")
+            return Response({"error": "Debug info error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['post'], url_path='set_default')
     def set_default(self, request, pk=None):

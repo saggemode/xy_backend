@@ -11,14 +11,28 @@ class ShippingAddressSerializer(serializers.ModelSerializer):
             'phone', 'additional_phone', 'is_default', 'address_type', 'created_at', 'updated_at', 'full_address'
         ]
         read_only_fields = ['user', 'created_at', 'updated_at', 'full_address']
+        extra_kwargs = {
+            'address': {'required': True},
+            'city': {'required': True},
+            'state': {'required': False, 'allow_blank': True},
+            'country': {'required': False, 'allow_blank': True},
+            'postal_code': {'required': False, 'allow_blank': True},
+            'phone': {'required': False, 'allow_blank': True},
+            'additional_phone': {'required': False, 'allow_blank': True},
+            'is_default': {'required': False},
+            'address_type': {'required': False},
+        }
 
     def validate(self, data):
-        # If this is being set as default, unset any existing default addresses
-        if data.get('is_default') and 'request' in self.context:
-            user = self.context['request'].user
-            if user.is_authenticated:
-                ShippingAddress.objects.filter(
-                    user=user,
-                    is_default=True
-                ).update(is_default=False)
-        return data
+        try:
+            # If this is being set as default, unset any existing default addresses
+            if data.get('is_default') and 'request' in self.context:
+                user = self.context['request'].user
+                if user.is_authenticated:
+                    ShippingAddress.objects.filter(
+                        user=user,
+                        is_default=True
+                    ).update(is_default=False)
+            return data
+        except Exception:
+            return data

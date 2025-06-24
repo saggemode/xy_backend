@@ -74,12 +74,16 @@ class ShippingAddress(models.Model):
     phone = models.CharField(
        max_length=100,
         verbose_name=_('Phone'),
-        help_text="Phone"
+        help_text="Phone",
+        blank=True,
+        null=True
     )
     additional_phone = models.CharField(
        max_length=100,
         verbose_name=_('Additional phone '),
-        help_text="Additional phone"
+        help_text="Additional phone",
+        blank=True,
+        null=True
     )
 
     # Address status
@@ -119,18 +123,21 @@ class ShippingAddress(models.Model):
 
     def __str__(self):
         """Return a string representation of the address"""
-        parts = []
-        
-        if self.address:
-            parts.append(self.address)
-        if self.city:
-            parts.append(self.city)
-        if self.state:
-            parts.append(self.state)
-        if self.country:
-            parts.append(self.country)
+        try:
+            parts = []
             
-        return ", ".join(parts) if parts else f"Shipping Address {self.id}"
+            if self.address:
+                parts.append(str(self.address))
+            if self.city:
+                parts.append(str(self.city))
+            if self.state:
+                parts.append(str(self.state))
+            if self.country:
+                parts.append(str(self.country))
+                
+            return ", ".join(parts) if parts else f"Shipping Address {self.id}"
+        except Exception:
+            return f"Shipping Address {self.id}"
 
     def save(self, *args, **kwargs):
         """Override save to handle default address logic"""
@@ -143,19 +150,22 @@ class ShippingAddress(models.Model):
     @property
     def full_address(self):
         """Return the complete formatted address"""
-        parts = []
-        
-        if self.address:
-            parts.append(self.address)
-        if self.city:
-            parts.append(self.city)
-        if self.state:
-            parts.append(self.state)
-        if self.postal_code:
-            parts.append(self.postal_code)
-        if self.country:
-            parts.append(self.country)
+        try:
+            parts = []
             
-        return ", ".join(parts) if parts else "No address provided"
+            if self.address:
+                parts.append(str(self.address))
+            if self.city:
+                parts.append(str(self.city))
+            if self.state:
+                parts.append(str(self.state))
+            if self.postal_code:
+                parts.append(str(self.postal_code))
+            if self.country:
+                parts.append(str(self.country))
+                
+            return ", ".join(parts) if parts else "No address provided"
+        except Exception:
+            return f"Shipping Address {self.id}"
 
     
