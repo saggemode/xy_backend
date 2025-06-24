@@ -8,161 +8,14 @@ import logging
 from django.core.exceptions import ValidationError, PermissionDenied
 from datetime import datetime
 from .models import ShippingAddress
-from .serializers import (
-    ShippingAddressSerializer, 
-    SimpleShippingAddressSerializer,
-    Test1Serializer,
-    Test2Serializer,
-    Test3Serializer,
-    Test4Serializer,
-    Test5Serializer,
-    Test6Serializer,
-    Test7Serializer,
-    Test8Serializer,
-    Test9Serializer
-)
+from .serializers import ShippingAddressSerializer
 
 logger = logging.getLogger(__name__)
 
-class SimpleShippingAddressViewSet(viewsets.ModelViewSet):
-    """
-    Simple ViewSet for debugging - minimal fields only
-    """
-    serializer_class = SimpleShippingAddressSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        try:
-            user = self.request.user
-            logger.info(f"Simple view - User: {user.username} (id: {user.id})")
-            
-            if user.is_superuser:
-                addresses = ShippingAddress.objects.all()
-            else:
-                addresses = ShippingAddress.objects.filter(user=user)
-            
-            logger.info(f"Simple view - Found {addresses.count()} addresses")
-            return addresses
-            
-        except Exception as e:
-            logger.error(f"Simple view - Error: {str(e)}")
-            return ShippingAddress.objects.none()
-
-    def list(self, request, *args, **kwargs):
-        """Override list method to add debugging"""
-        try:
-            logger.info("Simple view - list method called")
-            return super().list(request, *args, **kwargs)
-        except Exception as e:
-            logger.error(f"Simple view - list error: {str(e)}")
-            return Response(
-                {"error": f"List error: {str(e)}"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-class Test1ViewSet(viewsets.ModelViewSet):
-    """Test 1: Add user field"""
-    serializer_class = Test1Serializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return ShippingAddress.objects.all()
-        return ShippingAddress.objects.filter(user=user)
-
-class Test2ViewSet(viewsets.ModelViewSet):
-    """Test 2: Add state field"""
-    serializer_class = Test2Serializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return ShippingAddress.objects.all()
-        return ShippingAddress.objects.filter(user=user)
-
-class Test3ViewSet(viewsets.ModelViewSet):
-    """Test 3: Add country field"""
-    serializer_class = Test3Serializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return ShippingAddress.objects.all()
-        return ShippingAddress.objects.filter(user=user)
-
-class Test4ViewSet(viewsets.ModelViewSet):
-    """Test 4: Add phone field"""
-    serializer_class = Test4Serializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return ShippingAddress.objects.all()
-        return ShippingAddress.objects.filter(user=user)
-
-class Test5ViewSet(viewsets.ModelViewSet):
-    """Test 5: Add full_address property"""
-    serializer_class = Test5Serializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return ShippingAddress.objects.all()
-        return ShippingAddress.objects.filter(user=user)
-
-class Test6ViewSet(viewsets.ModelViewSet):
-    """Test 6: Add all remaining fields with simple config"""
-    serializer_class = Test6Serializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return ShippingAddress.objects.all()
-        return ShippingAddress.objects.filter(user=user)
-
-class Test7ViewSet(viewsets.ModelViewSet):
-    """Test 7: Original serializer but without validation method"""
-    serializer_class = Test7Serializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return ShippingAddress.objects.all()
-        return ShippingAddress.objects.filter(user=user)
-
-class Test8ViewSet(viewsets.ModelViewSet):
-    """Test 8: PrimaryKeyRelatedField with callable queryset"""
-    serializer_class = Test8Serializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return ShippingAddress.objects.all()
-        return ShippingAddress.objects.filter(user=user)
-
-class Test9ViewSet(viewsets.ModelViewSet):
-    """Test 9: Use simple integer fields instead of PrimaryKeyRelatedField"""
-    serializer_class = Test9Serializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return ShippingAddress.objects.all()
-        return ShippingAddress.objects.filter(user=user)
-
 class ShippingAddressViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for managing shipping addresses. Uses django-cities-light for country and state fields, and django-phonenumber-field for phone numbers.
-    Fields: id (UUID), user, address, city, state (region), country, postal_code, phone, additional_phone, is_default, address_type, created_at, updated_at, full_address (computed).
+    ViewSet for managing shipping addresses.
+    Fields: id (UUID), user, address, city, state, country, postal_code, phone, additional_phone, is_default, address_type, created_at, updated_at, full_address (computed).
     """
     serializer_class = ShippingAddressSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -195,7 +48,7 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def debug_info(self, request):
         """
-        Debug endpoint to check authentication and user status. Uses django-cities-light for country/state and django-phonenumber-field for phone numbers.
+        Debug endpoint to check authentication and user status.
         """
         if not request.user.is_superuser:
             return Response({"error": "Not authorized"}, status=status.HTTP_403_FORBIDDEN)

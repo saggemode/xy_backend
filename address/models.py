@@ -4,9 +4,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
-from cities_light.models import Country, Region
 from django.utils.translation import gettext_lazy as _
-from phonenumber_field.modelfields import PhoneNumberField
 
 # Create your models here.
 
@@ -73,9 +71,16 @@ class ShippingAddress(models.Model):
             )
         ]
     )
-    phone = PhoneNumberField(blank=True, null=True, help_text="Contact phone number")
-
-    additional_phone = PhoneNumberField(blank=True, null=True, help_text="Additional contact phone number (optional)")
+    phone = models.CharField(
+       max_length=100,
+        verbose_name=_('Phone'),
+        help_text="Phone"
+    )
+    additional_phone = models.CharField(
+       max_length=100,
+        verbose_name=_('Additional phone '),
+        help_text="Additional phone"
+    )
 
     # Address status
     is_default = models.BooleanField(
@@ -113,6 +118,7 @@ class ShippingAddress(models.Model):
         ]
 
     def __str__(self):
+        """Return a string representation of the address"""
         parts = []
         
         if self.address:
@@ -126,18 +132,8 @@ class ShippingAddress(models.Model):
             
         return ", ".join(parts) if parts else f"Shipping Address {self.id}"
 
-    def clean(self):
-        """Validate the model instance."""
-        # Normalize postal code (remove spaces)
-        if self.postal_code:
-            self.postal_code = self.postal_code.strip().replace(" ", "")
-
     def save(self, *args, **kwargs):
-        """Override save to handle validation and default address logic."""
-        # Clean the postal code before saving
-        if self.postal_code:
-            self.postal_code = self.postal_code.strip().replace(" ", "")
-        
+        """Override save to handle default address logic"""
         # If this is the user's first address, make it default
         if not self.pk and not ShippingAddress.objects.filter(user=self.user).exists():
             self.is_default = True
@@ -161,3 +157,5 @@ class ShippingAddress(models.Model):
             parts.append(self.country)
             
         return ", ".join(parts) if parts else "No address provided"
+
+    
