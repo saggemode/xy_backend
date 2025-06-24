@@ -100,6 +100,65 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
             raise
 
     @action(detail=False, methods=['get'])
+    def simple_list(self, request):
+        """
+        Simple list endpoint that manually handles serialization
+        """
+        try:
+            user = request.user
+            logger.info(f"Simple list - User: {user.username} (id: {user.id})")
+            
+            # Get addresses
+            if user.is_superuser:
+                addresses = ShippingAddress.objects.all()
+            else:
+                addresses = ShippingAddress.objects.filter(user=user)
+            
+            logger.info(f"Simple list - Found {addresses.count()} addresses")
+            
+            # Manual serialization
+            serialized_addresses = []
+            for address in addresses:
+                try:
+                    address_data = {
+                        'id': str(address.id),
+                        'user': address.user.id,
+                        'address': address.address,
+                        'city': address.city,
+                        'state': address.state,
+                        'country': address.country,
+                        'postal_code': address.postal_code,
+                        'phone': address.phone,
+                        'additional_phone': address.additional_phone,
+                        'is_default': address.is_default,
+                        'address_type': address.address_type,
+                        'created_at': address.created_at.isoformat() if address.created_at else None,
+                        'updated_at': address.updated_at.isoformat() if address.updated_at else None,
+                        'full_address': address.full_address
+                    }
+                    serialized_addresses.append(address_data)
+                except Exception as e:
+                    logger.error(f"Simple list - Error serializing address {address.id}: {str(e)}")
+                    # Skip problematic addresses
+                    continue
+            
+            logger.info(f"Simple list - Successfully serialized {len(serialized_addresses)} addresses")
+            
+            return Response({
+                "count": len(serialized_addresses),
+                "results": serialized_addresses
+            })
+            
+        except Exception as e:
+            logger.error(f"Simple list error: {str(e)}")
+            import traceback
+            logger.error(f"Simple list traceback: {traceback.format_exc()}")
+            return Response({
+                "error": str(e),
+                "error_type": type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
     def test(self, request):
         """
         Simple test endpoint to debug issues
@@ -130,6 +189,21 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
                     logger.info(f"Test endpoint - String repr: {str_repr}")
                 except Exception as e:
                     logger.error(f"Test endpoint - String repr error: {str(e)}")
+                
+                # Test serialization
+                try:
+                    serializer = self.get_serializer(first)
+                    serialized_data = serializer.data
+                    logger.info(f"Test endpoint - Serialization successful: {serialized_data}")
+                except Exception as e:
+                    logger.error(f"Test endpoint - Serialization error: {str(e)}")
+                    import traceback
+                    logger.error(f"Test endpoint - Serialization traceback: {traceback.format_exc()}")
+                    return Response({
+                        "status": "serialization_error",
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
             return Response({
                 "status": "success",
