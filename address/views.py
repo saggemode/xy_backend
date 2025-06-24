@@ -41,11 +41,29 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         """Override list method to add error handling"""
         try:
+            logger.info("Starting list method")
+            queryset = self.get_queryset()
+            logger.info(f"Queryset count: {queryset.count()}")
+            
+            # Test serialization of first item
+            if queryset.exists():
+                first_item = queryset.first()
+                logger.info(f"First item ID: {first_item.id}")
+                try:
+                    serializer = self.get_serializer(first_item)
+                    logger.info("Serialization test successful")
+                except Exception as ser_error:
+                    logger.error(f"Serialization error: {str(ser_error)}")
+                    raise ser_error
+            
             return super().list(request, *args, **kwargs)
         except Exception as e:
             logger.error(f"Error in list method: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return Response(
-                {"error": "An error occurred while fetching addresses"}, 
+                {"error": f"An error occurred while fetching addresses: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -80,6 +98,55 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Error deleting shipping address: {str(e)}")
             raise
+
+    @action(detail=False, methods=['get'])
+    def test(self, request):
+        """
+        Simple test endpoint to debug issues
+        """
+        try:
+            user = request.user
+            logger.info(f"Test endpoint - User: {user.username} (id: {user.id})")
+            
+            # Test basic query
+            addresses = ShippingAddress.objects.filter(user=user)
+            logger.info(f"Test endpoint - Found {addresses.count()} addresses")
+            
+            # Test basic data
+            if addresses.exists():
+                first = addresses.first()
+                logger.info(f"Test endpoint - First address: {first.id}, {first.address}, {first.city}")
+                
+                # Test full_address property
+                try:
+                    full_addr = first.full_address
+                    logger.info(f"Test endpoint - Full address: {full_addr}")
+                except Exception as e:
+                    logger.error(f"Test endpoint - Full address error: {str(e)}")
+                
+                # Test __str__ method
+                try:
+                    str_repr = str(first)
+                    logger.info(f"Test endpoint - String repr: {str_repr}")
+                except Exception as e:
+                    logger.error(f"Test endpoint - String repr error: {str(e)}")
+            
+            return Response({
+                "status": "success",
+                "user": user.username,
+                "address_count": addresses.count(),
+                "message": "Test completed successfully"
+            })
+            
+        except Exception as e:
+            logger.error(f"Test endpoint error: {str(e)}")
+            import traceback
+            logger.error(f"Test endpoint traceback: {traceback.format_exc()}")
+            return Response({
+                "status": "error",
+                "error": str(e),
+                "error_type": type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def debug_info(self, request):
