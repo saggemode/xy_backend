@@ -55,8 +55,6 @@ class Test5Serializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 class ShippingAddressSerializer(serializers.ModelSerializer):
-    country = serializers.PrimaryKeyRelatedField(queryset=Country.objects.all(), required=False, allow_null=True)
-    state = serializers.PrimaryKeyRelatedField(queryset=Region.objects.all(), required=False, allow_null=True)
     phone = PhoneNumberField(required=False, allow_null=True)
     additional_phone = PhoneNumberField(required=False, allow_null=True)
     id = serializers.UUIDField(read_only=True)

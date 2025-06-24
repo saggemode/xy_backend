@@ -119,10 +119,10 @@ class ShippingAddress(models.Model):
             parts.append(self.address)
         if self.city:
             parts.append(self.city)
-        if self.state and self.state.name:
-            parts.append(self.state.name)
-        if self.country and self.country.name:
-            parts.append(self.country.name)
+        if self.state:
+            parts.append(self.state)
+        if self.country:
+            parts.append(self.country)
             
         return ", ".join(parts) if parts else f"Shipping Address {self.id}"
 
@@ -153,11 +153,11 @@ class ShippingAddress(models.Model):
             parts.append(self.address)
         if self.city:
             parts.append(self.city)
-        if self.state and self.state.name:
-            parts.append(self.state.name)
+        if self.state:
+            parts.append(self.state)
         if self.postal_code:
             parts.append(self.postal_code)
-        if self.country and self.country.name:
-            parts.append(self.country.name)
+        if self.country:
+            parts.append(self.country)
             
         return ", ".join(parts) if parts else "No address provided"
