@@ -88,6 +88,22 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=False, methods=['get'])
+    def default(self, request):
+        """
+        Get the default address for the current user.
+        """
+        user = request.user
+        try:
+            default_address = ShippingAddress.objects.get(user=user, is_default=True)
+            serializer = self.get_serializer(default_address)
+            return Response(serializer.data)
+        except ShippingAddress.DoesNotExist:
+            return Response(
+                {"error": "No default address found for this user"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    @action(detail=False, methods=['get'])
     def debug_info(self, request):
         """
         Debug endpoint to check authentication and user status.
