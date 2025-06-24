@@ -34,6 +34,19 @@ class ShippingAddress(models.Model):
         help_text="The user this shipping address belongs to"
     )
 
+    latitude = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name=_('Latitude'),
+        help_text=_('Geographical latitude of the address')
+    )
+    longitude = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name=_('Longitude'),
+        help_text=_('Geographical longitude of the address')
+    )
+
     # Address details
    
     address = models.CharField(
@@ -161,6 +174,16 @@ class ShippingAddress(models.Model):
         super().save(*args, **kwargs)
 
     @property
+    def coordinates(self):
+        """Return coordinates as a dictionary"""
+        if self.latitude and self.longitude:
+            return {
+                'latitude': self.latitude,
+                'longitude': self.longitude
+            }
+        return None
+
+    @property
     def full_address(self):
         """Return the complete formatted address"""
         try:
@@ -176,8 +199,14 @@ class ShippingAddress(models.Model):
                 parts.append(str(self.postal_code))
             if self.country:
                 parts.append(str(self.country))
+            
+            address_str = ", ".join(parts) if parts else "No address provided"
+            
+            # Add coordinates if available
+            if self.latitude and self.longitude:
+                address_str += f" (Lat: {self.latitude:.6f}, Lng: {self.longitude:.6f})"
                 
-            return ", ".join(parts) if parts else "No address provided"
+            return address_str
         except Exception:
             return f"Shipping Address {self.id}"
 

@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class ShippingAddressViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing shipping addresses.
-    Fields: id (UUID), user, address, city, state, country, postal_code, phone, additional_phone, is_default, address_type, created_at, updated_at, full_address (computed).
+    Fields: id (UUID), user, address, city, state, country, postal_code, phone, additional_phone, is_default, address_type, created_at, updated_at, full_address (computed), latitude, longitude.
     """
     serializer_class = ShippingAddressSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -65,6 +65,27 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
                 {"error": "Validation error", "details": e.message_dict if hasattr(e, 'message_dict') else str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+    @action(detail=False, methods=['get'])
+    def with_coordinates(self, request):
+        """
+        Get addresses that have coordinates (latitude and longitude).
+        """
+        user = request.user
+        if user.is_superuser:
+            addresses = ShippingAddress.objects.filter(latitude__isnull=False, longitude__isnull=False)
+        else:
+            addresses = ShippingAddress.objects.filter(
+                user=user, 
+                latitude__isnull=False, 
+                longitude__isnull=False
+            )
+        
+        serializer = self.get_serializer(addresses, many=True)
+        return Response({
+            "count": addresses.count(),
+            "results": serializer.data
+        })
 
     @action(detail=False, methods=['get'])
     def debug_info(self, request):

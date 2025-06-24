@@ -16,7 +16,8 @@ class ShippingAddressSerializer(serializers.ModelSerializer):
         model = ShippingAddress
         fields = [
             'id', 'user', 'address', 'city', 'state', 'postal_code', 'country',
-            'phone', 'additional_phone', 'is_default', 'address_type', 'created_at', 'updated_at', 'full_address'
+            'phone', 'additional_phone', 'is_default', 'address_type', 'created_at', 'updated_at', 'full_address',
+            'latitude', 'longitude'
         ]
         read_only_fields = ['user', 'created_at', 'updated_at', 'full_address']
         extra_kwargs = {
@@ -29,6 +30,8 @@ class ShippingAddressSerializer(serializers.ModelSerializer):
             'additional_phone': {'required': False, 'allow_blank': True},
             'is_default': {'required': False},
             'address_type': {'required': False},
+            'latitude': {'required': False},
+            'longitude': {'required': False},
         }
 
     def validate(self, data):
