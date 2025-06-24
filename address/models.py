@@ -75,7 +75,7 @@ class ShippingAddress(models.Model):
        max_length=100,
         verbose_name=_('Phone'),
         help_text="Phone",
-        blank=True,
+        blank=False,
         null=True
     )
     additional_phone = models.CharField(

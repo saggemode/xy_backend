@@ -1,8 +1,16 @@
 from rest_framework import serializers
 from .models import ShippingAddress
+from django.contrib.auth.models import User
+
+class UserSerializer(serializers.ModelSerializer):
+    """Serializer for user details"""
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'first_name', 'last_name', 'email']
 
 class ShippingAddressSerializer(serializers.ModelSerializer):
     full_address = serializers.CharField(read_only=True)
+    user = UserSerializer(read_only=True)
 
     class Meta:
         model = ShippingAddress
@@ -17,7 +25,7 @@ class ShippingAddressSerializer(serializers.ModelSerializer):
             'state': {'required': False, 'allow_blank': True},
             'country': {'required': False, 'allow_blank': True},
             'postal_code': {'required': False, 'allow_blank': True},
-            'phone': {'required': False, 'allow_blank': True},
+            'phone': {'required': True, 'allow_blank': True},
             'additional_phone': {'required': False, 'allow_blank': True},
             'is_default': {'required': False},
             'address_type': {'required': False},
