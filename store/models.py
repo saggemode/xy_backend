@@ -56,16 +56,21 @@ class Store(models.Model):
 
 
 class StoreStaff(models.Model):
+    class Roles(models.TextChoices):
+        OWNER = 'owner', _('Owner')
+        MANAGER = 'manager', _('Manager')
+        STAFF = 'staff', _('Staff')
+
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
         editable=False,
         verbose_name=_('ID')
     )
-     
+    
     store = models.ForeignKey(Store, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    role = models.CharField(max_length=50)  # owner, manager, staff
+    role = models.CharField(max_length=50, choices=Roles.choices, default=Roles.OWNER)
     joined_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 
