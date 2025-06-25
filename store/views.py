@@ -12,6 +12,7 @@ from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
+from django.utils import timezone
 
 from .models import Store, StoreAnalytics, StoreStaff
 from product.models import Product, ProductVariant
@@ -528,13 +529,44 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
     ordering_fields = ['joined_at', 'role', 'is_active']
     ordering = ['-joined_at']
 
+    @action(detail=False, methods=['get'], url_path='roles')
+    def get_roles(self, request):
+        """Return the list of valid staff roles."""
+        return Response(StoreStaffSerializer.get_role_choices())
+
+    def perform_create(self, serializer):
+        # Only allow owners to add staff
+        store = serializer.validated_data['store']
+        user = self.request.user
+        if not StoreStaff.is_owner(user, store):
+            raise PermissionDenied("Only store owners can add staff.")
+        serializer.save(created_by=user, updated_by=user)
+
+    def perform_update(self, serializer):
+        serializer.save(updated_by=self.request.user)
+
+    def perform_destroy(self, instance):
+        # Only allow owners to remove staff
+        user = self.request.user
+        if not StoreStaff.is_owner(user, instance.store):
+            raise PermissionDenied("Only store owners can remove staff.")
+        # Soft delete: set deleted_at and updated_by
+        instance.deleted_at = timezone.now()
+        instance.updated_by = user
+        instance.save()
+
+    def destroy(self, request, *args, **kwargs):
+        # Override to return a response for soft delete
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({'detail': 'Staff member soft-deleted (marked as deleted).'}, status=status.HTTP_200_OK)
+
     def get_queryset(self):
         """Enhanced queryset with related data and custom search."""
         try:
             queryset = StoreStaff.objects.select_related('user', 'store').annotate(
                 total_products_managed=Count('store__products')
             )
-            
             # Custom search functionality
             search_query = self.request.query_params.get('search', None)
             if search_query and search_query.strip():
@@ -544,11 +576,12 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
                     Q(user__last_name__icontains=search_query) |
                     Q(role__icontains=search_query)
                 )
-            
+            # Exclude soft-deleted staff by default
+            queryset = queryset.filter(deleted_at__isnull=True)
             return queryset
         except Exception as e:
             # Fallback to basic queryset if annotations fail
-            return StoreStaff.objects.select_related('user', 'store')
+            return StoreStaff.objects.select_related('user', 'store').filter(deleted_at__isnull=True)
 
     @action(detail=False, methods=['get'], url_path='by-store')
     def staff_by_store(self, request):
@@ -592,53 +625,36 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
         """Assign a role to a staff member."""
         staff_member = self.get_object()
         new_role = request.data.get('role', None)
-        
         if not new_role:
-            return Response({
-                "error": "Role is required"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate role (you can add more roles as needed)
-        valid_roles = ['owner', 'manager', 'staff']
+            return Response({"error": "Role is required"}, status=status.HTTP_400_BAD_REQUEST)
+        valid_roles = [choice[0] for choice in StoreStaff.Roles.choices]
         if new_role not in valid_roles:
-            return Response({
-                "error": f"Invalid role. Valid roles are: {', '.join(valid_roles)}"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({"error": f"Invalid role. Valid roles are: {', '.join(valid_roles)}"}, status=status.HTTP_400_BAD_REQUEST)
         staff_member.role = new_role
+        staff_member.updated_by = request.user
         staff_member.save()
-        
         serializer = self.get_serializer(staff_member)
-        return Response({
-            "message": f"Role '{new_role}' assigned to {staff_member.user.username}",
-            "staff_member": serializer.data
-        })
+        return Response({"message": f"Role '{new_role}' assigned to {staff_member.user.username}", "staff_member": serializer.data})
 
     @action(detail=True, methods=['post'], url_path='activate')
     def activate_staff(self, request, pk=None):
         """Activate a staff member."""
         staff_member = self.get_object()
         staff_member.is_active = True
+        staff_member.updated_by = request.user
         staff_member.save()
-        
         serializer = self.get_serializer(staff_member)
-        return Response({
-            "message": f"Staff member {staff_member.user.username} has been activated",
-            "staff_member": serializer.data
-        })
+        return Response({"message": f"Staff member {staff_member.user.username} has been activated", "staff_member": serializer.data})
 
     @action(detail=True, methods=['post'], url_path='deactivate')
     def deactivate_staff(self, request, pk=None):
         """Deactivate a staff member."""
         staff_member = self.get_object()
         staff_member.is_active = False
+        staff_member.updated_by = request.user
         staff_member.save()
-        
         serializer = self.get_serializer(staff_member)
-        return Response({
-            "message": f"Staff member {staff_member.user.username} has been deactivated",
-            "staff_member": serializer.data
-        })
+        return Response({"message": f"Staff member {staff_member.user.username} has been deactivated", "staff_member": serializer.data})
 
     @action(detail=True, methods=['get'], url_path='performance')
     def staff_performance(self, request, pk=None):
@@ -674,37 +690,21 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
         """Bulk assign role to multiple staff members."""
         staff_ids = request.data.get('staff_ids', [])
         role = request.data.get('role', None)
-        
         if not staff_ids:
-            return Response({
-                "error": "No staff IDs provided"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({"error": "No staff IDs provided"}, status=status.HTTP_400_BAD_REQUEST)
         if not role:
-            return Response({
-                "error": "Role is required"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate role
-        valid_roles = ['owner', 'manager', 'staff']
+            return Response({"error": "Role is required"}, status=status.HTTP_400_BAD_REQUEST)
+        valid_roles = [choice[0] for choice in StoreStaff.Roles.choices]
         if role not in valid_roles:
-            return Response({
-                "error": f"Invalid role. Valid roles are: {', '.join(valid_roles)}"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({"error": f"Invalid role. Valid roles are: {', '.join(valid_roles)}"}, status=status.HTTP_400_BAD_REQUEST)
         staff_members = StoreStaff.objects.filter(id__in=staff_ids)
         updated_count = 0
-        
         for staff_member in staff_members:
             staff_member.role = role
+            staff_member.updated_by = request.user
             staff_member.save()
             updated_count += 1
-        
-        return Response({
-            "message": f"Successfully assigned role '{role}' to {updated_count} staff members",
-            "updated_count": updated_count,
-            "total_requested": len(staff_ids)
-        })
+        return Response({"message": f"Successfully assigned role '{role}' to {updated_count} staff members", "updated_count": updated_count, "total_requested": len(staff_ids)})
 
     @action(detail=False, methods=['get'], url_path='statistics')
     def staff_statistics(self, request):

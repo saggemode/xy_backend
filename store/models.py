@@ -73,9 +73,19 @@ class StoreStaff(models.Model):
     role = models.CharField(max_length=50, choices=Roles.choices, default=Roles.OWNER)
     joined_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, related_name='created_store_staff', on_delete=models.SET_NULL, null=True, blank=True)
+    updated_by = models.ForeignKey(User, related_name='updated_store_staff', on_delete=models.SET_NULL, null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('store', 'user')
 
     def __str__(self):
         return f"{self.user.username} - {self.role} at {self.store.name}"
+
+    @staticmethod
+    def is_owner(user, store):
+        return StoreStaff.objects.filter(user=user, store=store, role=StoreStaff.Roles.OWNER, is_active=True).exists()
 
 # Customer Lifetime Value (CLTV) Calculation
 class CustomerLifetimeValue(models.Model):

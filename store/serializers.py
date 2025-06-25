@@ -21,10 +21,23 @@ class SimpleProductSerializer(serializers.ModelSerializer):
 class StoreStaffSerializer(serializers.ModelSerializer):
     staff_username = serializers.CharField(source='user.username', read_only=True)
     staff_email = serializers.CharField(source='user.email', read_only=True)
-    
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True, default=None)
+    updated_by_username = serializers.CharField(source='updated_by.username', read_only=True, default=None)
+
     class Meta:
         model = StoreStaff
-        fields = ['id', 'role', 'joined_at', 'is_active', 'staff_username', 'staff_email']
+        fields = [
+            'id', 'role', 'role_display', 'joined_at', 'is_active',
+            'staff_username', 'staff_email',
+            'created_by', 'created_by_username',
+            'updated_by', 'updated_by_username',
+            'deleted_at'
+        ]
+
+    @staticmethod
+    def get_role_choices():
+        return [{'value': choice[0], 'label': choice[1]} for choice in StoreStaff.Roles.choices]
 
 class StoreAnalyticsSerializer(serializers.ModelSerializer):
     class Meta:
