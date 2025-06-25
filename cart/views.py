@@ -8,6 +8,10 @@ from product.models import Product, ProductVariant
 from store.models import Store
 from django.utils import timezone
 from django.contrib.auth.models import User
+from store.serializers import StoreSerializer
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
@@ -110,30 +114,43 @@ class CartViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def my_cart(self, request):
         """Get current user's cart with totals"""
-        cart_items = self.get_queryset()
-        
-        if not cart_items.exists():
+        try:
+            cart_items = self.get_queryset()
+            
+            if not cart_items.exists():
+                return Response({
+                    'store': None,
+                    'items': [],
+                    'total_items': 0,
+                    'total_price': 0
+                })
+
+            # Get store from first item (all items should be from same store)
+            store = cart_items.first().store
+            if not store:
+                return Response({
+                    'error': 'Store not found for items in cart'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Calculate totals
+            total_items = sum(item.quantity for item in cart_items)
+            total_price = sum(item.total_price for item in cart_items)
+
+            serializer = self.get_serializer(cart_items, many=True)
             return Response({
-                'store': None,
-                'items': [],
-                'total_items': 0,
-                'total_price': 0
+                'store': StoreSerializer(store).data if store else None,
+                'items': serializer.data,
+                'total_items': total_items,
+                'total_price': total_price
             })
-
-        # Get store from first item (all items should be from same store)
-        store = cart_items.first().store
-        
-        # Calculate totals
-        total_items = sum(item.quantity for item in cart_items)
-        total_price = sum(item.total_price for item in cart_items)
-
-        serializer = self.get_serializer(cart_items, many=True)
-        return Response({
-            'store': StoreSerializer(store).data,
-            'items': serializer.data,
-            'total_items': total_items,
-            'total_price': total_price
-        })
+        except Exception as e:
+            logger.error(f"Error in my_cart: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return Response(
+                {"error": "An error occurred while fetching your cart"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=False, methods=['post'])
     def clear(self, request):
@@ -163,30 +180,37 @@ class CartViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def summary(self, request):
         """Get a summary of the cart including item count, total price, and store info"""
-        cart_items = self.get_queryset()
-        
-        if not cart_items.exists():
+        try:
+            cart_items = self.get_queryset()
+            
+            if not cart_items.exists():
+                return Response({
+                    'store': None,
+                    'total_items': 0,
+                    'total_price': 0,
+                    'item_count': 0,
+                    'has_variants': False
+                })
+
+            store = cart_items.first().store
+            total_items = sum(item.quantity for item in cart_items)
+            total_price = sum(item.total_price for item in cart_items)
+            has_variants = any(item.variant for item in cart_items)
+
             return Response({
-                'store': None,
-                'total_items': 0,
-                'total_price': 0,
-                'item_count': 0,
-                'has_variants': False
+                'store': StoreSerializer(store).data if store else None,
+                'total_items': total_items,
+                'total_price': total_price,
+                'item_count': cart_items.count(),
+                'has_variants': has_variants,
+                'last_updated': cart_items.latest('updated_at').updated_at
             })
-
-        store = cart_items.first().store
-        total_items = sum(item.quantity for item in cart_items)
-        total_price = sum(item.total_price for item in cart_items)
-        has_variants = any(item.variant for item in cart_items)
-
-        return Response({
-            'store': StoreSerializer(store).data,
-            'total_items': total_items,
-            'total_price': total_price,
-            'item_count': cart_items.count(),
-            'has_variants': has_variants,
-            'last_updated': cart_items.latest('updated_at').updated_at
-        })
+        except Exception as e:
+            logger.error(f"Error in cart summary: {str(e)}")
+            return Response(
+                {"error": "An error occurred while fetching cart summary"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=False, methods=['post'])
     def bulk_update(self, request):
