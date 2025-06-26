@@ -27,18 +27,18 @@ class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['notification_type', 'level', 'isRead', 'recipient', 'sender', 'orderId', 'userId']
+    filterset_fields = ['notification_type', 'level', 'isRead', 'recipient', 'sender', 'orderId', 'userId', 'source', 'is_deleted', 'deleted_at']
     search_fields = ['title', 'message']
     ordering_fields = ['created_at', 'isRead', 'notification_type', 'level']
     ordering = ['-created_at']
 
     def get_queryset(self):
         """
-        Filter queryset based on user permissions.
+        Filter queryset based on user permissions and exclude soft-deleted notifications.
         Regular users can only see their own notifications.
         Staff users can see all notifications.
         """
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().filter(is_deleted=False)
         if not self.request.user.is_staff:
             queryset = queryset.filter(recipient=self.request.user)
         return queryset
@@ -169,3 +169,12 @@ class NotificationViewSet(viewsets.ModelViewSet):
         )
         serializer = self.get_serializer(notifications, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['delete'])
+    def soft_delete(self, request, pk=None):
+        """Soft delete a notification (mark as deleted)."""
+        notification = self.get_object()
+        notification.is_deleted = True
+        notification.deleted_at = timezone.now()
+        notification.save(update_fields=['is_deleted', 'deleted_at'])
+        return Response({'status': 'notification soft-deleted'})

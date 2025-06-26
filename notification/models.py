@@ -4,6 +4,7 @@ from django.conf import settings
 from order.models import Order
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
+from django.db.models import JSONField
 
 class Notification(models.Model):
     """
@@ -114,6 +115,14 @@ class Notification(models.Model):
         verbose_name=_('Created At'),
         help_text=_('The timestamp when the notification was created.')
     )
+    source = models.CharField(max_length=64, blank=True, help_text=_('Source app or module'))
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True, help_text=_('Timestamp when the notification was read'))
+    action_text = models.CharField(max_length=64, blank=True, help_text=_('Text for the action button'))
+    action_url = models.URLField(max_length=255, blank=True, null=True, help_text=_('URL for the action'))
+    priority = models.PositiveSmallIntegerField(default=0, help_text=_('Priority of the notification (higher = more important)'))
+    extra_data = JSONField(blank=True, null=True, help_text=_('Extra data for this notification'))
 
     class Meta:
         verbose_name = _('Notification')
@@ -128,10 +137,12 @@ class Notification(models.Model):
         return f"Notification for {self.recipient.username}: {self.title}"
 
     def mark_as_read(self):
-        """Marks the notification as read."""
+        """Marks the notification as read and sets read_at."""
         if not self.isRead:
             self.isRead = True
-            self.save(update_fields=['isRead'])
+            from django.utils import timezone
+            self.read_at = timezone.now()
+            self.save(update_fields=['isRead', 'read_at'])
 
     def mark_as_unread(self):
         """Marks the notification as unread."""
