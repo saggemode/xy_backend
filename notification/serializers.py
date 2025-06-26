@@ -33,12 +33,15 @@ class NotificationSerializer(serializers.ModelSerializer):
             'sender', 'sender_username', 'sender_details',
             'userId', 'user_username', 'user_details',
             'orderId', 'order_id', 'order',
-            'title', 'message', 'link', 'notification_type', 'notification_type_display',
-            'level', 'level_display', 'isRead', 'created_at',
+            'title', 'message', 'link',
+            'notification_type', 'notification_type_display',
+            'level', 'level_display',
+            'isRead', 'read_at',
+            'created_at', 'updated_at',
             'source', 'is_deleted', 'deleted_at',
-        ] + [f for f in Notification._meta.fields if f.name not in [
-            'id', 'recipient', 'sender', 'userId', 'orderId', 'title', 'message', 'link', 'notification_type', 'level', 'isRead', 'created_at', 'updated_at', 'source', 'is_deleted', 'deleted_at']]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+            'action_text', 'action_url', 'priority', 'extra_data'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'is_deleted', 'deleted_at', 'read_at']
 
 
 class NotificationListSerializer(serializers.ModelSerializer):
@@ -58,13 +61,18 @@ class NotificationListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = [
-            'id', 'recipient_username', 'recipient_details', 'user_username', 'user_details', 'order_id', 'order',
-            'title', 'message', 'notification_type',
-            'notification_type_display', 'level', 'level_display', 'isRead', 'created_at',
+            'id', 'recipient', 'recipient_username', 'recipient_details',
+            'userId', 'user_username', 'user_details',
+            'orderId', 'order_id', 'order',
+            'title', 'message', 'link',
+            'notification_type', 'notification_type_display',
+            'level', 'level_display',
+            'isRead', 'read_at',
+            'created_at', 'updated_at',
             'source', 'is_deleted', 'deleted_at',
-        ] + [f for f in Notification._meta.fields if f.name not in [
-            'id', 'recipient', 'userId', 'orderId', 'title', 'message', 'link', 'notification_type', 'level', 'isRead', 'created_at', 'updated_at', 'source', 'is_deleted', 'deleted_at']]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'is_deleted', 'deleted_at']
+            'action_text', 'action_url', 'priority', 'extra_data'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'is_deleted', 'deleted_at', 'read_at']
 
 
 class NotificationCreateSerializer(serializers.ModelSerializer):
