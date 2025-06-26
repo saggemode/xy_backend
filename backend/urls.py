@@ -37,7 +37,7 @@ urlpatterns = [
     path('api/report/', include('report.urls')),
     path('api/', include('wishlist.urls')),
 
-    path('api/notification/', include('notification.urls')),
+    path('api/', include('notification.urls')),
     
 
 ]

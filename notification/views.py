@@ -27,7 +27,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['notification_type', 'level', 'isRead', 'recipient', 'sender']
+    filterset_fields = ['notification_type', 'level', 'isRead', 'recipient', 'sender', 'orderId', 'userId']
     search_fields = ['title', 'message']
     ordering_fields = ['created_at', 'isRead', 'notification_type', 'level']
     ordering = ['-created_at']

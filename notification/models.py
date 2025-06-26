@@ -1,6 +1,8 @@
 import uuid
 from django.db import models
 from django.conf import settings
+from order.models import Order
+from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
 
 class Notification(models.Model):
@@ -31,6 +33,25 @@ class Notification(models.Model):
         editable=False,
         verbose_name=_('ID')
     )
+    orderId = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        verbose_name=_('Order ID'),
+        help_text=_('The order associated with this notification, if applicable.'),
+        null=True,
+        blank=True
+    )
+
+    userId = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='user_notifications',
+        verbose_name=_('User ID'),
+        help_text=_('The user associated with this notification.')
+    )
+
+
     recipient = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -82,6 +103,12 @@ class Notification(models.Model):
         verbose_name=_('Is Read'),
         help_text=_('Whether the user has read the notification.')
     )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        blank=True,
+        verbose_name=_('Updated At'),
+        help_text=_('The timestamp when the notification was last updated.')
+    )   
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name=_('Created At'),

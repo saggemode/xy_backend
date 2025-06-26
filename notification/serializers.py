@@ -1,18 +1,35 @@
 from rest_framework import serializers
 from .models import Notification
+from order.serializers import OrderSerializer
+from django.contrib.auth.models import User
+
+
+class SimpleUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username']
 
 
 class NotificationSerializer(serializers.ModelSerializer):
     """Main serializer for Notification model with all fields."""
     recipient_username = serializers.CharField(source='recipient.username', read_only=True)
     sender_username = serializers.CharField(source='sender.username', read_only=True)
+    user_username = serializers.CharField(source='userId.username', read_only=True)
+    order_id = serializers.UUIDField(source='orderId.id', read_only=True)
     notification_type_display = serializers.CharField(source='get_notification_type_display', read_only=True)
     level_display = serializers.CharField(source='get_level_display', read_only=True)
+    order = OrderSerializer(source='orderId', read_only=True)
+    recipient_details = SimpleUserSerializer(source='recipient', read_only=True)
+    sender_details = SimpleUserSerializer(source='sender', read_only=True)
+    user_details = SimpleUserSerializer(source='userId', read_only=True)
 
     class Meta:
         model = Notification
         fields = [
-            'id', 'recipient', 'recipient_username', 'sender', 'sender_username',
+            'id', 'recipient', 'recipient_username', 'recipient_details',
+            'sender', 'sender_username', 'sender_details',
+            'userId', 'user_username', 'user_details',
+            'orderId', 'order_id', 'order',
             'title', 'message', 'link', 'notification_type', 'notification_type_display',
             'level', 'level_display', 'isRead', 'created_at'
         ]
@@ -22,13 +39,19 @@ class NotificationSerializer(serializers.ModelSerializer):
 class NotificationListSerializer(serializers.ModelSerializer):
     """Simplified serializer for listing notifications."""
     recipient_username = serializers.CharField(source='recipient.username', read_only=True)
+    user_username = serializers.CharField(source='userId.username', read_only=True)
+    order_id = serializers.UUIDField(source='orderId.id', read_only=True)
     notification_type_display = serializers.CharField(source='get_notification_type_display', read_only=True)
     level_display = serializers.CharField(source='get_level_display', read_only=True)
+    order = OrderSerializer(source='orderId', read_only=True)
+    recipient_details = SimpleUserSerializer(source='recipient', read_only=True)
+    user_details = SimpleUserSerializer(source='userId', read_only=True)
 
     class Meta:
         model = Notification
         fields = [
-            'id', 'recipient_username', 'title', 'message', 'notification_type',
+            'id', 'recipient_username', 'recipient_details', 'user_username', 'user_details', 'order_id', 'order',
+            'title', 'message', 'notification_type',
             'notification_type_display', 'level', 'level_display', 'isRead', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
@@ -40,6 +63,7 @@ class NotificationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = [
+            'recipient', 'sender', 'userId', 'orderId', 'title', 'message', 'link',
             'recipient', 'sender', 'title', 'message', 'link',
             'notification_type', 'level'
         ]
