@@ -13,8 +13,8 @@ from .models import Store, StoreAnalytics, StoreStaff, CustomerLifetimeValue
 
 @admin.register(Store)
 class StoreAdmin(admin.ModelAdmin):
-    list_display = ('name', 'owner', 'is_active', 'is_verified', 'is_deleted', 'created_at', 'updated_at', 'created_by', 'updated_by')
-    list_filter = ('is_active', 'is_verified', 'is_deleted', 'created_at')
+    list_display = ('name', 'owner',  'is_verified', 'is_deleted', 'created_at', 'updated_at', 'created_by', 'updated_by')
+    list_filter = ( 'is_verified', 'is_deleted', 'created_at')
     search_fields = ('name', 'owner__username', 'description')
     readonly_fields = ('created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by')
     actions = ['soft_delete_stores', 'restore_stores']
@@ -34,7 +34,7 @@ class StoreAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Status & Verification', {
-            'fields': ('status', 'is_active', 'is_verified', 'verified_at', 'verified_by')
+            'fields': ('status',  'is_verified', 'verified_at', 'verified_by')
         }),
         ('Business Settings', {
             'fields': ('commission_rate', 'auto_approve_products'),
@@ -101,11 +101,11 @@ class StoreAdmin(admin.ModelAdmin):
 @admin.register(StoreStaff)
 class StoreStaffAdmin(admin.ModelAdmin):
     list_display = [
-        'user_username', 'store_name', 'role_display', 'is_active', 
+        'user_username', 'store_name', 'role_display', 
         'permissions_display', 'joined_at', 'last_active_display'
     ]
     list_filter = [
-        'role', 'is_active', 'joined_at', 'can_manage_products', 
+        'role',  'joined_at', 'can_manage_products', 
         'can_manage_orders', 'can_manage_staff', 'can_view_analytics',
         ('store', admin.RelatedOnlyFieldListFilter),
         ('user', admin.RelatedOnlyFieldListFilter),
@@ -122,7 +122,7 @@ class StoreStaffAdmin(admin.ModelAdmin):
             'fields': ('id', 'store', 'user', 'role')
         }),
         ('Status & Permissions', {
-            'fields': ('is_active', 'can_manage_products', 'can_manage_orders', 
+            'fields': ('can_manage_products', 'can_manage_orders', 
                       'can_manage_staff', 'can_view_analytics')
         }),
         ('Timestamps', {

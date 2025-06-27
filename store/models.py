@@ -114,10 +114,6 @@ class Store(models.Model):
         default='draft',
         help_text=_('Current status of the store')
     )
-    is_active = models.BooleanField(
-        default=False,
-        help_text=_('Whether the store is currently active')
-    )
     is_verified = models.BooleanField(
         default=False,
         help_text=_('Whether the store has been verified by admin')
@@ -185,8 +181,8 @@ class Store(models.Model):
         verbose_name_plural = "Stores"
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['status', 'is_active']),
-            models.Index(fields=['owner', 'is_active']),
+            models.Index(fields=['status']),
+            models.Index(fields=['owner']),
             models.Index(fields=['created_at']),
         ]
 
@@ -221,14 +217,12 @@ class Store(models.Model):
     # Business Logic Methods
     def activate(self, user=None):
         """Activate the store."""
-        self.is_active = True
         self.status = 'active'
         self.updated_by = user
         self.save()
 
     def deactivate(self, user=None):
         """Deactivate the store."""
-        self.is_active = False
         self.status = 'suspended'
         self.updated_by = user
         self.save()
@@ -244,7 +238,6 @@ class Store(models.Model):
     def close(self, user=None):
         """Close the store permanently."""
         self.status = 'closed'
-        self.is_active = False
         self.updated_by = user
         self.save()
 
@@ -281,10 +274,9 @@ class Store(models.Model):
         """Get total number of staff for this store."""
         return self.storestaff_set.filter(deleted_at__isnull=True).count()
 
-    @property
     def is_operational(self):
         """Check if store is operational (active and verified)."""
-        return self.is_active and self.is_verified and self.status == 'active'
+        return self.status == 'active' and self.is_verified
 
 
 class StoreStaff(models.Model):
