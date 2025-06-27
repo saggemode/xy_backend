@@ -47,7 +47,7 @@ class Cart(models.Model):
 
     def clean(self):
         # Validate store is active
-        if not self.store.is_active:
+        if self.store.status != 'active':
             raise ValidationError("Cannot add products from inactive store")
 
         # Validate product belongs to store

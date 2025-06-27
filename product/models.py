@@ -121,7 +121,7 @@ class Product(models.Model):
     def clean(self):
         if self.discount_price and self.discount_price >= self.base_price:
             raise ValidationError("Discount price must be less than the base price.")
-        if not self.store.is_active:
+        if self.store.status != 'active':
             raise ValidationError("Cannot create product for inactive store")
         if not self.store.is_verified:
             raise ValidationError("Store must be verified to create products")
@@ -188,7 +188,7 @@ class Product(models.Model):
 
     @classmethod
     def create_product(cls, store, name, description, base_price, categories=None):
-        if not store.is_active:
+        if store.status != 'active':
             raise ValidationError("Cannot create product for inactive store")
         if not store.owner.is_active:
             raise ValidationError("Store owner's account must be active")
