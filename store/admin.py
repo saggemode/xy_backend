@@ -20,7 +20,7 @@ class StoreAdmin(admin.ModelAdmin):
     actions = ['soft_delete_stores', 'restore_stores']
     fieldsets = (
         ('Basic Information', {
-            'fields': ('id', 'name', 'description', 'location', 'owner')
+            'fields': ('name', 'description', 'location', 'owner')
         }),
         ('Contact Information', {
             'fields': ('contact_email', 'phone_number', 'website_url')
