@@ -114,8 +114,8 @@ class NotificationAdmin(admin.ModelAdmin):
     # Raw ID fields for better performance with large datasets
     raw_id_fields = ['recipient', 'sender', 'user', 'orderId']
     
-    # Autocomplete fields
-    autocomplete_fields = ['recipient', 'sender', 'user']
+    # Autocomplete fields - removed due to User model not being registered
+    # autocomplete_fields = ['recipient', 'sender', 'user']
     
     def absolute_url(self, obj):
         """Display absolute URL as a clickable link."""

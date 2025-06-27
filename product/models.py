@@ -1,6 +1,5 @@
 import uuid
 from django.db import models
-from django.contrib.auth.models import User, AbstractUser
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.db.models import Avg, Min, Max, Sum, Count
@@ -309,7 +308,7 @@ class Coupon(models.Model):
     # Optional restrictions
     products = models.ManyToManyField(Product, blank=True, related_name='coupons')
     categories = models.ManyToManyField(Category, blank=True, related_name='coupons')
-    users = models.ManyToManyField(User, blank=True, related_name='available_coupons')
+    users = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='available_coupons')
     max_uses_per_user = models.PositiveIntegerField(default=1)
 
     class Meta:
@@ -382,7 +381,7 @@ class CouponUsage(models.Model):
         verbose_name=_('ID')
     )
     coupon = models.ForeignKey(Coupon, on_delete=models.CASCADE, related_name='usages')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='coupon_usages')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='coupon_usages')
     order = models.ForeignKey('order.Order', on_delete=models.CASCADE, related_name='coupon_usages')
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2)
     used_at = models.DateTimeField(default=timezone.now)

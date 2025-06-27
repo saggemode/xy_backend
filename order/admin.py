@@ -126,8 +126,8 @@ class OrderAdmin(admin.ModelAdmin):
     # Raw ID fields for better performance with large datasets
     raw_id_fields = ['user', 'store', 'shipping_address', 'billing_address']
     
-    # Autocomplete fields
-    autocomplete_fields = ['user', 'store']
+    # Autocomplete fields - removed due to CustomUser model not being registered
+    # autocomplete_fields = ['user', 'store']
     
     def absolute_url(self, obj):
         """Display absolute URL as a clickable link."""

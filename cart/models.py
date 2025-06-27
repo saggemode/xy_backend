@@ -1,6 +1,6 @@
 import uuid
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings
 from product.models import Product, ProductVariant
 from store.models import Store
 from django.core.exceptions import ValidationError
@@ -16,7 +16,7 @@ class Cart(models.Model):
         verbose_name=_('ID')
     )
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, db_column='userId_id')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, db_column='userId_id')
     store = models.ForeignKey(Store, on_delete=models.CASCADE, db_column='storeId_id')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, db_column='productId_id')
     variant = models.ForeignKey(ProductVariant, on_delete=models.CASCADE, null=True, blank=True, db_column='variantId_id')
@@ -27,8 +27,8 @@ class Cart(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_deleted = models.BooleanField(default=False, db_index=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, default=None, related_name='created_cart_items')
-    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, default=None, related_name='updated_cart_items')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, default=None, related_name='created_cart_items')
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, default=None, related_name='updated_cart_items')
 
     class Meta:
         verbose_name = 'Cart'

@@ -1,6 +1,5 @@
 import uuid
 from django.db import models
-from django.conf import settings
 from order.models import Order
 from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
@@ -78,7 +77,7 @@ class Notification(models.Model):
 
     # User Relationships
     recipient = models.ForeignKey(
-        User,
+       User,
         on_delete=models.CASCADE,
         related_name='notifications',
         verbose_name=_('Recipient'),
