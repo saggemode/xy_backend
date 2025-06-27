@@ -25,6 +25,10 @@ class Cart(models.Model):
     selected_color = models.CharField(max_length=50, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, default=None, related_name='created_cart_items')
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, default=None, related_name='updated_cart_items')
 
     class Meta:
         verbose_name = 'Cart'
@@ -32,6 +36,10 @@ class Cart(models.Model):
         unique_together = ('user', 'store', 'product', 'variant')
         db_table = 'cart_cart'
         managed = True
+        indexes = [
+            models.Index(fields=['user', 'is_deleted']),
+            models.Index(fields=['store', 'is_deleted']),
+        ]
 
     def __str__(self):
         variant_str = f" - {self.variant.name}" if self.variant else ""
@@ -88,8 +96,29 @@ class Cart(models.Model):
         """Override save to ensure quantity is at least 1 and validate the cart item"""
         if self.quantity < 1:
             self.quantity = 1
+        user = getattr(self, '_current_user', None)
+        if not self.pk and not self.created_by and user:
+            self.created_by = user
+        if user:
+            self.updated_by = user
         self.full_clean()
         super().save(*args, **kwargs)
+
+    def soft_delete(self, user=None):
+        if not self.is_deleted:
+            self.is_deleted = True
+            self.deleted_at = timezone.now()
+            if user:
+                self.updated_by = user
+            self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
+
+    def restore(self, user=None):
+        if self.is_deleted:
+            self.is_deleted = False
+            self.deleted_at = None
+            if user:
+                self.updated_by = user
+            self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
 
     @classmethod
     def add_to_cart(cls, user, product, quantity=1, variant=None, size=None, color=None):
@@ -101,12 +130,14 @@ class Cart(models.Model):
             user=user,
             store=store,
             product=product,
-            variant=variant
+            variant=variant,
+            is_deleted=False
         ).first()
 
         if cart_item:
             # Update quantity if item exists
             cart_item.quantity += quantity
+            cart_item._current_user = user
             cart_item.save()
             return cart_item
 
@@ -120,16 +151,18 @@ class Cart(models.Model):
             selected_size=size,
             selected_color=color
         )
+        cart_item._current_user = user
         cart_item.save()
         return cart_item
 
-    def update_quantity(self, quantity):
+    def update_quantity(self, quantity, user=None):
         """Update the quantity of the cart item"""
         if quantity < 1:
             raise ValidationError("Quantity must be at least 1")
         self.quantity = quantity
+        self._current_user = user
         self.save()
 
-    def remove(self):
+    def remove(self, user=None):
         """Remove the item from cart"""
-        self.delete()
+        self.soft_delete(user=user)

@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, generics, viewsets, permissions
+from rest_framework import status, generics, viewsets, permissions, filters
 from django.contrib.auth.models import User
 from rest_framework.decorators import action
 import logging
@@ -9,26 +9,44 @@ from django.core.exceptions import ValidationError, PermissionDenied
 from datetime import datetime
 from .models import ShippingAddress
 from .serializers import ShippingAddressSerializer
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.throttling import UserRateThrottle
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
 class ShippingAddressViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing shipping addresses.
+    Now with filtering, searching, ordering, pagination, rate limiting, soft delete, audit logging, and bulk operations.
     Fields: id (UUID), user, address, city, state, country, postal_code, phone, additional_phone, is_default, address_type, created_at, updated_at, full_address (computed), latitude, longitude.
     """
     serializer_class = ShippingAddressSerializer
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['city', 'state', 'country', 'is_default', 'address_type', 'is_deleted', 'created_at']
+    search_fields = ['address', 'city', 'state', 'country', 'postal_code', 'phone']
+    ordering_fields = ['created_at', 'updated_at', 'city', 'is_default', 'is_deleted']
+    ordering = ['-is_default', '-created_at']
+    throttle_classes = [UserRateThrottle]
+    pagination_class = None  # Use DRF default or set custom if needed
 
     def get_queryset(self):
         user = self.request.user
+        qs = ShippingAddress.objects.filter(user=user, is_deleted=False)
         if user.is_superuser:
+            qs = ShippingAddress.objects.all()
+        # Filtering for soft delete
+        show_deleted = self.request.query_params.get('show_deleted')
+        if show_deleted == '1' and user.is_superuser:
             return ShippingAddress.objects.all()
-        return ShippingAddress.objects.filter(user=user)
+        return qs
 
     def perform_create(self, serializer):
+        user = self.request.user
         try:
-            serializer.save(user=self.request.user)
+            instance = serializer.save(user=user, created_by=user, updated_by=user)
+            logger.info(f"Shipping address created by {user}: {instance}")
         except ValidationError as e:
             logger.error(f"Validation error creating address: {str(e)}")
             raise
@@ -37,14 +55,56 @@ class ShippingAddressViewSet(viewsets.ModelViewSet):
             raise
 
     def perform_update(self, serializer):
+        user = self.request.user
         try:
-            serializer.save()
+            instance = serializer.save(updated_by=user)
+            logger.info(f"Shipping address updated by {user}: {instance}")
         except ValidationError as e:
             logger.error(f"Validation error updating address: {str(e)}")
             raise
         except Exception as e:
             logger.error(f"Error updating address: {str(e)}")
             raise
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        try:
+            instance.soft_delete(user=user)
+            logger.info(f"Shipping address soft deleted by {user}: {instance}")
+        except Exception as e:
+            logger.error(f"Error soft deleting address: {str(e)}")
+            raise
+
+    @action(detail=True, methods=['post'], url_path='restore')
+    def restore(self, request, pk=None):
+        """Restore a soft-deleted address."""
+        try:
+            address = self.get_object()
+            user = request.user
+            if not (user.is_superuser or address.user == user):
+                return Response({'detail': 'Not authorized.'}, status=status.HTTP_403_FORBIDDEN)
+            address.restore(user=user)
+            serializer = self.get_serializer(address)
+            logger.info(f"Shipping address restored by {user}: {address}")
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Error restoring address: {str(e)}")
+            return Response({'detail': 'An error occurred.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['post'], url_path='bulk_delete')
+    def bulk_delete(self, request):
+        """Bulk soft delete addresses by IDs."""
+        ids = request.data.get('ids', [])
+        user = request.user
+        if not ids:
+            return Response({'detail': 'No IDs provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        addresses = ShippingAddress.objects.filter(id__in=ids, user=user, is_deleted=False)
+        count = 0
+        for address in addresses:
+            address.soft_delete(user=user)
+            count += 1
+        logger.info(f"Bulk soft deleted {count} addresses by {user}.")
+        return Response({'deleted_count': count})
 
     def create(self, request, *args, **kwargs):
         """Override create to handle validation errors gracefully"""

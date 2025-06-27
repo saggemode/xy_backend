@@ -1,3 +1,4 @@
+import logging
 from django.shortcuts import render, get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -13,730 +14,952 @@ from rest_framework.filters import OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter
 from django.utils import timezone
+from django.core.cache import cache
+from django.db import transaction
+from django.core.paginator import Paginator
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_cookie
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
-from .models import Store, StoreAnalytics, StoreStaff
+from .models import Store, StoreAnalytics, StoreStaff, CustomerLifetimeValue
 from product.models import Product, ProductVariant
+from .serializers import (
+    StoreSerializer, StoreDetailSerializer, StoreCreateSerializer, StoreUpdateSerializer,
+    StoreStaffSerializer, StoreAnalyticsSerializer, CustomerLifetimeValueSerializer,
+    BulkStoreActionSerializer, BulkStaffActionSerializer, StoreStatisticsSerializer,
+    StoreAnalyticsReportSerializer
+)
+from notification.models import Notification
 
-from .serializers import StoreAnalyticsSerializer, StoreSerializer, StoreStaffSerializer
-from product.serializers import ProductSerializer
+logger = logging.getLogger(__name__)
 
-
-class StoreAnalyticsViewSet(viewsets.ModelViewSet):
-    queryset = StoreAnalytics.objects.all()
-    serializer_class = StoreAnalyticsSerializer
 
 class StoreViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for managing stores with filtering, search, and analytics.
+    Professional ViewSet for Store model with comprehensive CRUD operations.
+    
+    Features:
+    - Full CRUD operations with proper permissions
+    - Advanced filtering and searching
+    - Bulk operations
+    - Statistics and analytics
+    - Soft delete functionality
+    - Caching for performance
+    - Comprehensive error handling
+    - Audit logging
     """
-    queryset = Store.objects.all()
+    
+    queryset = Store.objects.all().order_by('-created_at')
     serializer_class = StoreSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['is_active', 'is_verified', 'owner']
-    search_fields = ['name', 'description', 'location', 'contact_email']
-    ordering_fields = ['name', 'created_at', 'updated_at']
+    throttle_classes = [UserRateThrottle]
+    
+    # Comprehensive filtering options
+    filterset_fields = [
+        'status', 'is_active', 'is_verified', 'owner', 'created_at', 'updated_at',
+        'commission_rate', 'auto_approve_products'
+    ]
+    
+    # Search across multiple fields
+    search_fields = [
+        'name', 'description', 'location', 'contact_email', 'phone_number',
+        'owner__username', 'owner__email', 'owner__first_name', 'owner__last_name'
+    ]
+    
+    # Ordering options
+    ordering_fields = [
+        'name', 'created_at', 'updated_at', 'total_products', 'total_staff',
+        'commission_rate', 'status', 'is_active', 'is_verified'
+    ]
     ordering = ['-created_at']
 
     def get_queryset(self):
-        queryset = Store.objects.all()
+        """
+        Filter queryset based on user permissions and exclude soft-deleted stores.
         
-        # Filter by active status
-        is_active = self.request.query_params.get('is_active')
-        if is_active is not None:
-            queryset = queryset.filter(is_active=is_active.lower() == 'true')
+        - Regular users can only see their own stores
+        - Staff users can see all stores
+        - Always exclude soft-deleted stores for regular users
+        """
+        queryset = super().get_queryset().filter(deleted_at__isnull=True)
         
-        # Filter by verification status
-        is_verified = self.request.query_params.get('is_verified')
-        if is_verified is not None:
-            queryset = queryset.filter(is_verified=is_verified.lower() == 'true')
+        # Staff users can see all stores
+        if self.request.user.is_staff:
+            return queryset
         
-        # Filter by owner
-        owner_id = self.request.query_params.get('owner')
-        if owner_id:
-            queryset = queryset.filter(owner_id=owner_id)
-        
-        # Search functionality
-        search = self.request.query_params.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(name__icontains=search) |
-                Q(description__icontains=search) |
-                Q(location__icontains=search) |
-                Q(contact_email__icontains=search)
-            )
-        
-        return queryset
+        # Regular users can only see their own stores
+        return queryset.filter(owner=self.request.user)
 
-    @action(detail=True, methods=['get'])
-    def products(self, request, pk=None):
-        """Get all products for a specific store."""
-        store = self.get_object()
-        products = store.products.all()
-        serializer = ProductSerializer(products, many=True)
-        return Response(serializer.data)
+    def get_serializer_class(self):
+        """Return appropriate serializer class based on action."""
+        if self.action == 'list':
+            return StoreSerializer
+        elif self.action == 'create':
+            return StoreCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return StoreUpdateSerializer
+        elif self.action == 'retrieve':
+            return StoreDetailSerializer
+        return StoreSerializer
 
-    @action(detail=True, methods=['get'])
-    def staff(self, request, pk=None):
-        """Get all staff members for a specific store."""
-        store = self.get_object()
-        staff = store.storestaff_set.all()
-        serializer = StoreStaffSerializer(staff, many=True)
-        return Response(serializer.data)
+    def get_permissions(self):
+        """Set permissions based on action."""
+        if self.action in ['destroy', 'bulk_delete', 'clear_all']:
+            permission_classes = [IsAdminUser]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
 
-    @action(detail=True, methods=['get'])
-    def analytics(self, request, pk=None):
-        """Get analytics for a specific store."""
-        store = self.get_object()
-        analytics, created = StoreAnalytics.objects.get_or_create(store=store)
-        serializer = StoreAnalyticsSerializer(analytics)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['get'])
-    def verified(self, request):
-        """Get only verified stores."""
-        stores = self.get_queryset().filter(is_verified=True)
-        serializer = self.get_serializer(stores, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['get'])
-    def active(self, request):
-        """Get only active stores."""
-        stores = self.get_queryset().filter(is_active=True)
-        serializer = self.get_serializer(stores, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['get'], url_path='search')
-    def search_stores(self, request):
-        """Advanced store search with multiple criteria."""
-        query = request.query_params.get('q', '')
-        category = request.query_params.get('category', '')
-        location = request.query_params.get('location', '')
-        is_verified = request.query_params.get('is_verified', '')
-        
-        queryset = self.get_queryset()
-        
-        if query:
-            queryset = queryset.filter(
-                Q(name__icontains=query) |
-                Q(description__icontains=query) |
-                Q(location__icontains=query)
-            )
-        
-        if category:
-            queryset = queryset.filter(products__category__name__icontains=category).distinct()
-        
-        if location:
-            queryset = queryset.filter(location__icontains=location)
-        
-        if is_verified in ['true', 'false']:
-            queryset = queryset.filter(is_verified=is_verified == 'true')
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            'results': serializer.data,
-            'total_count': queryset.count(),
-            'search_criteria': {
-                'query': query,
-                'category': category,
-                'location': location,
-                'is_verified': is_verified
-            }
-        })
-
-    @action(detail=False, methods=['get'], url_path='recommended')
-    def recommended_stores(self, request):
-        """Get recommended stores based on activity."""
-        queryset = self.get_queryset().filter(
-            is_active=True,
-            is_verified=True
-        )[:10]
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response({
-            'recommended_stores': serializer.data,
-            'criteria': 'Active and verified stores'
-        })
-
-    @action(detail=False, methods=['get'], url_path='statistics')
-    def store_statistics(self, request):
-        """Get comprehensive store statistics."""
-        total_stores = Store.objects.count()
-        active_stores = Store.objects.filter(is_active=True).count()
-        verified_stores = Store.objects.filter(is_verified=True).count()
-        total_products = Product.objects.count()
-        total_staff = StoreStaff.objects.count()
-        
-        # Store categories distribution
-        store_categories = Store.objects.values('products__category__name').annotate(
-            count=Count('id', distinct=True)
-        ).exclude(products__category__name__isnull=True)
-        
-        statistics = {
-            'total_stores': total_stores,
-            'active_stores': active_stores,
-            'verified_stores': verified_stores,
-            'inactive_stores': total_stores - active_stores,
-            'unverified_stores': total_stores - verified_stores,
-            'total_products': total_products,
-            'total_staff': total_staff,
-            'store_categories': list(store_categories),
-            'verification_rate': round((verified_stores / total_stores) * 100, 2) if total_stores > 0 else 0,
-            'activation_rate': round((active_stores / total_stores) * 100, 2) if total_stores > 0 else 0
-        }
-        
-        return Response(statistics)
-
-    @action(detail=False, methods=['get'], url_path='homestore')
-    def homestore(self, request):
-        """Get 5 stores with highest product views for home page display with products and staff included."""
+    def perform_create(self, serializer):
+        """Set the owner to the current user when creating a store."""
         try:
-            # Get all active and verified stores with their analytics
-            stores = Store.objects.filter(
-                is_active=True,
-                is_verified=True
-            ).prefetch_related('storeanalytics')
+            store = serializer.save(owner=self.request.user)
+            logger.info(f"Store created: {store.name} by user {store.owner.username}")
             
-            # Create a list of stores with their total views
-            stores_with_views = []
-            for store in stores:
-                # Get total views for this store from analytics
-                try:
-                    analytics = store.storeanalytics
-                    total_views = analytics.total_views if analytics else 0
-                except StoreAnalytics.DoesNotExist:
-                    total_views = 0
-                
-                stores_with_views.append({
-                    'store': store,
-                    'total_views': total_views
-                })
+            # Clear cache for user's store count
+            cache_key = f"store_count_{store.owner.id}"
+            cache.delete(cache_key)
             
-            # Sort stores by total views (highest first)
-            stores_with_views.sort(key=lambda x: x['total_views'], reverse=True)
-            
-            # Take the top 5 stores (or all if less than 5)
-            top_stores = stores_with_views[:5]
-            selected_stores = [item['store'] for item in top_stores]
-            
-            # Set query parameters to include products and staff
-            request.query_params._mutable = True
-            request.query_params['include_products'] = 'true'
-            request.query_params['include_staff'] = 'true'
-            request.query_params._mutable = False
-            
-            # Create a custom serializer context to include products and staff
-            context = self.get_serializer_context()
-            context['include_products'] = True
-            context['include_staff'] = True
-            
-            # Serialize the stores with products and staff included
-            serializer = self.get_serializer(selected_stores, many=True, context=context)
-            
-            # Add view information to the response
-            response_data = []
-            for i, store_data in enumerate(serializer.data):
-                store_data['total_views'] = top_stores[i]['total_views']
-                response_data.append(store_data)
-            
-            return Response({
-                'home_stores': response_data,
-                'total_stores_returned': len(selected_stores),
-                'criteria': 'Top stores by product views (active and verified)',
-                'message': 'Stores ranked by highest product views for home page display',
-                'ranking_info': {
-                    'sort_by': 'total_views',
-                    'order': 'descending'
-                },
-                'debug_info': {
-                    'context_include_products': context.get('include_products'),
-                    'context_include_staff': context.get('include_staff'),
-                    'query_include_products': request.query_params.get('include_products'),
-                    'query_include_staff': request.query_params.get('include_staff')
-                }
-            }, status=status.HTTP_200_OK)
+            # Create notification for store creation
+            self.create_store_notification(store, "created")
             
         except Exception as e:
-            return Response({
-                'error': 'Error retrieving home stores',
-                'debug_info': {
-                    'error_details': str(e)
-                }
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Error creating store: {str(e)}")
+            raise
 
-    @action(detail=True, methods=['post'], url_path='verify')
-    def verify_store(self, request, pk=None):
+    def perform_update(self, serializer):
+        """Handle store updates with logging."""
+        try:
+            store = serializer.save()
+            logger.info(f"Store updated: {store.name}")
+            
+            # Create notification for store update
+            self.create_store_notification(store, "updated")
+            
+        except Exception as e:
+            logger.error(f"Error updating store: {str(e)}")
+            raise
+
+    def perform_destroy(self, instance):
+        """Soft delete store instead of hard delete."""
+        try:
+            instance.soft_delete(self.request.user)
+            logger.info(f"Store soft deleted: {instance.name}")
+            
+            # Clear cache
+            cache_key = f"store_count_{instance.owner.id}"
+            cache.delete(cache_key)
+            
+            # Create notification for store deletion
+            self.create_store_notification(instance, "deleted")
+            
+        except Exception as e:
+            logger.error(f"Error soft deleting store: {str(e)}")
+            raise
+
+    @action(detail=True, methods=['patch'])
+    def activate(self, request, pk=None):
+        """Activate a store."""
+        try:
+            store = self.get_object()
+            store.activate(request.user)
+            
+            serializer = self.get_serializer(store)
+            logger.info(f"Store activated: {store.name}")
+            
+            # Create notification
+            self.create_store_notification(store, "activated")
+            
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error activating store: {str(e)}")
+            return Response(
+                {'error': 'Failed to activate store'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['patch'])
+    def deactivate(self, request, pk=None):
+        """Deactivate a store."""
+        try:
+            store = self.get_object()
+            store.deactivate(request.user)
+            
+            serializer = self.get_serializer(store)
+            logger.info(f"Store deactivated: {store.name}")
+            
+            # Create notification
+            self.create_store_notification(store, "deactivated")
+            
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error deactivating store: {str(e)}")
+            return Response(
+                {'error': 'Failed to deactivate store'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['patch'])
+    def verify(self, request, pk=None):
         """Verify a store (admin only)."""
         if not request.user.is_staff:
             return Response({
                 "error": "Only staff members can verify stores"
             }, status=status.HTTP_403_FORBIDDEN)
         
-        store = self.get_object()
-        store.is_verified = True
-        store.save()
-        
-        serializer = self.get_serializer(store)
-        return Response({
-            "message": f"Store '{store.name}' has been verified",
-            "store": serializer.data
-        })
-
-    @action(detail=True, methods=['post'], url_path='activate')
-    def activate_store(self, request, pk=None):
-        """Activate a store."""
-        store = self.get_object()
-        store.is_active = True
-        store.save()
-        
-        serializer = self.get_serializer(store)
-        return Response({
-            "message": f"Store '{store.name}' has been activated",
-            "store": serializer.data
-        })
-
-    @action(detail=True, methods=['post'], url_path='deactivate')
-    def deactivate_store(self, request, pk=None):
-        """Deactivate a store."""
-        store = self.get_object()
-        store.is_active = False
-        store.save()
-        
-        serializer = self.get_serializer(store)
-        return Response({
-            "message": f"Store '{store.name}' has been deactivated",
-            "store": serializer.data
-        })
-
-    @action(detail=True, methods=['get'], url_path='analytics')
-    def store_analytics(self, request, pk=None):
-        """Get detailed analytics for a specific store."""
-        store = self.get_object()
-        
-        # Product statistics
-        products = Product.objects.filter(store=store)
-        total_products = products.count()
-        active_products = products.filter(status='published').count()
-        featured_products = products.filter(is_featured=True).count()
-        on_sale_products = products.filter(discount_price__isnull=False).count()
-        
-        # Staff statistics
-        total_staff = StoreStaff.objects.filter(store=store).count()
-        active_staff = StoreStaff.objects.filter(store=store, is_active=True).count()
-        
-        # Review statistics
-        total_reviews = sum(product.reviews.count() for product in products)
-        avg_product_rating = products.aggregate(
-            avg_rating=Avg('reviews__rating')
-        )['avg_rating'] or 0
-        
-        analytics = {
-            'store_id': store.id,
-            'store_name': store.name,
-            'products': {
-                'total_products': total_products,
-                'active_products': active_products,
-                'featured_products': featured_products,
-                'on_sale_products': on_sale_products,
-                'draft_products': total_products - active_products
-            },
-            'staff': {
-                'total_staff': total_staff,
-                'active_staff': active_staff,
-                'inactive_staff': total_staff - active_staff
-            },
-            'reviews': {
-                'total_reviews': total_reviews,
-                'average_rating': round(avg_product_rating, 2)
-            },
-            'store_status': {
-                'is_active': store.is_active,
-                'is_verified': store.is_verified,
-                'created_at': store.created_at,
-                'last_updated': store.updated_at
-            }
-        }
-        
-        return Response(analytics)
-
-    @action(detail=True, methods=['get'], url_path='inventory')
-    def store_inventory(self, request, pk=None):
-        """Get inventory overview for a store."""
-        store = self.get_object()
-        products = Product.objects.filter(store=store)
-        
-        # Stock levels
-        low_stock_products = products.filter(stock__lt=5)
-        out_of_stock_products = products.filter(stock=0)
-        well_stocked_products = products.filter(stock__gte=10)
-        
-        # Category distribution
-        category_distribution = products.values('category__name').annotate(
-            count=Count('id'),
-            total_stock=Sum('stock')
-        )
-        
-        inventory = {
-            'store_id': store.id,
-            'store_name': store.name,
-            'stock_levels': {
-                'total_products': products.count(),
-                'low_stock_products': low_stock_products.count(),
-                'out_of_stock_products': out_of_stock_products.count(),
-                'well_stocked_products': well_stocked_products.count()
-            },
-            'low_stock_alerts': list(low_stock_products.values('id', 'name', 'stock')),
-            'out_of_stock_alerts': list(out_of_stock_products.values('id', 'name')),
-            'category_distribution': list(category_distribution)
-        }
-        
-        return Response(inventory)
-
-    @action(detail=False, methods=['post'], url_path='bulk-verify')
-    def bulk_verify_stores(self, request):
-        """Bulk verify multiple stores."""
-        if not request.user.is_staff:
-            return Response({
-                "error": "Only staff members can verify stores"
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        store_ids = request.data.get('store_ids', [])
-        if not store_ids:
-            return Response({
-                "error": "No store IDs provided"
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        stores = Store.objects.filter(id__in=store_ids)
-        verified_count = 0
-        
-        for store in stores:
-            store.is_verified = True
-            store.save()
-            verified_count += 1
-        
-        return Response({
-            "message": f"Successfully verified {verified_count} stores",
-            "verified_count": verified_count,
-            "total_requested": len(store_ids)
-        })
-
-    @action(detail=False, methods=['get'], url_path='filterbyid')
-    def filterbyid(self, request):
-        """Filter store by ID with detailed statistics."""
-        query = request.query_params.get('store-details', None)
-        if query:
-            try:
-                # Debug: Check if store exists
-                store = Store.objects.filter(id=query).first()
-                if not store:
-                    return Response({
-                        "error": "Store not found",
-                        "debug_info": {
-                            "requested_store_id": query,
-                            "available_stores": list(Store.objects.values('id', 'name'))
-                        }
-                    }, status=status.HTTP_404_NOT_FOUND)
-
-                # Get store details
-                serializer = self.get_serializer(store)
-                
-                # Get additional store statistics
-                product_count = Product.objects.filter(store_id=query).count()
-                staff_count = StoreStaff.objects.filter(store_id=query).count()
-                
-                return Response({
-                    "data": serializer.data,
-                    "store_statistics": {
-                        "total_products": product_count,
-                        "total_staff": staff_count,
-                        "store_rating": store.rating if hasattr(store, 'rating') else None,
-                        "store_created_at": store.created_at if hasattr(store, 'created_at') else None
-                    },
-                    "debug_info": {
-                        "store_id": query,
-                        "store_name": store.name
-                    }
-                }, status=status.HTTP_200_OK)
-
-            except ValueError as e:
-                return Response({
-                    "error": "Invalid store ID",
-                    "debug_info": {
-                        "error_details": str(e),
-                        "requested_store_id": query
-                    }
-                }, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response({
-                "error": "Store ID parameter is required",
-                "debug_info": {
-                    "available_stores": list(Store.objects.values('id', 'name'))
-                }
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-    @action(detail=False, methods=['get'], url_path='listall')
-    def listall(self, request):
-        """List all stores with statistics."""
         try:
-            # Get all stores
-            stores = Store.objects.all()
+            store = self.get_object()
+            store.verify(request.user)
             
-            # Get store statistics
-            store_data = []
-            for store in stores:
-                store_dict = self.get_serializer(store).data
-                store_dict.update({
-                    'statistics': {
-                        'total_products': Product.objects.filter(store_id=store.id).count(),
-                        'total_staff': StoreStaff.objects.filter(store_id=store.id).count(),
-                        'store_rating': store.rating if hasattr(store, 'rating') else None,
-                        'store_created_at': store.created_at if hasattr(store, 'created_at') else None
-                    }
-                })
-                store_data.append(store_dict)
+            serializer = self.get_serializer(store)
+            logger.info(f"Store verified: {store.name}")
             
-            return Response({
-                "data": store_data,
-                "total_stores": len(store_data),
-                "debug_info": {
-                    "total_stores_in_system": Store.objects.count()
-                }
-            }, status=status.HTTP_200_OK)
+            # Create notification
+            self.create_store_notification(store, "verified")
+            
+            return Response(serializer.data)
             
         except Exception as e:
-            return Response({
-                "error": "Error retrieving stores",
-                "debug_info": {
-                    "error_details": str(e)
-                }
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Error verifying store: {str(e)}")
+            return Response(
+                {'error': 'Failed to verify store'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-    @action(detail=False, methods=['get'], url_path='byid')
-    def byid(self, request):
-        store_id = request.query_params.get('store')
-        if not store_id:
-            return Response({'error': 'store parameter is required'}, status=400)
-        store = self.get_queryset().filter(id=store_id).first()
-        if not store:
-            return Response({'error': 'Store not found'}, status=404)
-        serializer = self.get_serializer(store)
-        return Response(serializer.data)
+    @action(detail=True, methods=['patch'])
+    def close(self, request, pk=None):
+        """Close a store permanently."""
+        try:
+            store = self.get_object()
+            store.close(request.user)
+            
+            serializer = self.get_serializer(store)
+            logger.info(f"Store closed: {store.name}")
+            
+            # Create notification
+            self.create_store_notification(store, "closed")
+            
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error closing store: {str(e)}")
+            return Response(
+                {'error': 'Failed to close store'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def my_stores(self, request):
+        """Get current user's stores with caching."""
+        cache_key = f"my_stores_{request.user.id}"
+        cached_data = cache.get(cache_key)
+        
+        if cached_data and not request.query_params:
+            return Response(cached_data)
+        
+        try:
+            stores = self.get_queryset().filter(owner=request.user)
+            serializer = self.get_serializer(stores, many=True)
+            
+            # Cache for 5 minutes
+            cache.set(cache_key, serializer.data, 300)
+            
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error fetching user stores: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch stores'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def active_stores(self, request):
+        """Get only active stores."""
+        try:
+            stores = self.get_queryset().filter(is_active=True, is_verified=True)
+            serializer = self.get_serializer(stores, many=True)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error fetching active stores: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch active stores'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def verified_stores(self, request):
+        """Get only verified stores."""
+        try:
+            stores = self.get_queryset().filter(is_verified=True)
+            serializer = self.get_serializer(stores, many=True)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error fetching verified stores: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch verified stores'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def store_statistics(self, request):
+        """Get comprehensive store statistics."""
+        cache_key = f"store_stats_{request.user.id}"
+        cached_stats = cache.get(cache_key)
+        
+        if cached_stats:
+            return Response(cached_stats)
+        
+        try:
+            queryset = self.get_queryset()
+            
+            # Basic counts
+            total_stores = queryset.count()
+            active_stores = queryset.filter(is_active=True).count()
+            verified_stores = queryset.filter(is_verified=True).count()
+            inactive_stores = total_stores - active_stores
+            unverified_stores = total_stores - verified_stores
+            
+            # Product and staff statistics
+            total_products = Product.objects.count()
+            total_staff = StoreStaff.objects.filter(deleted_at__isnull=True).count()
+            
+            # Financial statistics
+            total_revenue = StoreAnalytics.objects.aggregate(
+                total=Sum('revenue')
+            )['total'] or 0
+            
+            average_commission_rate = queryset.aggregate(
+                avg=Avg('commission_rate')
+            )['avg'] or 0
+            
+            # Store categories distribution
+            store_categories = queryset.values('products__category__name').annotate(
+                count=Count('id', distinct=True)
+            ).exclude(products__category__name__isnull=True)
+            
+            # Calculate rates
+            verification_rate = round((verified_stores / total_stores) * 100, 2) if total_stores > 0 else 0
+            activation_rate = round((active_stores / total_stores) * 100, 2) if total_stores > 0 else 0
+            
+            # Recent stores
+            recent_stores = queryset.values(
+                'id', 'name', 'status', 'is_active', 'is_verified', 'created_at'
+            )[:10]
+            
+            stats = {
+                'total_stores': total_stores,
+                'active_stores': active_stores,
+                'verified_stores': verified_stores,
+                'inactive_stores': inactive_stores,
+                'unverified_stores': unverified_stores,
+                'total_products': total_products,
+                'total_staff': total_staff,
+                'total_revenue': total_revenue,
+                'average_commission_rate': average_commission_rate,
+                'store_categories': list(store_categories),
+                'verification_rate': verification_rate,
+                'activation_rate': activation_rate,
+                'recent_stores': list(recent_stores)
+            }
+            
+            # Cache for 10 minutes
+            cache.set(cache_key, stats, 600)
+            
+            serializer = StoreStatisticsSerializer(stats)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error generating store stats: {str(e)}")
+            return Response(
+                {'error': 'Failed to generate store statistics'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'])
+    def bulk_actions(self, request):
+        """Bulk actions on stores."""
+        serializer = BulkStoreActionSerializer(data=request.data, context={'request': request})
+        
+        if serializer.is_valid():
+            try:
+                with transaction.atomic():
+                    store_ids = serializer.validated_data['store_ids']
+                    action = serializer.validated_data['action']
+                    
+                    stores = Store.objects.filter(
+                        id__in=store_ids,
+                        deleted_at__isnull=True
+                    )
+                    
+                    updated_count = 0
+                    for store in stores:
+                        if hasattr(store, action):
+                            getattr(store, action)(request.user)
+                            updated_count += 1
+                    
+                    logger.info(f"Bulk {action} performed on {updated_count} stores")
+                    
+                    return Response({
+                        'message': f'Successfully {action} {updated_count} stores',
+                        'updated_count': updated_count
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Error in bulk store actions: {str(e)}")
+                return Response(
+                    {'error': 'Failed to perform bulk actions'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'])
+    def analytics(self, request, pk=None):
+        """Get analytics for a specific store."""
+        try:
+            store = self.get_object()
+            analytics, created = StoreAnalytics.objects.get_or_create(store=store)
+            
+            # Calculate analytics if not recently calculated
+            if not analytics.calculated_at or (timezone.now() - analytics.calculated_at).days > 1:
+                analytics.calculate_analytics()
+            
+            serializer = StoreAnalyticsSerializer(analytics)
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error fetching store analytics: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch store analytics'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['get'])
+    def inventory(self, request, pk=None):
+        """Get inventory overview for a store."""
+        try:
+            store = self.get_object()
+            products = Product.objects.filter(store=store)
+            
+            # Stock levels
+            low_stock_products = products.filter(stock__lt=5)
+            out_of_stock_products = products.filter(stock=0)
+            well_stocked_products = products.filter(stock__gte=10)
+            
+            # Category distribution
+            category_distribution = products.values('category__name').annotate(
+                count=Count('id'),
+                total_stock=Sum('stock')
+            )
+            
+            inventory = {
+                'store_id': store.id,
+                'store_name': store.name,
+                'stock_levels': {
+                    'total_products': products.count(),
+                    'low_stock_products': low_stock_products.count(),
+                    'out_of_stock_products': out_of_stock_products.count(),
+                    'well_stocked_products': well_stocked_products.count()
+                },
+                'low_stock_alerts': list(low_stock_products.values('id', 'name', 'stock')),
+                'out_of_stock_alerts': list(out_of_stock_products.values('id', 'name')),
+                'category_distribution': list(category_distribution)
+            }
+            
+            return Response(inventory)
+            
+        except Exception as e:
+            logger.error(f"Error fetching store inventory: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch store inventory'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    def create_store_notification(self, store, action):
+        """Create notification for store action."""
+        try:
+            action_messages = {
+                'created': f"Your store '{store.name}' has been successfully created and is pending verification.",
+                'updated': f"Your store '{store.name}' has been updated successfully.",
+                'activated': f"Your store '{store.name}' has been activated and is now live.",
+                'deactivated': f"Your store '{store.name}' has been deactivated.",
+                'verified': f"Your store '{store.name}' has been verified by our team.",
+                'deleted': f"Your store '{store.name}' has been deleted.",
+                'closed': f"Your store '{store.name}' has been permanently closed."
+            }
+            
+            notification_type_map = {
+                'created': Notification.NotificationType.STORE_CREATED,
+                'updated': Notification.NotificationType.STORE_UPDATED,
+                'activated': Notification.NotificationType.STORE_ACTIVATED,
+                'deactivated': Notification.NotificationType.STORE_DEACTIVATED,
+                'verified': Notification.NotificationType.STORE_VERIFIED,
+                'deleted': Notification.NotificationType.STORE_DELETED,
+                'closed': Notification.NotificationType.STORE_CLOSED
+            }
+            
+            level_map = {
+                'created': Notification.NotificationLevel.INFO,
+                'updated': Notification.NotificationLevel.INFO,
+                'activated': Notification.NotificationLevel.SUCCESS,
+                'deactivated': Notification.NotificationLevel.WARNING,
+                'verified': Notification.NotificationLevel.SUCCESS,
+                'deleted': Notification.NotificationLevel.WARNING,
+                'closed': Notification.NotificationLevel.WARNING
+            }
+            
+            Notification.objects.create(
+                recipient=store.owner,
+                title=f"Store {action.title()}: {store.name}",
+                message=action_messages.get(action, f"Your store '{store.name}' has been {action}."),
+                notification_type=notification_type_map.get(action, Notification.NotificationType.STORE_UPDATED),
+                level=level_map.get(action, Notification.NotificationLevel.INFO),
+                link=f'/stores/{store.id}/'
+            )
+        except Exception as e:
+            logger.error(f"Error creating store notification: {e}")
+
 
 class StoreStaffViewSet(viewsets.ModelViewSet):
-    queryset = StoreStaff.objects.all()
+    """
+    Professional ViewSet for StoreStaff model with comprehensive CRUD operations.
+    """
+    
+    queryset = StoreStaff.objects.all().order_by('-joined_at')
     serializer_class = StoreStaffSerializer
-    filter_backends = [OrderingFilter]
-    ordering_fields = ['joined_at', 'role', 'is_active']
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    throttle_classes = [UserRateThrottle]
+    
+    # Filtering options
+    filterset_fields = [
+        'store', 'user', 'role', 'is_active', 'joined_at',
+        'can_manage_products', 'can_manage_orders', 'can_manage_staff', 'can_view_analytics'
+    ]
+    
+    # Search fields
+    search_fields = [
+        'user__username', 'user__email', 'user__first_name', 'user__last_name',
+        'store__name', 'role'
+    ]
+    
+    # Ordering options
+    ordering_fields = [
+        'joined_at', 'role', 'is_active', 'last_active'
+    ]
     ordering = ['-joined_at']
 
-    @action(detail=False, methods=['get'], url_path='roles')
-    def get_roles(self, request):
-        """Return the list of valid staff roles."""
-        return Response(StoreStaffSerializer.get_role_choices())
+    def get_queryset(self):
+        """
+        Filter queryset based on user permissions.
+        Regular users can only see staff from their own stores.
+        Staff users can see all staff members.
+        """
+        queryset = super().get_queryset().filter(deleted_at__isnull=True)
+        
+        if not self.request.user.is_staff:
+            # Users can only see staff from stores they own or are staff at
+            user_stores = StoreStaff.objects.filter(
+                user=self.request.user,
+                is_active=True,
+                deleted_at__isnull=True
+            ).values_list('store_id', flat=True)
+            queryset = queryset.filter(store_id__in=user_stores)
+        
+        return queryset
 
     def perform_create(self, serializer):
-        # Only allow owners to add staff
-        store = serializer.validated_data['store']
-        user = self.request.user
-        if not StoreStaff.is_owner(user, store):
-            raise PermissionDenied("Only store owners can add staff.")
-        serializer.save(created_by=user, updated_by=user)
+        """Create staff member with proper permissions."""
+        try:
+            staff_member = serializer.save(created_by=self.request.user, updated_by=self.request.user)
+            logger.info(f"Staff member created: {staff_member.user.username} at {staff_member.store.name}")
+            
+            # Create notification
+            self.create_staff_notification(staff_member, "added")
+            
+        except Exception as e:
+            logger.error(f"Error creating staff member: {str(e)}")
+            raise
 
     def perform_update(self, serializer):
-        serializer.save(updated_by=self.request.user)
+        """Update staff member with logging."""
+        try:
+            staff_member = serializer.save(updated_by=self.request.user)
+            logger.info(f"Staff member updated: {staff_member.user.username}")
+            
+            # Create notification
+            self.create_staff_notification(staff_member, "updated")
+            
+        except Exception as e:
+            logger.error(f"Error updating staff member: {str(e)}")
+            raise
 
     def perform_destroy(self, instance):
-        # Only allow owners to remove staff
-        user = self.request.user
-        if not StoreStaff.is_owner(user, instance.store):
-            raise PermissionDenied("Only store owners can remove staff.")
-        # Soft delete: set deleted_at and updated_by
-        instance.deleted_at = timezone.now()
-        instance.updated_by = user
-        instance.save()
-
-    def destroy(self, request, *args, **kwargs):
-        # Override to return a response for soft delete
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response({'detail': 'Staff member soft-deleted (marked as deleted).'}, status=status.HTTP_200_OK)
-
-    def get_queryset(self):
-        """Enhanced queryset with related data and custom search."""
+        """Soft delete staff member."""
         try:
-            queryset = StoreStaff.objects.select_related('user', 'store').annotate(
-                total_products_managed=Count('store__products')
-            )
-            # Custom search functionality
-            search_query = self.request.query_params.get('search', None)
-            if search_query and search_query.strip():
-                queryset = queryset.filter(
-                    Q(user__username__icontains=search_query) |
-                    Q(user__first_name__icontains=search_query) |
-                    Q(user__last_name__icontains=search_query) |
-                    Q(role__icontains=search_query)
-                )
-            # Exclude soft-deleted staff by default
-            queryset = queryset.filter(deleted_at__isnull=True)
-            return queryset
+            instance.soft_delete(self.request.user)
+            logger.info(f"Staff member soft deleted: {instance.user.username}")
+            
+            # Create notification
+            self.create_staff_notification(instance, "removed")
+            
         except Exception as e:
-            # Fallback to basic queryset if annotations fail
-            return StoreStaff.objects.select_related('user', 'store').filter(deleted_at__isnull=True)
+            logger.error(f"Error soft deleting staff member: {str(e)}")
+            raise
 
-    @action(detail=False, methods=['get'], url_path='by-store')
-    def staff_by_store(self, request):
+    @action(detail=True, methods=['patch'])
+    def activate(self, request, pk=None):
+        """Activate a staff member."""
+        try:
+            staff_member = self.get_object()
+            staff_member.activate(request.user)
+            
+            serializer = self.get_serializer(staff_member)
+            logger.info(f"Staff member activated: {staff_member.user.username}")
+            
+            # Create notification
+            self.create_staff_notification(staff_member, "activated")
+            
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error activating staff member: {str(e)}")
+            return Response(
+                {'error': 'Failed to activate staff member'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['patch'])
+    def deactivate(self, request, pk=None):
+        """Deactivate a staff member."""
+        try:
+            staff_member = self.get_object()
+            staff_member.deactivate(request.user)
+            
+            serializer = self.get_serializer(staff_member)
+            logger.info(f"Staff member deactivated: {staff_member.user.username}")
+            
+            # Create notification
+            self.create_staff_notification(staff_member, "deactivated")
+            
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error deactivating staff member: {str(e)}")
+            return Response(
+                {'error': 'Failed to deactivate staff member'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'])
+    def bulk_actions(self, request):
+        """Bulk actions on staff members."""
+        serializer = BulkStaffActionSerializer(data=request.data, context={'request': request})
+        
+        if serializer.is_valid():
+            try:
+                with transaction.atomic():
+                    staff_ids = serializer.validated_data['staff_ids']
+                    action = serializer.validated_data['action']
+                    role = serializer.validated_data.get('role')
+                    
+                    staff_members = StoreStaff.objects.filter(
+                        id__in=staff_ids,
+                        deleted_at__isnull=True
+                    )
+                    
+                    updated_count = 0
+                    for staff_member in staff_members:
+                        if action == 'assign_role' and role:
+                            staff_member.role = role
+                            staff_member.updated_by = request.user
+                            staff_member.save()
+                            updated_count += 1
+                        elif hasattr(staff_member, action):
+                            getattr(staff_member, action)(request.user)
+                            updated_count += 1
+                    
+                    logger.info(f"Bulk {action} performed on {updated_count} staff members")
+                    
+                    return Response({
+                        'message': f'Successfully {action} {updated_count} staff members',
+                        'updated_count': updated_count
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Error in bulk staff actions: {str(e)}")
+                return Response(
+                    {'error': 'Failed to perform bulk actions'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'])
+    def by_store(self, request):
         """Get all staff for a specific store."""
-        store_id = request.query_params.get('store_id', None)
+        store_id = request.query_params.get('store_id')
         if not store_id:
             return Response({
                 "error": "Store ID is required"
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        staff = self.get_queryset().filter(store_id=store_id)
-        serializer = self.get_serializer(staff, many=True)
-        
-        return Response({
-            'store_id': store_id,
-            'total_staff': staff.count(),
-            'active_staff': staff.filter(is_active=True).count(),
-            'staff_members': serializer.data
-        })
+        try:
+            staff = self.get_queryset().filter(store_id=store_id)
+            serializer = self.get_serializer(staff, many=True)
+            
+            return Response({
+                'store_id': store_id,
+                'total_staff': staff.count(),
+                'active_staff': staff.filter(is_active=True).count(),
+                'staff_members': serializer.data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching staff by store: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch staff by store'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-    @action(detail=False, methods=['get'], url_path='by-role')
-    def staff_by_role(self, request):
+    @action(detail=False, methods=['get'])
+    def by_role(self, request):
         """Get staff members by role."""
-        role = request.query_params.get('role', None)
+        role = request.query_params.get('role')
         if not role:
             return Response({
                 "error": "Role parameter is required"
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        staff = self.get_queryset().filter(role=role)
-        serializer = self.get_serializer(staff, many=True)
-        
-        return Response({
-            'role': role,
-            'total_staff_with_role': staff.count(),
-            'staff_members': serializer.data
-        })
+        try:
+            staff = self.get_queryset().filter(role=role)
+            serializer = self.get_serializer(staff, many=True)
+            
+            return Response({
+                'role': role,
+                'total_staff_with_role': staff.count(),
+                'staff_members': serializer.data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching staff by role: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch staff by role'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-    @action(detail=True, methods=['post'], url_path='assign-role')
-    def assign_role(self, request, pk=None):
-        """Assign a role to a staff member."""
-        staff_member = self.get_object()
-        new_role = request.data.get('role', None)
-        if not new_role:
-            return Response({"error": "Role is required"}, status=status.HTTP_400_BAD_REQUEST)
-        valid_roles = [choice[0] for choice in StoreStaff.Roles.choices]
-        if new_role not in valid_roles:
-            return Response({"error": f"Invalid role. Valid roles are: {', '.join(valid_roles)}"}, status=status.HTTP_400_BAD_REQUEST)
-        staff_member.role = new_role
-        staff_member.updated_by = request.user
-        staff_member.save()
-        serializer = self.get_serializer(staff_member)
-        return Response({"message": f"Role '{new_role}' assigned to {staff_member.user.username}", "staff_member": serializer.data})
-
-    @action(detail=True, methods=['post'], url_path='activate')
-    def activate_staff(self, request, pk=None):
-        """Activate a staff member."""
-        staff_member = self.get_object()
-        staff_member.is_active = True
-        staff_member.updated_by = request.user
-        staff_member.save()
-        serializer = self.get_serializer(staff_member)
-        return Response({"message": f"Staff member {staff_member.user.username} has been activated", "staff_member": serializer.data})
-
-    @action(detail=True, methods=['post'], url_path='deactivate')
-    def deactivate_staff(self, request, pk=None):
-        """Deactivate a staff member."""
-        staff_member = self.get_object()
-        staff_member.is_active = False
-        staff_member.updated_by = request.user
-        staff_member.save()
-        serializer = self.get_serializer(staff_member)
-        return Response({"message": f"Staff member {staff_member.user.username} has been deactivated", "staff_member": serializer.data})
-
-    @action(detail=True, methods=['get'], url_path='performance')
-    def staff_performance(self, request, pk=None):
-        """Get performance metrics for a staff member."""
-        staff_member = self.get_object()
-        store = staff_member.store
-        
-        # Get products managed by this staff member's store
-        products = Product.objects.filter(store=store)
-        total_products = products.count()
-        active_products = products.filter(status='published').count()
-        
-        # Calculate performance metrics
-        performance = {
-            'staff_id': staff_member.id,
-            'staff_name': f"{staff_member.user.first_name} {staff_member.user.last_name}",
-            'role': staff_member.role,
-            'store_name': store.name,
-            'is_active': staff_member.is_active,
-            'joined_at': staff_member.joined_at,
-            'performance_metrics': {
-                'total_products_managed': total_products,
-                'active_products': active_products,
-                'product_activation_rate': round((active_products / total_products) * 100, 2) if total_products > 0 else 0,
-                'days_with_store': (datetime.now().date() - staff_member.joined_at.date()).days
+    def create_staff_notification(self, staff_member, action):
+        """Create notification for staff action."""
+        try:
+            action_messages = {
+                'added': f"You have been added as {staff_member.get_role_display()} to {staff_member.store.name}.",
+                'updated': f"Your role at {staff_member.store.name} has been updated.",
+                'activated': f"Your account at {staff_member.store.name} has been activated.",
+                'deactivated': f"Your account at {staff_member.store.name} has been deactivated.",
+                'removed': f"Your access to {staff_member.store.name} has been removed."
             }
-        }
-        
-        return Response(performance)
+            
+            notification_type_map = {
+                'added': Notification.NotificationType.STAFF_ADDED,
+                'updated': Notification.NotificationType.STAFF_UPDATED,
+                'activated': Notification.NotificationType.STAFF_ACTIVATED,
+                'deactivated': Notification.NotificationType.STAFF_DEACTIVATED,
+                'removed': Notification.NotificationType.STAFF_REMOVED
+            }
+            
+            level_map = {
+                'added': Notification.NotificationLevel.SUCCESS,
+                'updated': Notification.NotificationLevel.INFO,
+                'activated': Notification.NotificationLevel.SUCCESS,
+                'deactivated': Notification.NotificationLevel.WARNING,
+                'removed': Notification.NotificationLevel.WARNING
+            }
+            
+            Notification.objects.create(
+                recipient=staff_member.user,
+                title=f"Staff {action.title()}: {staff_member.store.name}",
+                message=action_messages.get(action, f"Your status at {staff_member.store.name} has been {action}."),
+                notification_type=notification_type_map.get(action, Notification.NotificationType.STAFF_UPDATED),
+                level=level_map.get(action, Notification.NotificationLevel.INFO),
+                link=f'/stores/{staff_member.store.id}/staff/'
+            )
+        except Exception as e:
+            logger.error(f"Error creating staff notification: {e}")
 
-    @action(detail=False, methods=['post'], url_path='bulk-assign-role')
-    def bulk_assign_role(self, request):
-        """Bulk assign role to multiple staff members."""
-        staff_ids = request.data.get('staff_ids', [])
-        role = request.data.get('role', None)
-        if not staff_ids:
-            return Response({"error": "No staff IDs provided"}, status=status.HTTP_400_BAD_REQUEST)
-        if not role:
-            return Response({"error": "Role is required"}, status=status.HTTP_400_BAD_REQUEST)
-        valid_roles = [choice[0] for choice in StoreStaff.Roles.choices]
-        if role not in valid_roles:
-            return Response({"error": f"Invalid role. Valid roles are: {', '.join(valid_roles)}"}, status=status.HTTP_400_BAD_REQUEST)
-        staff_members = StoreStaff.objects.filter(id__in=staff_ids)
-        updated_count = 0
-        for staff_member in staff_members:
-            staff_member.role = role
-            staff_member.updated_by = request.user
-            staff_member.save()
-            updated_count += 1
-        return Response({"message": f"Successfully assigned role '{role}' to {updated_count} staff members", "updated_count": updated_count, "total_requested": len(staff_ids)})
 
-    @action(detail=False, methods=['get'], url_path='statistics')
-    def staff_statistics(self, request):
-        """Get comprehensive staff statistics."""
-        total_staff = StoreStaff.objects.count()
-        active_staff = StoreStaff.objects.filter(is_active=True).count()
+class StoreAnalyticsViewSet(viewsets.ModelViewSet):
+    """
+    Professional ViewSet for StoreAnalytics model.
+    """
+    
+    queryset = StoreAnalytics.objects.all().order_by('-last_updated')
+    serializer_class = StoreAnalyticsSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    throttle_classes = [UserRateThrottle]
+    
+    # Filtering options
+    filterset_fields = [
+        'store', 'last_updated', 'calculated_at'
+    ]
+    
+    # Ordering options
+    ordering_fields = [
+        'revenue', 'total_views', 'total_sales', 'conversion_rate',
+        'last_updated', 'calculated_at'
+    ]
+    ordering = ['-last_updated']
+
+    def get_queryset(self):
+        """
+        Filter queryset based on user permissions.
+        Regular users can only see analytics from their own stores.
+        Staff users can see all analytics.
+        """
+        queryset = super().get_queryset()
         
-        # Role distribution
-        role_distribution = StoreStaff.objects.values('role').annotate(
-            count=Count('id')
-        )
+        if not self.request.user.is_staff:
+            # Users can only see analytics from stores they own or are staff at
+            user_stores = StoreStaff.objects.filter(
+                user=self.request.user,
+                is_active=True,
+                deleted_at__isnull=True
+            ).values_list('store_id', flat=True)
+            queryset = queryset.filter(store_id__in=user_stores)
         
-        # Store distribution
-        store_distribution = StoreStaff.objects.values('store__name').annotate(
-            count=Count('id')
-        )
+        return queryset
+
+    @action(detail=True, methods=['post'])
+    def recalculate(self, request, pk=None):
+        """Recalculate analytics for a store."""
+        try:
+            analytics = self.get_object()
+            analytics.calculate_analytics()
+            
+            serializer = self.get_serializer(analytics)
+            logger.info(f"Analytics recalculated for store: {analytics.store.name}")
+            
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Error recalculating analytics: {str(e)}")
+            return Response(
+                {'error': 'Failed to recalculate analytics'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def report(self, request):
+        """Generate analytics report."""
+        serializer = StoreAnalyticsReportSerializer(data=request.query_params)
         
-        statistics = {
-            'total_staff': total_staff,
-            'active_staff': active_staff,
-            'inactive_staff': total_staff - active_staff,
-            'activation_rate': round((active_staff / total_staff) * 100, 2) if total_staff > 0 else 0,
-            'role_distribution': list(role_distribution),
-            'store_distribution': list(store_distribution)
+        if serializer.is_valid():
+            try:
+                store_id = serializer.validated_data.get('store_id')
+                start_date = serializer.validated_data.get('start_date')
+                end_date = serializer.validated_data.get('end_date')
+                report_type = serializer.validated_data.get('report_type')
+                
+                queryset = self.get_queryset()
+                
+                if store_id:
+                    queryset = queryset.filter(store_id=store_id)
+                
+                if start_date:
+                    queryset = queryset.filter(last_updated__gte=start_date)
+                
+                if end_date:
+                    queryset = queryset.filter(last_updated__lte=end_date)
+                
+                # Generate report based on type
+                if report_type == 'sales':
+                    report_data = self.generate_sales_report(queryset)
+                elif report_type == 'products':
+                    report_data = self.generate_products_report(queryset)
+                elif report_type == 'customers':
+                    report_data = self.generate_customers_report(queryset)
+                else:
+                    report_data = self.generate_performance_report(queryset)
+                
+                return Response(report_data)
+                
+            except Exception as e:
+                logger.error(f"Error generating analytics report: {str(e)}")
+                return Response(
+                    {'error': 'Failed to generate analytics report'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def generate_sales_report(self, queryset):
+        """Generate sales report."""
+        total_revenue = queryset.aggregate(total=Sum('revenue'))['total'] or 0
+        total_orders = queryset.aggregate(total=Sum('total_orders'))['total'] or 0
+        average_order_value = queryset.aggregate(avg=Avg('average_order_value'))['avg'] or 0
+        
+        return {
+            'report_type': 'sales',
+            'total_revenue': total_revenue,
+            'total_orders': total_orders,
+            'average_order_value': average_order_value,
+            'top_performing_stores': list(queryset.order_by('-revenue')[:10].values('store__name', 'revenue'))
         }
+
+    def generate_products_report(self, queryset):
+        """Generate products report."""
+        total_products = queryset.aggregate(total=Sum('total_products'))['total'] or 0
+        active_products = queryset.aggregate(total=Sum('active_products'))['total'] or 0
         
-        return Response(statistics)
+        return {
+            'report_type': 'products',
+            'total_products': total_products,
+            'active_products': active_products,
+            'product_activation_rate': round((active_products / total_products) * 100, 2) if total_products > 0 else 0
+        }
+
+    def generate_customers_report(self, queryset):
+        """Generate customers report."""
+        total_customers = queryset.aggregate(total=Sum('total_customers'))['total'] or 0
+        repeat_customers = queryset.aggregate(total=Sum('repeat_customers'))['total'] or 0
+        avg_retention_rate = queryset.aggregate(avg=Avg('customer_retention_rate'))['avg'] or 0
+        
+        return {
+            'report_type': 'customers',
+            'total_customers': total_customers,
+            'repeat_customers': repeat_customers,
+            'average_retention_rate': avg_retention_rate
+        }
+
+    def generate_performance_report(self, queryset):
+        """Generate performance report."""
+        avg_conversion_rate = queryset.aggregate(avg=Avg('conversion_rate'))['avg'] or 0
+        avg_bounce_rate = queryset.aggregate(avg=Avg('bounce_rate'))['avg'] or 0
+        total_views = queryset.aggregate(total=Sum('total_views'))['total'] or 0
+        
+        return {
+            'report_type': 'performance',
+            'average_conversion_rate': avg_conversion_rate,
+            'average_bounce_rate': avg_bounce_rate,
+            'total_views': total_views
+        }
+
 
 class ProductByStoreViewSet(viewsets.ModelViewSet):
     """ViewSet for filtering products by store."""
-    serializer_class = ProductSerializer
+    serializer_class = None  # Will be set dynamically
     queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants', 'reviews')
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    throttle_classes = [UserRateThrottle]
 
     def get_queryset(self):
         """Filter products by store ID."""
@@ -787,7 +1010,10 @@ class ProductByStoreViewSet(viewsets.ModelViewSet):
                     }
                 }, status=status.HTTP_404_NOT_FOUND)
 
-            serializer = self.get_serializer(products, many=True)
+            # Use a simple serializer for list view
+            from product.serializers import ProductSerializer
+            serializer = ProductSerializer(products, many=True)
+            
             return Response({
                 "data": serializer.data,
                 "debug_info": {

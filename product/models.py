@@ -97,6 +97,25 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="products")
     subcategory = models.ForeignKey(SubCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name="products")
 
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        default=None,
+        related_name='created_products'
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        default=None,
+        related_name='updated_products'
+    )
+
     def __str__(self):
         return f"{self.name} - {self.store.name}"
 
@@ -130,13 +149,35 @@ class Product(models.Model):
         return slug
 
     def save(self, *args, **kwargs):
+        user = getattr(self, '_current_user', None)
+        if not self.pk and not self.created_by and user:
+            self.created_by = user
+        if user:
+            self.updated_by = user
         if not self.sku:
             self.sku = f"sku-{uuid.uuid4().hex[:8].upper()}"
         
         if not self.slug:
             self.slug = self._generate_unique_slug()
         
+        self.full_clean()
         super().save(*args, **kwargs)
+
+    def soft_delete(self, user=None):
+        if not self.is_deleted:
+            self.is_deleted = True
+            self.deleted_at = timezone.now()
+            if user:
+                self.updated_by = user
+            self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
+
+    def restore(self, user=None):
+        if self.is_deleted:
+            self.is_deleted = False
+            self.deleted_at = None
+            if user:
+                self.updated_by = user
+            self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
 
     @property
     def on_sale(self):
