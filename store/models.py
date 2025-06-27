@@ -111,11 +111,11 @@ class Store(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='draft',
+        default='active',
         help_text=_('Current status of the store')
     )
     is_verified = models.BooleanField(
-        default=False,
+        default=True,
         help_text=_('Whether the store has been verified by admin')
     )
     
@@ -123,12 +123,12 @@ class Store(models.Model):
     commission_rate = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=10.00,
+        default=00.00,
         validators=[MinValueValidator(0), MaxValueValidator(100)],
         help_text=_('Commission rate percentage (0-100)')
     )
     auto_approve_products = models.BooleanField(
-        default=False,
+        default=True,
         help_text=_('Whether products are auto-approved for this store')
     )
     
