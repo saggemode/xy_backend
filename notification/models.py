@@ -329,6 +329,8 @@ class Notification(models.Model):
     @property
     def age_in_hours(self):
         """Get the age of the notification in hours."""
+        if not self.created_at:
+            return 0.0
         return (timezone.now() - self.created_at).total_seconds() / 3600
 
     @property
