@@ -40,10 +40,6 @@ class StoreAdmin(admin.ModelAdmin):
             'fields': ('commission_rate', 'auto_approve_products'),
             'classes': ('collapse',)
         }),
-        ('Statistics', {
-            'fields': ('total_products', 'active_products', 'total_staff', 'is_operational'),
-            'classes': ('collapse',)
-        }),
         ('Audit Information', {
             'fields': ('created_at', 'updated_at', 'created_by', 'updated_by', 'deleted_at'),
             'classes': ('collapse',)
