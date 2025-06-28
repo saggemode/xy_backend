@@ -79,8 +79,8 @@ class Cart(models.Model):
     def unit_price(self):
         """Get unit price from variant or product"""
         if self.variant:
-            return self.variant.price
-        return self.product.price
+            return self.variant.current_price
+        return self.product.current_price
 
     @property
     def total_price(self):

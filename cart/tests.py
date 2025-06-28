@@ -59,7 +59,7 @@ class CartModelTest(TestCase):
             quantity=1
         )
         self.assertEqual(cart.variant, self.variant)
-        self.assertEqual(cart.unit_price, self.variant.price)
+        self.assertEqual(cart.unit_price, self.variant.current_price)
 
     def test_cart_total_price(self):
         cart = Cart.objects.create(
@@ -68,7 +68,7 @@ class CartModelTest(TestCase):
             product=self.product,
             quantity=3
         )
-        expected_total = self.product.price * 3
+        expected_total = self.product.current_price * 3
         self.assertEqual(cart.total_price, expected_total)
 
     def test_cart_soft_delete(self):
@@ -133,7 +133,7 @@ class CartModelTest(TestCase):
         self.assertEqual(user_cart.count(), 2)
 
         total = Cart.get_cart_total(self.user)
-        expected_total = (self.product.price * 2) + self.variant.price
+        expected_total = (self.product.current_price * 2) + self.variant.current_price
         self.assertEqual(total, expected_total)
 
         count = Cart.get_cart_count(self.user)
@@ -267,7 +267,7 @@ class CartAPITest(APITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['total_items'], 3)
-        expected_total = (self.product.price * 2) + self.variant.price
+        expected_total = (self.product.current_price * 2) + self.variant.current_price
         self.assertEqual(response.data['total_price'], expected_total)
 
     def test_add_item_action(self):
