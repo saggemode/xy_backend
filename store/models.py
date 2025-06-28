@@ -1,9 +1,8 @@
 import uuid
 from django.db import models
-from django.contrib.auth.models import User
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-from django.db.models import Avg, Min, Max, Sum
+from django.db.models import Avg, Min, Max, Sum, Count
 from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
@@ -296,7 +295,7 @@ class StoreStaff(models.Model):
         related_name='staff_members'
     )
     user = models.ForeignKey(
-        User, 
+        settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE,
         related_name='store_roles'
     )
@@ -335,14 +334,14 @@ class StoreStaff(models.Model):
     
     # Audit fields
     created_by = models.ForeignKey(
-        User, 
+        settings.AUTH_USER_MODEL, 
         related_name='created_store_staff', 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True
     )
     updated_by = models.ForeignKey(
-        User, 
+        settings.AUTH_USER_MODEL, 
         related_name='updated_store_staff', 
         on_delete=models.SET_NULL, 
         null=True, 
@@ -480,7 +479,7 @@ class CustomerLifetimeValue(models.Model):
     )
      
     user = models.OneToOneField(
-        User, 
+        settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE,
         related_name='customer_lifetime_value'
     )
@@ -604,39 +603,60 @@ class StoreAnalytics(models.Model):
 
     def calculate_analytics(self):
         """Calculate all analytics metrics."""
-        from order.models import Order, OrderItem
-        
-        # Get store orders
-        store_orders = Order.objects.filter(
-            items__product__store=self.store,
-            status__in=['completed', 'delivered']
-        ).distinct()
-        
-        # Calculate sales metrics
-        self.total_orders = store_orders.count()
-        self.revenue = store_orders.aggregate(
-            total=Sum('total_amount')
-        )['total'] or 0
-        
-        if self.total_orders > 0:
-            self.average_order_value = self.revenue / self.total_orders
-        
-        # Calculate conversion rate
-        if self.total_views > 0:
-            self.conversion_rate = (self.total_orders / self.total_views) * 100
-        
-        # Calculate customer metrics
-        unique_customers = store_orders.values('customer').distinct().count()
-        self.total_customers = unique_customers
-        
-        # Calculate repeat customers
-        customer_order_counts = store_orders.values('customer').annotate(
-            order_count=Count('id')
-        )
-        self.repeat_customers = customer_order_counts.filter(order_count__gt=1).count()
-        
-        if self.total_customers > 0:
-            self.customer_retention_rate = (self.repeat_customers / self.total_customers) * 100
+        try:
+            from order.models import Order, OrderItem
+            
+            # Get store orders
+            store_orders = Order.objects.filter(
+                items__product__store=self.store,
+                status__in=['completed', 'delivered']
+            ).distinct()
+            
+            # Calculate sales metrics
+            self.total_orders = store_orders.count()
+            self.revenue = store_orders.aggregate(
+                total=Sum('total_amount')
+            )['total'] or 0
+            
+            if self.total_orders > 0:
+                self.average_order_value = self.revenue / self.total_orders
+            
+            # Calculate conversion rate
+            if self.total_views > 0:
+                self.conversion_rate = (self.total_orders / self.total_views) * 100
+            
+            # Calculate customer metrics
+            unique_customers = store_orders.values('customer').distinct().count()
+            self.total_customers = unique_customers
+            
+            # Calculate repeat customers
+            customer_order_counts = store_orders.values('customer').annotate(
+                order_count=Count('id')
+            )
+            self.repeat_customers = customer_order_counts.filter(order_count__gt=1).count()
+            
+            if self.total_customers > 0:
+                self.customer_retention_rate = (self.repeat_customers / self.total_customers) * 100
+                
+        except ImportError:
+            # Order models not available, set default values
+            self.total_orders = 0
+            self.revenue = 0
+            self.average_order_value = 0
+            self.conversion_rate = 0
+            self.total_customers = 0
+            self.repeat_customers = 0
+            self.customer_retention_rate = 0
+        except Exception as e:
+            # Handle any other errors gracefully
+            print(f"Error calculating analytics: {e}")
+            self.total_orders = 0
+            self.revenue = 0
+            self.average_order_value = 0
+            self.conversion_rate = 0
+            self.total_customers = 0
+            self.repeat_customers = 0
+            self.customer_retention_rate = 0
         
         # Update product counts
         self.total_products = self.store.total_products

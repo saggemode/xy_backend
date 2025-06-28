@@ -498,13 +498,13 @@ class StoreViewSet(viewsets.ModelViewSet):
             }
             
             notification_type_map = {
-                'created': Notification.NotificationType.STORE_CREATED,
-                'updated': Notification.NotificationType.STORE_UPDATED,
-                'activated': Notification.NotificationType.STORE_ACTIVATED,
-                'deactivated': Notification.NotificationType.STORE_DEACTIVATED,
-                'verified': Notification.NotificationType.STORE_VERIFIED,
-                'deleted': Notification.NotificationType.STORE_DELETED,
-                'closed': Notification.NotificationType.STORE_CLOSED
+                'created': Notification.NotificationType.ACCOUNT_UPDATE,
+                'updated': Notification.NotificationType.ACCOUNT_UPDATE,
+                'activated': Notification.NotificationType.ACCOUNT_UPDATE,
+                'deactivated': Notification.NotificationType.SYSTEM_ALERT,
+                'verified': Notification.NotificationType.ACCOUNT_UPDATE,
+                'deleted': Notification.NotificationType.SYSTEM_ALERT,
+                'closed': Notification.NotificationType.SYSTEM_ALERT
             }
             
             level_map = {
@@ -521,7 +521,7 @@ class StoreViewSet(viewsets.ModelViewSet):
                 recipient=store.owner,
                 title=f"Store {action.title()}: {store.name}",
                 message=action_messages.get(action, f"Your store '{store.name}' has been {action}."),
-                notification_type=notification_type_map.get(action, Notification.NotificationType.STORE_UPDATED),
+                notification_type=notification_type_map.get(action, Notification.NotificationType.ACCOUNT_UPDATE),
                 level=level_map.get(action, Notification.NotificationLevel.INFO),
                 link=f'/stores/{store.id}/'
             )
@@ -769,11 +769,11 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             }
             
             notification_type_map = {
-                'added': Notification.NotificationType.STAFF_ADDED,
-                'updated': Notification.NotificationType.STAFF_UPDATED,
-                'activated': Notification.NotificationType.STAFF_ACTIVATED,
-                'deactivated': Notification.NotificationType.STAFF_DEACTIVATED,
-                'removed': Notification.NotificationType.STAFF_REMOVED
+                'added': Notification.NotificationType.ACCOUNT_UPDATE,
+                'updated': Notification.NotificationType.ACCOUNT_UPDATE,
+                'activated': Notification.NotificationType.ACCOUNT_UPDATE,
+                'deactivated': Notification.NotificationType.SYSTEM_ALERT,
+                'removed': Notification.NotificationType.SYSTEM_ALERT
             }
             
             level_map = {
@@ -788,7 +788,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
                 recipient=staff_member.user,
                 title=f"Staff {action.title()}: {staff_member.store.name}",
                 message=action_messages.get(action, f"Your status at {staff_member.store.name} has been {action}."),
-                notification_type=notification_type_map.get(action, Notification.NotificationType.STAFF_UPDATED),
+                notification_type=notification_type_map.get(action, Notification.NotificationType.ACCOUNT_UPDATE),
                 level=level_map.get(action, Notification.NotificationLevel.INFO),
                 link=f'/stores/{staff_member.store.id}/staff/'
             )

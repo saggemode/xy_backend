@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from order.models import Order
-from django.contrib.auth.models import User
+from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.db.models import JSONField
 from django.core.exceptions import ValidationError
@@ -77,7 +77,7 @@ class Notification(models.Model):
 
     # User Relationships
     recipient = models.ForeignKey(
-       User,
+       settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='notifications',
         verbose_name=_('Recipient'),
@@ -86,7 +86,7 @@ class Notification(models.Model):
     )
     
     sender = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -96,7 +96,7 @@ class Notification(models.Model):
     )
     
     user = models.ForeignKey(
-        User,
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name='user_notifications',
         verbose_name=_('User'),
