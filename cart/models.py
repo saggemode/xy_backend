@@ -43,7 +43,12 @@ class Cart(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.user.username} - {self.product.name} (Qty: {self.quantity})"
+        try:
+            user_name = self.user.username if self.user else "Unknown User"
+            product_name = self.product.name if self.product else "Unknown Product"
+            return f"{user_name} - {product_name} (Qty: {self.quantity})"
+        except Exception:
+            return f"Cart Item {self.id}"
 
     def clean(self):
         """Validate cart item before saving"""

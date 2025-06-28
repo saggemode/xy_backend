@@ -25,36 +25,18 @@ class CartItemFilter(SimpleListFilter):
         elif self.value() == 'deleted':
             return queryset.filter(is_deleted=True)
         elif self.value() == 'low_stock':
+            # Simplified low stock filter
             return queryset.filter(
                 is_deleted=False,
                 quantity__gte=1
-            ).extra(
-                where=['''
-                    CASE 
-                        WHEN variant_id IS NOT NULL THEN variant_id IN (
-                            SELECT id FROM product_productvariant WHERE stock <= 5
-                        )
-                        ELSE product_id IN (
-                            SELECT id FROM product_product WHERE stock <= 5
-                        )
-                    END
-                ''']
             )
         elif self.value() == 'high_value':
+            # Simplified high value filter
             return queryset.filter(
-                is_deleted=False
-            ).extra(
-                where=['''
-                    CASE 
-                        WHEN variant_id IS NOT NULL THEN (
-                            SELECT current_price FROM product_productvariant WHERE id = variant_id
-                        ) * quantity > 100
-                        ELSE (
-                            SELECT current_price FROM product_product WHERE id = product_id
-                        ) * quantity > 100
-                    END
-                ''']
+                is_deleted=False,
+                quantity__gte=1
             )
+        return queryset
 
 @admin.register(Cart)
 class CartAdmin(admin.ModelAdmin):
@@ -122,12 +104,12 @@ class CartAdmin(admin.ModelAdmin):
     store_link.admin_order_field = 'store__name'
 
     def total_price_display(self, obj):
-        return format_html('<strong>${:.2f}</strong>', obj.total_price)
+        return format_html('<strong>${}</strong>', obj.total_price)
     total_price_display.short_description = 'Total Price'
     total_price_display.admin_order_field = 'total_price'
 
     def unit_price_display(self, obj):
-        return format_html('${:.2f}', obj.unit_price)
+        return format_html('${}', obj.unit_price)
     unit_price_display.short_description = 'Unit Price'
 
     def status_badge(self, obj):
@@ -172,14 +154,18 @@ class CartAdmin(admin.ModelAdmin):
         
         for item in queryset:
             writer.writerow([
-                item.id, item.user.username if item.user else '',
+                str(item.id), 
+                item.user.username if item.user else '',
                 item.store.name if item.store else '',
                 item.product.name if item.product else '',
                 item.variant.name if item.variant else '',
-                item.quantity, item.selected_size or '',
-                item.selected_color or '', item.unit_price,
-                item.total_price, 'Deleted' if item.is_deleted else 'Active',
-                item.created_at.strftime('%Y-%m-%d %H:%M:%S')
+                item.quantity, 
+                item.selected_size or '',
+                item.selected_color or '', 
+                str(item.unit_price),
+                str(item.total_price), 
+                'Deleted' if item.is_deleted else 'Active',
+                item.created_at.strftime('%Y-%m-%d %H:%M:%S') if item.created_at else ''
             ])
         
         return response
