@@ -214,6 +214,84 @@ class ProductViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(paginated_queryset, many=True)
         return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
 
+    @action(detail=False, methods=['get'], url_path='productbycategory')
+    def productbycategory(self, request):
+        """Returns products filtered by category."""
+        category_id = request.query_params.get('category_id', None)
+        subcategory_id = request.query_params.get('subcategory_id', None)
+        
+        if not category_id and not subcategory_id:
+            return Response(
+                {"error": "Either category_id or subcategory_id is required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        queryset = self.get_queryset()
+        
+        # Filter by category
+        if category_id:
+            try:
+                from .models import Category
+                category = Category.objects.get(id=category_id)
+                queryset = queryset.filter(category=category)
+            except Category.DoesNotExist:
+                return Response(
+                    {"error": f"Category with id {category_id} not found"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Filter by subcategory (additional filter)
+        if subcategory_id:
+            try:
+                from .models import SubCategory
+                subcategory = SubCategory.objects.get(id=subcategory_id)
+                queryset = queryset.filter(subcategory=subcategory)
+            except SubCategory.DoesNotExist:
+                return Response(
+                    {"error": f"Subcategory with id {subcategory_id} not found"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Apply additional filters from query params
+        min_price = request.query_params.get('min_price', None)
+        max_price = request.query_params.get('max_price', None)
+        if min_price:
+            queryset = queryset.filter(current_price__gte=min_price)
+        if max_price:
+            queryset = queryset.filter(current_price__lte=max_price)
+        
+        # Sort options
+        sort_by = request.query_params.get('sort', 'newest')
+        if sort_by == 'price_low':
+            queryset = queryset.order_by('current_price')
+        elif sort_by == 'price_high':
+            queryset = queryset.order_by('-current_price')
+        elif sort_by == 'name':
+            queryset = queryset.order_by('name')
+        elif sort_by == 'popular':
+            queryset = queryset.annotate(
+                review_count=Count('reviews')
+            ).order_by('-review_count')
+        else:  # newest (default)
+            queryset = queryset.order_by('-created_at')
+        
+        paginated_queryset = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(paginated_queryset, many=True)
+        
+        # Add category info to response
+        response_data = {
+            'category_info': {
+                'id': str(category.id) if category_id else None,
+                'name': category.name if category_id else None,
+                'subcategory_id': str(subcategory.id) if subcategory_id else None,
+                'subcategory_name': subcategory.name if subcategory_id else None,
+            },
+            'total_products': queryset.count(),
+            'products': serializer.data
+        }
+        
+        return self.get_paginated_response(response_data) if paginated_queryset is not None else Response(response_data)
+
     @action(detail=True, methods=['get'], url_path='analytics')
     def analytics(self, request, pk=None):
         """Returns product performance metrics."""
