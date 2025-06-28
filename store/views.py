@@ -204,12 +204,16 @@ class StoreViewSet(viewsets.ModelViewSet):
             
             # Use the basic serializer for homepage display
             serializer = self.get_serializer(full_queryset, many=True, context={'request': request})
+            data = serializer.data
+            
+            # Manually add products, staff, and analytics for each store
+            data = self._add_related_data_to_stores(data, request)
             
             return Response({
                 'status': 'success',
                 'message': 'Featured stores for homepage',
                 'count': len(selected_stores),
-                'stores': serializer.data
+                'stores': data
             })
             
         except Exception as e:
