@@ -170,7 +170,7 @@ class StoreSerializer(serializers.ModelSerializer):
     # Computed fields
     total_products = serializers.SerializerMethodField()
     total_staff = serializers.SerializerMethodField()
-    is_operational = serializers.BooleanField(read_only=True)
+    is_operational = serializers.SerializerMethodField()
     
     # Owner information
     owner_username = serializers.CharField(source='owner.username', read_only=True)
@@ -192,6 +192,9 @@ class StoreSerializer(serializers.ModelSerializer):
 
     def get_total_staff(self, obj):
         return obj.total_staff
+    
+    def get_is_operational(self, obj):
+        return obj.is_operational()
     
     def get_products(self, obj):
         request = self.context.get('request')
