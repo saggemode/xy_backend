@@ -102,10 +102,10 @@ class StoreAdmin(admin.ModelAdmin):
 class StoreStaffAdmin(admin.ModelAdmin):
     list_display = [
         'user_username', 'store_name', 'role_display', 
-        'permissions_display', 'joined_at', 'last_active_display'
+        'is_active', 'permissions_display', 'joined_at', 'last_active_display'
     ]
     list_filter = [
-        'role',  'joined_at', 'can_manage_products', 
+        'role', 'is_active', 'joined_at', 'can_manage_products', 
         'can_manage_orders', 'can_manage_staff', 'can_view_analytics',
         ('store', admin.RelatedOnlyFieldListFilter),
         ('user', admin.RelatedOnlyFieldListFilter),
@@ -122,7 +122,7 @@ class StoreStaffAdmin(admin.ModelAdmin):
             'fields': ('id', 'store', 'user', 'role')
         }),
         ('Status & Permissions', {
-            'fields': ('can_manage_products', 'can_manage_orders', 
+            'fields': ('is_active', 'can_manage_products', 'can_manage_orders', 
                       'can_manage_staff', 'can_view_analytics')
         }),
         ('Timestamps', {

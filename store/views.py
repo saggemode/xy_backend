@@ -139,7 +139,7 @@ class StoreViewSet(viewsets.ModelViewSet):
                 store_data['products'] = []
             
             # Get staff
-            staff = store_obj.staff_members.filter(deleted_at__isnull=True)
+            staff = store_obj.staff_members.filter(deleted_at__isnull=True, is_active=True)
             if staff.exists():
                 store_data['staff'] = StoreStaffSerializer(staff, many=True, context={'request': request}).data
             else:
@@ -435,13 +435,14 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
         Regular users can only see staff from their own stores.
         Staff users can see all staff members.
         """
-        queryset = super().get_queryset().filter(deleted_at__isnull=True)
+        queryset = super().get_queryset().filter(deleted_at__isnull=True, is_active=True)
         
         if not self.request.user.is_staff:
             # Users can only see staff from stores they own or are staff at
             user_stores = StoreStaff.objects.filter(
                 user=self.request.user,
-                deleted_at__isnull=True
+                deleted_at__isnull=True,
+                is_active=True
             ).values_list('store_id', flat=True)
             queryset = queryset.filter(store_id__in=user_stores)
         
@@ -500,7 +501,8 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
                     
                     staff_members = StoreStaff.objects.filter(
                         id__in=staff_ids,
-                        deleted_at__isnull=True
+                        deleted_at__isnull=True,
+                        is_active=True
                     )
                     
                     updated_count = 0

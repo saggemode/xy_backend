@@ -61,7 +61,7 @@ class StoreStaffSerializer(serializers.ModelSerializer):
         model = StoreStaff
         fields = [
             'id', 'store', 'store_name', 'user', 'user_details',
-            'role', 'role_display', 'joined_at',
+            'role', 'role_display', 'is_active', 'joined_at',
             'staff_username', 'staff_email', 'staff_first_name', 'staff_last_name',
             'can_manage_products', 'can_manage_orders', 'can_manage_staff', 'can_view_analytics',
             'created_by', 'created_by_username',
@@ -231,7 +231,7 @@ class StoreSerializer(serializers.ModelSerializer):
         
         # Check both query parameters and context variables
         if (request and request.query_params.get('include_staff') == 'true') or include_staff:
-            staff = obj.staff_members.filter(deleted_at__isnull=True)
+            staff = obj.staff_members.filter(deleted_at__isnull=True, is_active=True)
             return StoreStaffSerializer(staff, many=True, context=self.context).data
         return None
 
@@ -370,7 +370,7 @@ class StoreDetailSerializer(StoreSerializer):
         request = self.context.get('request')
         if request and not request.user.is_authenticated:
             return None
-        staff = obj.staff_members.filter(deleted_at__isnull=True)
+        staff = obj.staff_members.filter(deleted_at__isnull=True, is_active=True)
         return StoreStaffSerializer(staff, many=True, context=self.context).data
 
     def get_analytics(self, obj):

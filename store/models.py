@@ -267,8 +267,8 @@ class Store(models.Model):
 
     @property
     def total_staff(self):
-        """Get total number of staff for this store."""
-        return self.staff_members.filter(deleted_at__isnull=True).count()
+        """Get total number of active staff for this store."""
+        return self.staff_members.filter(deleted_at__isnull=True, is_active=True).count()
 
     def is_operational(self):
         """Check if store is operational (active and verified)."""
@@ -320,6 +320,12 @@ class StoreStaff(models.Model):
     can_view_analytics = models.BooleanField(
         default=False,
         help_text=_('Can view store analytics')
+    )
+    
+    # Status field
+    is_active = models.BooleanField(
+        default=True,
+        help_text=_('Whether the staff member is active')
     )
     
     # Timestamps
