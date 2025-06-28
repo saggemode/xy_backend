@@ -21,6 +21,8 @@ class CartSerializer(serializers.ModelSerializer):
         if instance.product:
             data['product_name'] = instance.product.name
             data['product_price'] = str(instance.product.current_price)
+            # Add product images
+            data['product_images'] = instance.product.image_urls or []
         
         # Add basic store info
         if instance.store:
