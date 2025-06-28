@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
     ]
 
     def database_forwards(self, app_label, schema_editor, from_state, to_state):
-        # Check if the column already exists
+        # Check if column already exists
         with schema_editor.connection.cursor() as cursor:
             cursor.execute("""
                 SELECT column_name 
@@ -26,8 +26,9 @@ class Migration(migrations.Migration):
                 WHERE table_name = 'store_storestaff' 
                 AND column_name = 'is_active'
             """)
-            column_exists = cursor.fetchone() is not None
+            if cursor.fetchone():
+                # Column already exists, skip the operation
+                return
         
-        if not column_exists:
-            # Only add the column if it doesn't exist
-            super().database_forwards(app_label, schema_editor, from_state, to_state) 
+        # Column doesn't exist, proceed with normal operation
+        super().database_forwards(app_label, schema_editor, from_state, to_state) 

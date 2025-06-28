@@ -47,10 +47,10 @@ class CartItemFilter(SimpleListFilter):
                 where=['''
                     CASE 
                         WHEN variant_id IS NOT NULL THEN (
-                            SELECT price FROM product_productvariant WHERE id = variant_id
+                            SELECT current_price FROM product_productvariant WHERE id = variant_id
                         ) * quantity > 100
                         ELSE (
-                            SELECT price FROM product_product WHERE id = product_id
+                            SELECT current_price FROM product_product WHERE id = product_id
                         ) * quantity > 100
                     END
                 ''']
