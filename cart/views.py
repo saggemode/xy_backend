@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.db.models import Q, Sum, F, Count
+from django.core.exceptions import ValidationError
 from .models import Cart
 from .serializers import CartSerializer
 from product.models import Product, ProductVariant
@@ -20,7 +21,10 @@ class CartViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Cart.objects.filter(user=self.request.user).select_related(
+        return Cart.objects.filter(
+            user=self.request.user,
+            is_deleted=False
+        ).select_related(
             'product', 'product__store', 'product__category', 'store', 'variant'
         )
 
@@ -460,3 +464,74 @@ class CartViewSet(viewsets.ModelViewSet):
             'category_breakdown': category_counts,
             'last_updated': cart_items.latest('updated_at').updated_at if cart_items.exists() else None
         })
+
+    @action(detail=False, methods=['get'])
+    def debug(self, request):
+        """Debug endpoint to check cart status and data"""
+        try:
+            # Check if user is authenticated
+            if not request.user.is_authenticated:
+                return Response({
+                    'error': 'User not authenticated',
+                    'user_id': None
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Get all cart items for user (including deleted)
+            all_cart_items = Cart.objects.filter(user=request.user)
+            active_cart_items = Cart.objects.filter(user=request.user, is_deleted=False)
+            
+            # Get cart items with related data
+            cart_with_data = active_cart_items.select_related(
+                'product', 'product__store', 'store', 'variant'
+            )
+            
+            # Check if there are any products in the system
+            total_products = Product.objects.count()
+            published_products = Product.objects.filter(status='published').count()
+            
+            # Check if there are any stores
+            total_stores = Store.objects.count()
+            active_stores = Store.objects.filter(status='active').count()
+            
+            debug_info = {
+                'user': {
+                    'id': request.user.id,
+                    'username': request.user.username,
+                    'email': request.user.email,
+                    'is_authenticated': request.user.is_authenticated
+                },
+                'cart_summary': {
+                    'total_cart_items': all_cart_items.count(),
+                    'active_cart_items': active_cart_items.count(),
+                    'deleted_cart_items': all_cart_items.filter(is_deleted=True).count()
+                },
+                'system_data': {
+                    'total_products': total_products,
+                    'published_products': published_products,
+                    'total_stores': total_stores,
+                    'active_stores': active_stores
+                },
+                'cart_items': []
+            }
+            
+            # Add cart items data
+            for item in cart_with_data:
+                debug_info['cart_items'].append({
+                    'id': str(item.id),
+                    'product_name': item.product.name if item.product else 'No product',
+                    'store_name': item.store.name if item.store else 'No store',
+                    'quantity': item.quantity,
+                    'is_deleted': item.is_deleted,
+                    'created_at': item.created_at.isoformat() if item.created_at else None
+                })
+            
+            return Response(debug_info)
+            
+        except Exception as e:
+            logger.error(f"Error in cart debug endpoint: {str(e)}")
+            import traceback
+            return Response({
+                'error': 'Debug endpoint error',
+                'message': str(e),
+                'traceback': traceback.format_exc()
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
