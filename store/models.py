@@ -305,12 +305,6 @@ class StoreStaff(models.Model):
         default=Roles.STAFF,
         help_text=_('Role of the staff member in the store')
     )
-    
-    # Status and permissions
-    is_active = models.BooleanField(
-        default=True,
-        help_text=_('Whether the staff member is active')
-    )
     can_manage_products = models.BooleanField(
         default=False,
         help_text=_('Can manage store products')

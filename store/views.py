@@ -565,7 +565,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
     
     # Filtering options
     filterset_fields = [
-        'store', 'user', 'role', 'is_active', 'joined_at',
+        'store', 'user', 'role', 'joined_at',
         'can_manage_products', 'can_manage_orders', 'can_manage_staff', 'can_view_analytics'
     ]
     
@@ -577,7 +577,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
     
     # Ordering options
     ordering_fields = [
-        'joined_at', 'role', 'is_active', 'last_active'
+        'joined_at', 'role', 'last_active'
     ]
     ordering = ['-joined_at']
 
@@ -593,7 +593,6 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             # Users can only see staff from stores they own or are staff at
             user_stores = StoreStaff.objects.filter(
                 user=self.request.user,
-                is_active=True,
                 deleted_at__isnull=True
             ).values_list('store_id', flat=True)
             queryset = queryset.filter(store_id__in=user_stores)
@@ -639,50 +638,6 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             logger.error(f"Error soft deleting staff member: {str(e)}")
             raise
 
-    @action(detail=True, methods=['patch'])
-    def activate(self, request, pk=None):
-        """Activate a staff member."""
-        try:
-            staff_member = self.get_object()
-            staff_member.activate(request.user)
-            
-            serializer = self.get_serializer(staff_member)
-            logger.info(f"Staff member activated: {staff_member.user.username}")
-            
-            # Create notification
-            self.create_staff_notification(staff_member, "activated")
-            
-            return Response(serializer.data)
-            
-        except Exception as e:
-            logger.error(f"Error activating staff member: {str(e)}")
-            return Response(
-                {'error': 'Failed to activate staff member'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=True, methods=['patch'])
-    def deactivate(self, request, pk=None):
-        """Deactivate a staff member."""
-        try:
-            staff_member = self.get_object()
-            staff_member.deactivate(request.user)
-            
-            serializer = self.get_serializer(staff_member)
-            logger.info(f"Staff member deactivated: {staff_member.user.username}")
-            
-            # Create notification
-            self.create_staff_notification(staff_member, "deactivated")
-            
-            return Response(serializer.data)
-            
-        except Exception as e:
-            logger.error(f"Error deactivating staff member: {str(e)}")
-            return Response(
-                {'error': 'Failed to deactivate staff member'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
     @action(detail=False, methods=['post'])
     def bulk_actions(self, request):
         """Bulk actions on staff members."""
@@ -706,9 +661,6 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
                             staff_member.role = role
                             staff_member.updated_by = request.user
                             staff_member.save()
-                            updated_count += 1
-                        elif hasattr(staff_member, action):
-                            getattr(staff_member, action)(request.user)
                             updated_count += 1
                     
                     logger.info(f"Bulk {action} performed on {updated_count} staff members")
@@ -743,7 +695,6 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             return Response({
                 'store_id': store_id,
                 'total_staff': staff.count(),
-                'active_staff': staff.filter(is_active=True).count(),
                 'staff_members': serializer.data
             })
             
@@ -786,24 +737,18 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             action_messages = {
                 'added': f"You have been added as {staff_member.get_role_display()} to {staff_member.store.name}.",
                 'updated': f"Your role at {staff_member.store.name} has been updated.",
-                'activated': f"Your account at {staff_member.store.name} has been activated.",
-                'deactivated': f"Your account at {staff_member.store.name} has been deactivated.",
                 'removed': f"Your access to {staff_member.store.name} has been removed."
             }
             
             notification_type_map = {
                 'added': Notification.NotificationType.ACCOUNT_UPDATE,
                 'updated': Notification.NotificationType.ACCOUNT_UPDATE,
-                'activated': Notification.NotificationType.ACCOUNT_UPDATE,
-                'deactivated': Notification.NotificationType.SYSTEM_ALERT,
                 'removed': Notification.NotificationType.SYSTEM_ALERT
             }
             
             level_map = {
                 'added': Notification.NotificationLevel.SUCCESS,
                 'updated': Notification.NotificationLevel.INFO,
-                'activated': Notification.NotificationLevel.SUCCESS,
-                'deactivated': Notification.NotificationLevel.WARNING,
                 'removed': Notification.NotificationLevel.WARNING
             }
             
@@ -854,7 +799,6 @@ class StoreAnalyticsViewSet(viewsets.ModelViewSet):
             # Users can only see analytics from stores they own or are staff at
             user_stores = StoreStaff.objects.filter(
                 user=self.request.user,
-                is_active=True,
                 deleted_at__isnull=True
             ).values_list('store_id', flat=True)
             queryset = queryset.filter(store_id__in=user_stores)

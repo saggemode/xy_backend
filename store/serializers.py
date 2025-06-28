@@ -48,12 +48,12 @@ class StoreStaffSerializer(serializers.ModelSerializer):
     
     # Nested user data
     user_details = UserSerializer(source='user', read_only=True)
-
+    
     class Meta:
         model = StoreStaff
         fields = [
             'id', 'store', 'store_name', 'user', 'user_details',
-            'role', 'role_display', 'joined_at', 'is_active',
+            'role', 'role_display', 'joined_at',
             'staff_username', 'staff_email', 'staff_first_name', 'staff_last_name',
             'can_manage_products', 'can_manage_orders', 'can_manage_staff', 'can_view_analytics',
             'created_by', 'created_by_username',
@@ -94,7 +94,6 @@ class StoreStaffSerializer(serializers.ModelSerializer):
                 existing_owner = StoreStaff.objects.filter(
                     store=store,
                     role=StoreStaff.Roles.OWNER,
-                    is_active=True,
                     deleted_at__isnull=True
                 )
                 if instance:
@@ -439,8 +438,6 @@ class BulkStaffActionSerializer(serializers.Serializer):
     )
     action = serializers.ChoiceField(
         choices=[
-            ('activate', 'Activate'),
-            ('deactivate', 'Deactivate'),
             ('assign_role', 'Assign Role'),
         ],
         help_text=_('Action to perform on selected staff')

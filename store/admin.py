@@ -135,7 +135,7 @@ class StoreStaffAdmin(admin.ModelAdmin):
         }),
     )
     actions = [
-        'activate_staff', 'deactivate_staff', 'bulk_assign_role',
+        'bulk_assign_role',
         'bulk_update_permissions'
     ]
     date_hierarchy = 'joined_at'
@@ -175,16 +175,6 @@ class StoreStaffAdmin(admin.ModelAdmin):
             return obj.last_active.strftime('%Y-%m-%d %H:%M')
         return 'Never'
     last_active_display.short_description = 'Last Active'
-
-    def activate_staff(self, request, queryset):
-        updated = queryset.update(is_active=True)
-        self.message_user(request, f'{updated} staff members have been activated.')
-    activate_staff.short_description = "Activate selected staff"
-
-    def deactivate_staff(self, request, queryset):
-        updated = queryset.update(is_active=False)
-        self.message_user(request, f'{updated} staff members have been deactivated.')
-    deactivate_staff.short_description = "Deactivate selected staff"
 
     def bulk_assign_role(self, request, queryset):
         return HttpResponseRedirect('/admin/store/staff-bulk-role/')
