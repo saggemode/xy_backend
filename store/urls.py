@@ -3,18 +3,24 @@ from django.contrib import admin
 from . import views
 from rest_framework.routers import DefaultRouter
 from .views import (
-    StoreViewSet, StoreStaffViewSet, StoreAnalyticsViewSet, ProductByStoreViewSet
+    StoreViewSet, StoreStaffViewSet, StoreAnalyticsViewSet, ProductByStoreViewSet, DebugStoreView, SimpleStoreViewSet
 )
 
 # Create router and register viewsets
 router = DefaultRouter()
-router.register(r'stores', StoreViewSet, basename='store')
+# router.register(r'stores', StoreViewSet, basename='store')
 router.register(r'store-staff', StoreStaffViewSet, basename='store-staff')
 router.register(r'store-analytics', StoreAnalyticsViewSet, basename='store-analytics')
 router.register(r'products-by-store', ProductByStoreViewSet, basename='products-by-store')
 
 # URL patterns for store app
 urlpatterns = [
+    # Debug endpoint
+    path('debug/store/', DebugStoreView.as_view(), name='debug-store'),
+    
+    # Simple test endpoint
+    path('test/stores/', views.SimpleStoreViewSet.as_view({'get': 'list'}), name='test-stores'),
+    
     # Include router URLs for standard CRUD operations
     path('', include(router.urls)),
     

@@ -31,10 +31,88 @@ from .serializers import (
     BulkStoreActionSerializer, BulkStaffActionSerializer, StoreStatisticsSerializer,
     StoreAnalyticsReportSerializer
 )
-from notification.models import Notification
+# from notification.models import Notification
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
+
+class BasicTestView(APIView):
+    """Basic test view to check if the app is working."""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Basic test endpoint."""
+        return Response({
+            'status': 'success',
+            'message': 'Store app is working',
+            'timestamp': timezone.now().isoformat()
+        })
+
+
+class DebugStoreView(APIView):
+    """Simple debug view to test store functionality."""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Simple test endpoint to check if store models are working."""
+        try:
+            # Test basic model operations
+            store_count = Store.objects.count()
+            
+            # Test if we can get any stores
+            stores = Store.objects.all()[:5]
+            store_names = [store.name for store in stores]
+            
+            # Test notification import
+            try:
+                from notification.models import Notification
+                notification_count = Notification.objects.count()
+                notification_import_success = True
+            except Exception as e:
+                notification_import_success = False
+                notification_error = str(e)
+            
+            # Test notification types
+            try:
+                from notification.models import Notification
+                notification_types = {
+                    'ACCOUNT_UPDATE': Notification.NotificationType.ACCOUNT_UPDATE,
+                    'SYSTEM_ALERT': Notification.NotificationType.SYSTEM_ALERT,
+                }
+                notification_levels = {
+                    'INFO': Notification.NotificationLevel.INFO,
+                    'SUCCESS': Notification.NotificationLevel.SUCCESS,
+                    'WARNING': Notification.NotificationLevel.WARNING,
+                }
+                notification_types_success = True
+            except Exception as e:
+                notification_types_success = False
+                notification_types_error = str(e)
+            
+            return Response({
+                'status': 'success',
+                'message': 'Store models are working correctly',
+                'data': {
+                    'total_stores': store_count,
+                    'sample_stores': store_names,
+                    'user_authenticated': request.user.is_authenticated,
+                    'user_id': request.user.id if request.user.is_authenticated else None,
+                    'notification_import_success': notification_import_success,
+                    'notification_count': notification_count if notification_import_success else None,
+                    'notification_types_success': notification_types_success,
+                    'notification_error': notification_error if not notification_import_success else None,
+                    'notification_types_error': notification_types_error if not notification_types_success else None,
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Debug view error: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'Error in debug view: {str(e)}',
+                'error_type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class StoreViewSet(viewsets.ModelViewSet):
@@ -130,7 +208,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             cache.delete(cache_key)
             
             # Create notification for store creation
-            self.create_store_notification(store, "created")
+            # self.create_store_notification(store, "created")
             
         except Exception as e:
             logger.error(f"Error creating store: {str(e)}")
@@ -143,7 +221,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             logger.info(f"Store updated: {store.name}")
             
             # Create notification for store update
-            self.create_store_notification(store, "updated")
+            # self.create_store_notification(store, "updated")
             
         except Exception as e:
             logger.error(f"Error updating store: {str(e)}")
@@ -160,7 +238,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             cache.delete(cache_key)
             
             # Create notification for store deletion
-            self.create_store_notification(instance, "deleted")
+            # self.create_store_notification(instance, "deleted")
             
         except Exception as e:
             logger.error(f"Error soft deleting store: {str(e)}")
@@ -177,7 +255,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             logger.info(f"Store activated: {store.name}")
             
             # Create notification
-            self.create_store_notification(store, "activated")
+            # self.create_store_notification(store, "activated")
             
             return Response(serializer.data)
             
@@ -199,7 +277,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             logger.info(f"Store deactivated: {store.name}")
             
             # Create notification
-            self.create_store_notification(store, "deactivated")
+            # self.create_store_notification(store, "deactivated")
             
             return Response(serializer.data)
             
@@ -226,7 +304,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             logger.info(f"Store verified: {store.name}")
             
             # Create notification
-            self.create_store_notification(store, "verified")
+            # self.create_store_notification(store, "verified")
             
             return Response(serializer.data)
             
@@ -248,7 +326,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             logger.info(f"Store closed: {store.name}")
             
             # Create notification
-            self.create_store_notification(store, "closed")
+            # self.create_store_notification(store, "closed")
             
             return Response(serializer.data)
             
@@ -606,7 +684,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             logger.info(f"Staff member created: {staff_member.user.username} at {staff_member.store.name}")
             
             # Create notification
-            self.create_staff_notification(staff_member, "added")
+            # self.create_staff_notification(staff_member, "added")
             
         except Exception as e:
             logger.error(f"Error creating staff member: {str(e)}")
@@ -619,7 +697,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             logger.info(f"Staff member updated: {staff_member.user.username}")
             
             # Create notification
-            self.create_staff_notification(staff_member, "updated")
+            # self.create_staff_notification(staff_member, "updated")
             
         except Exception as e:
             logger.error(f"Error updating staff member: {str(e)}")
@@ -632,7 +710,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             logger.info(f"Staff member soft deleted: {instance.user.username}")
             
             # Create notification
-            self.create_staff_notification(instance, "removed")
+            # self.create_staff_notification(instance, "removed")
             
         except Exception as e:
             logger.error(f"Error soft deleting staff member: {str(e)}")
@@ -999,3 +1077,65 @@ class ProductByStoreViewSet(viewsets.ModelViewSet):
                     "requested_store_id": store_id
                 }
             }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class SimpleStoreViewSet(viewsets.ModelViewSet):
+    """Simple store viewset for debugging."""
+    queryset = Store.objects.all()
+    serializer_class = StoreSerializer
+    permission_classes = [AllowAny]
+    
+    def list(self, request, *args, **kwargs):
+        """Simple list method to test basic functionality."""
+        try:
+            queryset = self.get_queryset()
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({
+                'status': 'success',
+                'count': queryset.count(),
+                'data': serializer.data
+            })
+        except Exception as e:
+            logger.error(f"Simple store list error: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'Error in simple store list: {str(e)}',
+                'error_type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class SimpleStoreTestView(APIView):
+    """Simple test view for store endpoint."""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Simple test endpoint that just returns basic store data."""
+        try:
+            # Get basic store data
+            stores = Store.objects.all()[:10]  # Limit to 10 stores
+            
+            # Create simple data structure
+            store_data = []
+            for store in stores:
+                store_data.append({
+                    'id': str(store.id),
+                    'name': store.name,
+                    'status': store.status,
+                    'is_verified': store.is_verified,
+                    'created_at': store.created_at.isoformat() if store.created_at else None,
+                })
+            
+            return Response({
+                'status': 'success',
+                'message': 'Simple store test successful',
+                'count': len(store_data),
+                'data': store_data
+            })
+            
+        except Exception as e:
+            logger.error(f"Simple store test error: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'Error in simple store test: {str(e)}',
+                'error_type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

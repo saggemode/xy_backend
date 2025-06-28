@@ -16,6 +16,14 @@ from product.models import Product, ProductVariant
 
 User = get_user_model()
 
+
+class SimpleStoreSerializer(serializers.ModelSerializer):
+    """Simple store serializer for debugging."""
+    class Meta:
+        model = Store
+        fields = ['id', 'name', 'status', 'is_verified', 'created_at']
+
+
 class UserSerializer(serializers.ModelSerializer):
     """Simple user serializer for nested data."""
     class Meta:
