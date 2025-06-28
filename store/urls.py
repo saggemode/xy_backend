@@ -78,6 +78,23 @@ urlpatterns = [
         'get': 'inventory'
     }), name='store-inventory'),
     
+    # Product endpoints for stores
+    path('stores/<uuid:pk>/products/', views.StoreViewSet.as_view({
+        'get': 'products'
+    }), name='store-products'),
+    
+    path('stores/<uuid:pk>/featured-products/', views.StoreViewSet.as_view({
+        'get': 'featured_products'
+    }), name='store-featured-products'),
+    
+    path('stores/<uuid:pk>/products-by-category/', views.StoreViewSet.as_view({
+        'get': 'products_by_category'
+    }), name='store-products-by-category'),
+    
+    path('stores/<uuid:pk>/product-categories/', views.StoreViewSet.as_view({
+        'get': 'product_categories'
+    }), name='store-product-categories'),
+    
     # Store staff endpoints
     path('store-staff/by-store/', views.StoreStaffViewSet.as_view({
         'get': 'by_store'
@@ -108,6 +125,9 @@ urlpatterns = [
     path('stores/<int:pk>/staff/<int:staff_id>/', views.StoreStaffViewSet.as_view({
         'get': 'retrieve', 'put': 'update', 'delete': 'destroy'
     }), name='store-staff-detail-legacy'),
+    
+    # Public product by store endpoint
+    path('public/products/', views.PublicProductByStoreView.as_view(), name='public-products-by-store'),
 ]
 
 # Add router URLs to the main patterns

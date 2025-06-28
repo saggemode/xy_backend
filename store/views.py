@@ -368,17 +368,216 @@ class StoreViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=True, methods=['get'])
-    def inventory(self, request, pk=None):
-        """Get store inventory."""
+    def products(self, request, pk=None):
+        """Get all products for a specific store."""
         try:
             store = self.get_object()
-            return Response({'message': 'Inventory endpoint', 'store_id': str(store.id)})
+            
+            # Get query parameters for filtering
+            category = request.query_params.get('category')
+            subcategory = request.query_params.get('subcategory')
+            min_price = request.query_params.get('min_price')
+            max_price = request.query_params.get('max_price')
+            status = request.query_params.get('status', 'published')
+            featured = request.query_params.get('featured')
+            search = request.query_params.get('search')
+            ordering = request.query_params.get('ordering', '-created_at')
+            
+            # Start with store's products
+            products = store.products.all()
+            
+            # Apply filters
+            if category:
+                products = products.filter(category__name__icontains=category)
+            
+            if subcategory:
+                products = products.filter(subcategory__name__icontains=subcategory)
+            
+            if min_price:
+                products = products.filter(base_price__gte=min_price)
+            
+            if max_price:
+                products = products.filter(base_price__lte=max_price)
+            
+            if status:
+                products = products.filter(status=status)
+            
+            if featured:
+                products = products.filter(is_featured=True)
+            
+            if search:
+                products = products.filter(
+                    Q(name__icontains=search) |
+                    Q(description__icontains=search) |
+                    Q(brand__icontains=search)
+                )
+            
+            # Apply ordering
+            products = products.order_by(ordering)
+            
+            # Pagination
+            page = request.query_params.get('page', 1)
+            page_size = request.query_params.get('page_size', 20)
+            
+            paginator = Paginator(products, page_size)
+            products_page = paginator.get_page(page)
+            
+            # Serialize products
+            from product.serializers import ProductSerializer
+            serializer = ProductSerializer(products_page, many=True, context={'request': request})
+            
+            return Response({
+                'store_id': str(store.id),
+                'store_name': store.name,
+                'total_products': products.count(),
+                'page': page,
+                'page_size': page_size,
+                'total_pages': paginator.num_pages,
+                'has_next': products_page.has_next(),
+                'has_previous': products_page.has_previous(),
+                'products': serializer.data
+            })
+            
         except Exception as e:
-            logger.error(f"Error fetching store inventory: {str(e)}")
-            return Response(
-                {'error': 'Failed to fetch store inventory'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            logger.error(f"Error fetching products for store {pk}: {str(e)}")
+            return Response({
+                'error': 'Failed to fetch products',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'])
+    def featured_products(self, request, pk=None):
+        """Get featured products for a specific store."""
+        try:
+            store = self.get_object()
+            products = store.products.filter(is_featured=True, status='published')
+            
+            from product.serializers import ProductSerializer
+            serializer = ProductSerializer(products, many=True, context={'request': request})
+            
+            return Response({
+                'store_id': str(store.id),
+                'store_name': store.name,
+                'total_featured': products.count(),
+                'products': serializer.data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching featured products for store {pk}: {str(e)}")
+            return Response({
+                'error': 'Failed to fetch featured products'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'])
+    def products_by_category(self, request, pk=None):
+        """Get products by category for a specific store."""
+        try:
+            store = self.get_object()
+            category = request.query_params.get('category')
+            
+            if not category:
+                return Response({
+                    'error': 'Category parameter is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            products = store.products.filter(
+                category__name__icontains=category,
+                status='published'
             )
+            
+            from product.serializers import ProductSerializer
+            serializer = ProductSerializer(products, many=True, context={'request': request})
+            
+            return Response({
+                'store_id': str(store.id),
+                'store_name': store.name,
+                'category': category,
+                'total_products': products.count(),
+                'products': serializer.data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching products by category for store {pk}: {str(e)}")
+            return Response({
+                'error': 'Failed to fetch products by category'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'])
+    def product_categories(self, request, pk=None):
+        """Get all product categories available in a store."""
+        try:
+            store = self.get_object()
+            
+            # Get unique categories from store's products
+            categories = store.products.filter(status='published').values(
+                'category__id', 'category__name'
+            ).distinct()
+            
+            return Response({
+                'store_id': str(store.id),
+                'store_name': store.name,
+                'categories': list(categories)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching product categories for store {pk}: {str(e)}")
+            return Response({
+                'error': 'Failed to fetch product categories'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'])
+    def inventory(self, request, pk=None):
+        """Get comprehensive inventory information for a store."""
+        try:
+            store = self.get_object()
+            
+            # Get all products for the store
+            products = store.products.all()
+            
+            # Calculate inventory statistics
+            total_products = products.count()
+            published_products = products.filter(status='published').count()
+            draft_products = products.filter(status='draft').count()
+            out_of_stock = products.filter(stock=0).count()
+            low_stock = products.filter(stock__gt=0, stock__lte=10).count()
+            featured_products = products.filter(is_featured=True).count()
+            
+            # Get products by category
+            products_by_category = products.values('category__name').annotate(
+                count=Count('id')
+            ).order_by('-count')
+            
+            # Get low stock products
+            low_stock_products = products.filter(stock__gt=0, stock__lte=10).values(
+                'id', 'name', 'stock', 'base_price'
+            )[:10]  # Limit to 10 items
+            
+            # Get out of stock products
+            out_of_stock_products = products.filter(stock=0).values(
+                'id', 'name', 'base_price'
+            )[:10]  # Limit to 10 items
+            
+            return Response({
+                'store_id': str(store.id),
+                'store_name': store.name,
+                'inventory_summary': {
+                    'total_products': total_products,
+                    'published_products': published_products,
+                    'draft_products': draft_products,
+                    'out_of_stock': out_of_stock,
+                    'low_stock': low_stock,
+                    'featured_products': featured_products
+                },
+                'products_by_category': list(products_by_category),
+                'low_stock_products': list(low_stock_products),
+                'out_of_stock_products': list(out_of_stock_products)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching inventory for store {pk}: {str(e)}")
+            return Response({
+                'error': 'Failed to fetch inventory information'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def retrieve(self, request, *args, **kwargs):
         """Get individual store with related data."""
@@ -971,4 +1170,100 @@ class MinimalStoreViewSet(viewsets.ModelViewSet):
                 'status': 'error',
                 'message': f'Error in minimal store list: {str(e)}',
                 'error_type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PublicProductByStoreView(APIView):
+    """Public endpoint for getting products by store."""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Get products for a specific store with filtering and pagination."""
+        try:
+            store_id = request.query_params.get('store_id')
+            
+            if not store_id:
+                return Response({
+                    'error': 'store_id parameter is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get the store
+            try:
+                store = Store.objects.get(id=store_id, status='active', is_verified=True)
+            except Store.DoesNotExist:
+                return Response({
+                    'error': 'Store not found or not active'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Get query parameters for filtering
+            category = request.query_params.get('category')
+            subcategory = request.query_params.get('subcategory')
+            min_price = request.query_params.get('min_price')
+            max_price = request.query_params.get('max_price')
+            featured = request.query_params.get('featured')
+            search = request.query_params.get('search')
+            ordering = request.query_params.get('ordering', '-created_at')
+            
+            # Start with store's published products only
+            products = store.products.filter(status='published')
+            
+            # Apply filters
+            if category:
+                products = products.filter(category__name__icontains=category)
+            
+            if subcategory:
+                products = products.filter(subcategory__name__icontains=subcategory)
+            
+            if min_price:
+                products = products.filter(base_price__gte=min_price)
+            
+            if max_price:
+                products = products.filter(base_price__lte=max_price)
+            
+            if featured:
+                products = products.filter(is_featured=True)
+            
+            if search:
+                products = products.filter(
+                    Q(name__icontains=search) |
+                    Q(description__icontains=search) |
+                    Q(brand__icontains=search)
+                )
+            
+            # Apply ordering
+            products = products.order_by(ordering)
+            
+            # Pagination
+            page = request.query_params.get('page', 1)
+            page_size = request.query_params.get('page_size', 20)
+            
+            paginator = Paginator(products, page_size)
+            products_page = paginator.get_page(page)
+            
+            # Serialize products
+            from product.serializers import ProductSerializer
+            serializer = ProductSerializer(products_page, many=True, context={'request': request})
+            
+            return Response({
+                'store': {
+                    'id': str(store.id),
+                    'name': store.name,
+                    'description': store.description,
+                    'logo': store.logo,
+                    'is_verified': store.is_verified
+                },
+                'total_products': products.count(),
+                'page': page,
+                'page_size': page_size,
+                'total_pages': paginator.num_pages,
+                'has_next': products_page.has_next(),
+                'has_previous': products_page.has_previous(),
+                'products': serializer.data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in public product by store view: {str(e)}")
+            return Response({
+                'error': 'Failed to fetch products',
+                'details': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
