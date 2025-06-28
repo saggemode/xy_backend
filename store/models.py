@@ -348,9 +348,9 @@ class StoreStaff(models.Model):
         verbose_name = "Store Staff"
         verbose_name_plural = "Store Staff"
         indexes = [
-            models.Index(fields=['store', 'is_active']),
-            models.Index(fields=['user', 'is_active']),
-            models.Index(fields=['role', 'is_active']),
+            models.Index(fields=['store', 'role']),
+            models.Index(fields=['user', 'role']),
+            models.Index(fields=['role', 'deleted_at']),
         ]
 
     def __str__(self):
@@ -365,7 +365,6 @@ class StoreStaff(models.Model):
             existing_owner = StoreStaff.objects.filter(
                 store=self.store,
                 role=self.Roles.OWNER,
-                is_active=True,
                 deleted_at__isnull=True
             ).exclude(pk=self.pk)
             
@@ -405,7 +404,6 @@ class StoreStaff(models.Model):
             user=user, 
             store=store, 
             role=StoreStaff.Roles.OWNER, 
-            is_active=True,
             deleted_at__isnull=True
         ).exists()
 
@@ -416,7 +414,6 @@ class StoreStaff(models.Model):
             user=user, 
             store=store, 
             role__in=[StoreStaff.Roles.OWNER, StoreStaff.Roles.MANAGER], 
-            is_active=True,
             deleted_at__isnull=True
         ).exists()
 
@@ -426,21 +423,8 @@ class StoreStaff(models.Model):
         return StoreStaff.objects.filter(
             user=user, 
             store=store, 
-            is_active=True,
             deleted_at__isnull=True
         ).exists()
-
-    def activate(self, user=None):
-        """Activate the staff member."""
-        self.is_active = True
-        self.updated_by = user
-        self.save()
-
-    def deactivate(self, user=None):
-        """Deactivate the staff member."""
-        self.is_active = False
-        self.updated_by = user
-        self.save()
 
     def soft_delete(self, user=None):
         """Soft delete the staff member."""
