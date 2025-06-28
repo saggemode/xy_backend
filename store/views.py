@@ -20,7 +20,7 @@ from django.core.paginator import Paginator
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_cookie
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
 from .models import Store, StoreAnalytics, StoreStaff, CustomerLifetimeValue
@@ -54,7 +54,7 @@ class StoreViewSet(viewsets.ModelViewSet):
     
     queryset = Store.objects.all().order_by('-created_at')
     serializer_class = StoreSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     throttle_classes = [UserRateThrottle]
     
@@ -87,6 +87,10 @@ class StoreViewSet(viewsets.ModelViewSet):
         """
         queryset = super().get_queryset().filter(deleted_at__isnull=True)
         
+        # If user is not authenticated, return empty queryset
+        if not self.request.user.is_authenticated:
+            return queryset.none()
+        
         # Staff users can see all stores
         if self.request.user.is_staff:
             return queryset
@@ -111,7 +115,7 @@ class StoreViewSet(viewsets.ModelViewSet):
         if self.action in ['destroy', 'bulk_delete', 'clear_all']:
             permission_classes = [IsAdminUser]
         else:
-            permission_classes = [IsAuthenticated]
+            permission_classes = [AllowAny]
         return [permission() for permission in permission_classes]
 
     def perform_create(self, serializer):
@@ -257,6 +261,12 @@ class StoreViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def my_stores(self, request):
         """Get current user's stores with caching."""
+        if not request.user.is_authenticated:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+            
         cache_key = f"my_stores_{request.user.id}"
         cached_data = cache.get(cache_key)
         
@@ -312,6 +322,12 @@ class StoreViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def store_statistics(self, request):
         """Get comprehensive store statistics."""
+        if not request.user.is_authenticated:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+            
         cache_key = f"store_stats_{request.user.id}"
         cached_stats = cache.get(cache_key)
         
@@ -387,6 +403,12 @@ class StoreViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def bulk_actions(self, request):
         """Bulk actions on stores."""
+        if not request.user.is_authenticated:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+            
         serializer = BulkStoreActionSerializer(data=request.data, context={'request': request})
         
         if serializer.is_valid():
