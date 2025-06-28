@@ -59,7 +59,7 @@ class StoreViewSet(viewsets.ModelViewSet):
     
     # Comprehensive filtering options
     filterset_fields = [
-        'status', 'is_active', 'is_verified', 'owner', 'created_at', 'updated_at',
+        'status', 'is_verified', 'owner', 'created_at', 'updated_at',
         'commission_rate', 'auto_approve_products'
     ]
     
@@ -72,7 +72,7 @@ class StoreViewSet(viewsets.ModelViewSet):
     # Ordering options
     ordering_fields = [
         'name', 'created_at', 'updated_at', 'total_products', 'total_staff',
-        'commission_rate', 'status', 'is_active', 'is_verified'
+        'commission_rate', 'status', 'is_verified'
     ]
     ordering = ['-created_at']
 
@@ -282,7 +282,7 @@ class StoreViewSet(viewsets.ModelViewSet):
     def active_stores(self, request):
         """Get only active stores."""
         try:
-            stores = self.get_queryset().filter(is_active=True, is_verified=True)
+            stores = self.get_queryset().filter(status='active', is_verified=True)
             serializer = self.get_serializer(stores, many=True)
             return Response(serializer.data)
             
@@ -322,7 +322,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             
             # Basic counts
             total_stores = queryset.count()
-            active_stores = queryset.filter(is_active=True).count()
+            active_stores = queryset.filter(status='active').count()
             verified_stores = queryset.filter(is_verified=True).count()
             inactive_stores = total_stores - active_stores
             unverified_stores = total_stores - verified_stores
@@ -351,7 +351,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             
             # Recent stores
             recent_stores = queryset.values(
-                'id', 'name', 'status', 'is_active', 'is_verified', 'created_at'
+                'id', 'name', 'status', 'is_verified', 'created_at'
             )[:10]
             
             stats = {

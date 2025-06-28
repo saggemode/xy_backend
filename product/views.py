@@ -52,7 +52,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
-    queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants', 'reviews')
+    queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants', 'reviews').filter(status='published')
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['brand', 'is_featured', 'status', 'store', 'category', 'subcategory']
     search_fields = ['name', 'description', 'brand']
@@ -62,6 +62,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Enhanced filtering with price range, stock status, and advanced search.
+        Only shows published products for public access.
         """
         queryset = super().get_queryset()
 
