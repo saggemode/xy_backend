@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, generics, viewsets
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 import random
 from django.db.models import Count, Avg, Q, F
 from rest_framework.decorators import action
@@ -22,6 +22,8 @@ from .models import (
     Category, SubCategory, Product, ProductVariant,
       FlashSale, FlashSaleItem, ProductReview
 )
+
+User = get_user_model()
 
 class CategoryViewSet(viewsets.ModelViewSet):
     serializer_class = CategorySerializer

@@ -1,6 +1,5 @@
 import uuid
 from django.db import models
-from django.contrib.auth.models import User
 from django.utils.translation import gettext_lazy as _
 from product.models import Product
 from django.conf import settings
@@ -15,7 +14,7 @@ class Wishlist(models.Model):
         verbose_name=_('ID')
     )
      
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -2,7 +2,7 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, generics, viewsets, permissions, filters
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from rest_framework.decorators import action
 import logging
 from django.core.exceptions import ValidationError, PermissionDenied
@@ -14,6 +14,8 @@ from rest_framework.throttling import UserRateThrottle
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+User = get_user_model()
 
 class ShippingAddressViewSet(viewsets.ModelViewSet):
     """

@@ -1,9 +1,11 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from .models import Notification
 from order.serializers import OrderSerializer
+
+User = get_user_model()
 
 
 class SimpleUserSerializer(serializers.ModelSerializer):

@@ -78,15 +78,6 @@ urlpatterns = [
         'post': 'bulk_actions'
     }), name='bulk-staff-actions'),
     
-    # Individual staff actions
-    path('store-staff/<uuid:pk>/activate/', views.StoreStaffViewSet.as_view({
-        'patch': 'activate'
-    }), name='activate-staff'),
-    
-    path('store-staff/<uuid:pk>/deactivate/', views.StoreStaffViewSet.as_view({
-        'patch': 'deactivate'
-    }), name='deactivate-staff'),
-    
     # Store analytics endpoints
     path('store-analytics/<uuid:pk>/recalculate/', views.StoreAnalyticsViewSet.as_view({
         'post': 'recalculate'

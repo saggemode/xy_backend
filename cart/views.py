@@ -7,11 +7,13 @@ from .serializers import CartSerializer
 from product.models import Product, ProductVariant
 from store.models import Store
 from django.utils import timezone
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from store.serializers import StoreSerializer
 import logging
 
 logger = logging.getLogger(__name__)
+
+User = get_user_model()
 
 class CartViewSet(viewsets.ModelViewSet):
     serializer_class = CartSerializer
