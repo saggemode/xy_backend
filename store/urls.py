@@ -21,6 +21,9 @@ urlpatterns = [
     # Simple test endpoint
     path('test/stores/', views.SimpleStoreViewSet.as_view({'get': 'list'}), name='test-stores'),
     
+    # Main stores endpoint test
+    path('stores-test/', views.StoreViewSet.as_view({'get': 'list'}), name='stores-test'),
+    
     # Include router URLs for standard CRUD operations
     path('', include(router.urls)),
     

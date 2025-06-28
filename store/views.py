@@ -31,7 +31,7 @@ from .serializers import (
     BulkStoreActionSerializer, BulkStaffActionSerializer, StoreStatisticsSerializer,
     StoreAnalyticsReportSerializer
 )
-# from notification.models import Notification
+from notification.models import Notification
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -208,7 +208,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             cache.delete(cache_key)
             
             # Create notification for store creation
-            # self.create_store_notification(store, "created")
+            self.create_store_notification(store, "created")
             
         except Exception as e:
             logger.error(f"Error creating store: {str(e)}")
@@ -221,7 +221,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             logger.info(f"Store updated: {store.name}")
             
             # Create notification for store update
-            # self.create_store_notification(store, "updated")
+            self.create_store_notification(store, "updated")
             
         except Exception as e:
             logger.error(f"Error updating store: {str(e)}")
@@ -238,7 +238,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             cache.delete(cache_key)
             
             # Create notification for store deletion
-            # self.create_store_notification(instance, "deleted")
+            self.create_store_notification(instance, "deleted")
             
         except Exception as e:
             logger.error(f"Error soft deleting store: {str(e)}")
@@ -255,7 +255,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             logger.info(f"Store activated: {store.name}")
             
             # Create notification
-            # self.create_store_notification(store, "activated")
+            self.create_store_notification(store, "activated")
             
             return Response(serializer.data)
             
@@ -277,7 +277,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             logger.info(f"Store deactivated: {store.name}")
             
             # Create notification
-            # self.create_store_notification(store, "deactivated")
+            self.create_store_notification(store, "deactivated")
             
             return Response(serializer.data)
             
@@ -304,7 +304,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             logger.info(f"Store verified: {store.name}")
             
             # Create notification
-            # self.create_store_notification(store, "verified")
+            self.create_store_notification(store, "verified")
             
             return Response(serializer.data)
             
@@ -326,7 +326,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             logger.info(f"Store closed: {store.name}")
             
             # Create notification
-            # self.create_store_notification(store, "closed")
+            self.create_store_notification(store, "closed")
             
             return Response(serializer.data)
             
@@ -628,6 +628,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             )
         except Exception as e:
             logger.error(f"Error creating store notification: {e}")
+            # Don't raise the exception - just log it and continue
 
 
 class StoreStaffViewSet(viewsets.ModelViewSet):
@@ -684,7 +685,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             logger.info(f"Staff member created: {staff_member.user.username} at {staff_member.store.name}")
             
             # Create notification
-            # self.create_staff_notification(staff_member, "added")
+            self.create_staff_notification(staff_member, "added")
             
         except Exception as e:
             logger.error(f"Error creating staff member: {str(e)}")
@@ -697,7 +698,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             logger.info(f"Staff member updated: {staff_member.user.username}")
             
             # Create notification
-            # self.create_staff_notification(staff_member, "updated")
+            self.create_staff_notification(staff_member, "updated")
             
         except Exception as e:
             logger.error(f"Error updating staff member: {str(e)}")
@@ -710,7 +711,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             logger.info(f"Staff member soft deleted: {instance.user.username}")
             
             # Create notification
-            # self.create_staff_notification(instance, "removed")
+            self.create_staff_notification(instance, "removed")
             
         except Exception as e:
             logger.error(f"Error soft deleting staff member: {str(e)}")
