@@ -8,7 +8,7 @@ from .views import (
 
 # Create router and register viewsets
 router = DefaultRouter()
-# router.register(r'stores', StoreViewSet, basename='store')
+router.register(r'stores', StoreViewSet, basename='store')
 router.register(r'store-staff', StoreStaffViewSet, basename='store-staff')
 router.register(r'store-analytics', StoreAnalyticsViewSet, basename='store-analytics')
 router.register(r'products-by-store', ProductByStoreViewSet, basename='products-by-store')
@@ -25,7 +25,7 @@ urlpatterns = [
     path('stores-test/', views.StoreViewSet.as_view({'get': 'list'}), name='stores-test'),
     
     # Direct stores endpoint (bypassing router)
-    path('stores/', views.StoreViewSet.as_view({'get': 'list', 'post': 'create'}), name='stores-list'),
+    # path('stores/', views.StoreViewSet.as_view({'get': 'list', 'post': 'create'}), name='stores-list'),
     path('stores/<uuid:pk>/', views.StoreViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='stores-detail'),
     
     # Include router URLs for standard CRUD operations
