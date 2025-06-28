@@ -15,7 +15,7 @@ class Cart(models.Model):
         editable=False,
         verbose_name=_('ID')
     )
-
+ 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, db_column='userId_id')
     store = models.ForeignKey(Store, on_delete=models.CASCADE, db_column='storeId_id')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, db_column='productId_id')
@@ -31,138 +31,96 @@ class Cart(models.Model):
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, default=None, related_name='updated_cart_items')
 
     class Meta:
-        verbose_name = 'Cart'
-        verbose_name_plural = 'Carts'
-        unique_together = ('user', 'store', 'product', 'variant')
+        verbose_name = _('Cart')
+        verbose_name_plural = _('Carts')
         db_table = 'cart_cart'
-        managed = True
+        unique_together = ('user', 'store', 'product', 'variant')
         indexes = [
             models.Index(fields=['user', 'is_deleted']),
             models.Index(fields=['store', 'is_deleted']),
+            models.Index(fields=['created_at']),
         ]
+        ordering = ['-created_at']
 
     def __str__(self):
-        variant_str = f" - {self.variant.name}" if self.variant else ""
-        return f"{self.user.username}'s cart - {self.store.name} - {self.product.name}{variant_str}"
+        return f"{self.user.username} - {self.product.name} (Qty: {self.quantity})"
 
     def clean(self):
-        # Validate store is active
-        if self.store.status != 'active':
-            raise ValidationError("Cannot add products from inactive store")
-
-        # Validate product belongs to store
+        """Validate cart item before saving"""
+        if self.quantity <= 0:
+            raise ValidationError(_('Quantity must be greater than 0'))
+        
+        # Check if product belongs to store
         if self.product.store != self.store:
-            raise ValidationError("Product does not belong to the selected store")
-
-        # Validate variant belongs to product
+            raise ValidationError(_('Product does not belong to the selected store'))
+        
+        # Check if variant belongs to product
         if self.variant and self.variant.product != self.product:
-            raise ValidationError("Selected variant does not belong to the product")
-
-        # Validate size if product has variants
-        if self.product.has_variants:
-            if not self.selected_size and self.product.available_sizes:
-                raise ValidationError("Size is required for this product")
-            if self.selected_size and self.selected_size not in self.product.available_sizes:
-                raise ValidationError("Invalid size selected")
-
-        # Validate color if product has variants
-        if self.product.has_variants:
-            if not self.selected_color and self.product.available_colors:
-                raise ValidationError("Color is required for this product")
-            if self.selected_color and self.selected_color not in self.product.available_colors:
-                raise ValidationError("Invalid color selected")
-
-        # Validate stock
+            raise ValidationError(_('Variant does not belong to the selected product'))
+        
+        # Check stock availability
         if self.variant:
             if self.quantity > self.variant.stock:
-                raise ValidationError("Not enough stock available for selected variant")
+                raise ValidationError(_('Insufficient stock for selected variant'))
         else:
             if self.quantity > self.product.stock:
-                raise ValidationError("Not enough stock available")
-
-    @property
-    def unit_price(self):
-        """Get the unit price based on product or variant"""
-        if self.variant:
-            return self.variant.current_price
-        return self.product.base_price
-
-    @property
-    def total_price(self):
-        """Calculate the total price for this cart item"""
-        return self.unit_price * self.quantity
+                raise ValidationError(_('Insufficient stock for product'))
 
     def save(self, *args, **kwargs):
-        """Override save to ensure quantity is at least 1 and validate the cart item"""
-        if self.quantity < 1:
-            self.quantity = 1
-        user = getattr(self, '_current_user', None)
-        if not self.pk and not self.created_by and user:
-            self.created_by = user
-        if user:
-            self.updated_by = user
+        """Override save to add audit fields and validation"""
+        if not self.pk:  # New instance
+            if not self.created_by:
+                self.created_by = getattr(self, '_current_user', None)
+        self.updated_by = getattr(self, '_current_user', None)
         self.full_clean()
         super().save(*args, **kwargs)
 
+    @property
+    def unit_price(self):
+        """Get unit price from variant or product"""
+        if self.variant:
+            return self.variant.price
+        return self.product.price
+
+    @property
+    def total_price(self):
+        """Calculate total price for this cart item"""
+        return self.unit_price * self.quantity
+
     def soft_delete(self, user=None):
-        if not self.is_deleted:
-            self.is_deleted = True
-            self.deleted_at = timezone.now()
-            if user:
-                self.updated_by = user
-            self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
+        """Soft delete the cart item"""
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.updated_by = user
+        self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
 
     def restore(self, user=None):
-        if self.is_deleted:
-            self.is_deleted = False
-            self.deleted_at = None
-            if user:
-                self.updated_by = user
-            self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
+        """Restore soft deleted cart item"""
+        self.is_deleted = False
+        self.deleted_at = None
+        self.updated_by = user
+        self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
 
     @classmethod
-    def add_to_cart(cls, user, product, quantity=1, variant=None, size=None, color=None):
-        """Helper method to add an item to cart with validation"""
-        store = product.store
-        
-        # Check if item already exists in cart
-        cart_item = cls.objects.filter(
-            user=user,
-            store=store,
-            product=product,
-            variant=variant,
-            is_deleted=False
-        ).first()
+    def get_user_cart(cls, user):
+        """Get all active cart items for a user"""
+        return cls.objects.filter(user=user, is_deleted=False)
 
-        if cart_item:
-            # Update quantity if item exists
-            cart_item.quantity += quantity
-            cart_item._current_user = user
-            cart_item.save()
-            return cart_item
+    @classmethod
+    def get_cart_total(cls, user):
+        """Calculate total price for user's cart"""
+        cart_items = cls.get_user_cart(user)
+        return sum(item.total_price for item in cart_items)
 
-        # Create new cart item
-        cart_item = cls(
-            user=user,
-            store=store,
-            product=product,
-            variant=variant,
-            quantity=quantity,
-            selected_size=size,
-            selected_color=color
-        )
-        cart_item._current_user = user
-        cart_item.save()
-        return cart_item
+    @classmethod
+    def get_cart_count(cls, user):
+        """Get total quantity of items in user's cart"""
+        cart_items = cls.get_user_cart(user)
+        return sum(item.quantity for item in cart_items)
 
-    def update_quantity(self, quantity, user=None):
-        """Update the quantity of the cart item"""
-        if quantity < 1:
-            raise ValidationError("Quantity must be at least 1")
-        self.quantity = quantity
-        self._current_user = user
-        self.save()
-
-    def remove(self, user=None):
-        """Remove the item from cart"""
-        self.soft_delete(user=user)
+    @classmethod
+    def clear_user_cart(cls, user):
+        """Clear all items from user's cart"""
+        cart_items = cls.get_user_cart(user)
+        for item in cart_items:
+            item.soft_delete(user=user)

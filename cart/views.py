@@ -1,172 +1,230 @@
-from rest_framework import viewsets, permissions, status
-from rest_framework.response import Response
+from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
-from django.db.models import Q, Sum, F, Count
+from rest_framework.response import Response
+from django.db.models import Q, Sum, F
 from django.core.exceptions import ValidationError
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_cookie
 from .models import Cart
-from .serializers import CartSerializer
+from .serializers import (
+    CartSerializer, CartCreateSerializer, CartUpdateSerializer,
+    CartSummarySerializer, CartBulkUpdateSerializer
+)
 from product.models import Product, ProductVariant
 from store.models import Store
-from django.utils import timezone
-from django.contrib.auth import get_user_model
-from store.serializers import StoreSerializer
 import logging
 
 logger = logging.getLogger(__name__)
 
-User = get_user_model()
-
 class CartViewSet(viewsets.ModelViewSet):
-    serializer_class = CartSerializer
+    """
+    Production-ready Cart ViewSet with comprehensive functionality
+    """
     permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['product__name', 'product__description', 'store__name']
+    ordering_fields = ['created_at', 'updated_at', 'quantity', 'total_price']
+    ordering = ['-created_at']
 
     def get_queryset(self):
+        """Get user's cart items with optimized queries"""
         return Cart.objects.filter(
             user=self.request.user,
             is_deleted=False
         ).select_related(
-            'product', 'product__store', 'product__category', 'store', 'variant'
+            'product', 'product__store', 'store', 'variant'
+        ).prefetch_related(
+            'product__images', 'variant__images'
         )
 
-    def create(self, request, *args, **kwargs):
-        product_id = request.data.get('product_id')
-        variant_id = request.data.get('variant_id')
-        quantity = int(request.data.get('quantity', 1))
-        selected_size = request.data.get('selected_size')
-        selected_color = request.data.get('selected_color')
-        
-        # Check if product exists
-        try:
-            product = Product.objects.get(id=product_id)
-        except Product.DoesNotExist:
-            return Response(
-                {'error': 'Product not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+    def get_serializer_class(self):
+        """Return appropriate serializer based on action"""
+        if self.action == 'create':
+            return CartCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return CartUpdateSerializer
+        return CartSerializer
 
-        # Get variant if provided
-        variant = None
-        if variant_id:
-            try:
-                variant = ProductVariant.objects.get(id=variant_id, product=product)
-            except ProductVariant.DoesNotExist:
-                return Response(
-                    {'error': 'Variant not found for this product'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
+    def perform_create(self, serializer):
+        """Create cart item with user assignment"""
+        serializer.save(user=self.request.user, _current_user=self.request.user)
 
-        # Get the store from the product
-        store = product.store
+    def perform_update(self, serializer):
+        """Update cart item with audit trail"""
+        serializer.save(_current_user=self.request.user)
 
-        # Check if user has items from a different store in their cart
-        existing_cart_items = Cart.objects.filter(user=request.user)
-        if existing_cart_items.exists():
-            first_item = existing_cart_items.first()
-            if first_item.store != store:
-                return Response(
-                    {'error': 'Cannot add products from different stores. Please clear your cart first.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-        try:
-            # Use the add_to_cart helper method
-            cart_item = Cart.add_to_cart(
-                user=request.user,
-                product=product,
-                quantity=quantity,
-                variant=variant,
-                size=selected_size,
-                color=selected_color
-            )
-            serializer = self.get_serializer(cart_item)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        except ValidationError as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        quantity = request.data.get('quantity', instance.quantity)
-        selected_size = request.data.get('selected_size', instance.selected_size)
-        selected_color = request.data.get('selected_color', instance.selected_color)
-        
-        try:
-            instance.quantity = quantity
-            instance.selected_size = selected_size
-            instance.selected_color = selected_color
-            instance.save()
-            
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data)
-        except ValidationError as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-    def destroy(self, request, *args, **kwargs):
-        try:
-            instance = self.get_object()
-            self.perform_destroy(instance)
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Cart.DoesNotExist:
-            return Response(
-                {'error': 'Cart item not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+    def perform_destroy(self, instance):
+        """Soft delete cart item"""
+        instance.soft_delete(user=self.request.user)
 
     @action(detail=False, methods=['get'])
-    def my_cart(self, request):
-        """Get current user's cart with totals"""
+    @method_decorator(cache_page(60 * 5))  # Cache for 5 minutes
+    @method_decorator(vary_on_cookie)
+    def summary(self, request):
+        """Get cart summary with totals"""
         try:
             cart_items = self.get_queryset()
             
             if not cart_items.exists():
                 return Response({
-                    'store': None,
-                    'items': [],
                     'total_items': 0,
-                    'total_price': 0
+                    'total_price': 0,
+                    'item_count': 0,
+                    'store': None,
+                    'items': []
                 })
 
-            # Get store from first item (all items should be from same store)
-            store = cart_items.first().store
-            if not store:
-                return Response({
-                    'error': 'Store not found for items in cart'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            # Calculate totals
             total_items = sum(item.quantity for item in cart_items)
             total_price = sum(item.total_price for item in cart_items)
+            store = cart_items.first().store
 
-            serializer = self.get_serializer(cart_items, many=True)
-            return Response({
-                'store': StoreSerializer(store).data if store else None,
-                'items': serializer.data,
+            serializer = CartSummarySerializer({
                 'total_items': total_items,
-                'total_price': total_price
+                'total_price': total_price,
+                'item_count': cart_items.count(),
+                'store': store,
+                'items': cart_items
             })
+            
+            return Response(serializer.data)
         except Exception as e:
-            logger.error(f"Error in my_cart: {str(e)}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
+            logger.error(f"Error in cart summary: {str(e)}")
             return Response(
-                {"error": "An error occurred while fetching your cart"}, 
+                {'error': 'Failed to fetch cart summary'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'])
+    def add_item(self, request):
+        """Add item to cart with validation"""
+        try:
+            serializer = CartCreateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            
+            # Check if item already exists
+            existing_item = self.get_queryset().filter(
+                product=serializer.validated_data['product'],
+                variant=serializer.validated_data.get('variant'),
+                store=serializer.validated_data['store']
+            ).first()
+
+            if existing_item:
+                # Update quantity
+                new_quantity = existing_item.quantity + serializer.validated_data.get('quantity', 1)
+                existing_item.quantity = new_quantity
+                existing_item._current_user = request.user
+                existing_item.save()
+                cart_serializer = CartSerializer(existing_item)
+                return Response(cart_serializer.data, status=status.HTTP_200_OK)
+            else:
+                # Create new item
+                cart_item = serializer.save(user=request.user, _current_user=request.user)
+                cart_serializer = CartSerializer(cart_item)
+                return Response(cart_serializer.data, status=status.HTTP_201_CREATED)
+
+        except ValidationError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error adding item to cart: {str(e)}")
+            return Response(
+                {'error': 'Failed to add item to cart'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['post'])
+    def bulk_update(self, request):
+        """Bulk update cart items"""
+        try:
+            updates = request.data.get('updates', [])
+            if not updates:
+                return Response(
+                    {'error': 'No updates provided'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            results = []
+            errors = []
+
+            for update_data in updates:
+                serializer = CartBulkUpdateSerializer(data=update_data)
+                if serializer.is_valid():
+                    try:
+                        cart_item = self.get_queryset().get(id=serializer.validated_data['cart_id'])
+                        cart_item.quantity = serializer.validated_data['quantity']
+                        cart_item._current_user = request.user
+                        cart_item.save()
+                        results.append({
+                            'id': str(cart_item.id),
+                            'quantity': cart_item.quantity,
+                            'status': 'success'
+                        })
+                    except Cart.DoesNotExist:
+                        errors.append({
+                            'id': serializer.validated_data['cart_id'],
+                            'error': 'Cart item not found'
+                        })
+                else:
+                    errors.append({
+                        'id': update_data.get('cart_id'),
+                        'error': serializer.errors
+                    })
+
+            return Response({
+                'success': results,
+                'errors': errors
+            })
+
+        except Exception as e:
+            logger.error(f"Error in bulk update: {str(e)}")
+            return Response(
+                {'error': 'Failed to update cart items'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     @action(detail=False, methods=['post'])
     def clear(self, request):
         """Clear all items from cart"""
-        self.get_queryset().delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            cart_items = self.get_queryset()
+            count = cart_items.count()
+            
+            for item in cart_items:
+                item.soft_delete(user=request.user)
+            
+            return Response({
+                'message': f'Cleared {count} items from cart',
+                'cleared_count': count
+            })
+        except Exception as e:
+            logger.error(f"Error clearing cart: {str(e)}")
+            return Response(
+                {'error': 'Failed to clear cart'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
+    def count(self, request):
+        """Get cart item count"""
+        try:
+            cart_items = self.get_queryset()
+            total_quantity = sum(item.quantity for item in cart_items)
+            
+            return Response({
+                'item_count': cart_items.count(),
+                'total_quantity': total_quantity,
+                'has_items': cart_items.exists()
+            })
+        except Exception as e:
+            logger.error(f"Error getting cart count: {str(e)}")
+            return Response(
+                {'error': 'Failed to get cart count'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=False, methods=['get'])
     def search(self, request):
-        """Search cart items by product name, brand, or description"""
+        """Search cart items"""
         query = request.query_params.get('q', '')
         if not query:
             return Response(
@@ -174,364 +232,128 @@ class CartViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        cart_items = self.get_queryset().filter(
-            Q(product__name__icontains=query) |
-            Q(product__brand__icontains=query) |
-            Q(product__description__icontains=query) |
-            Q(variant__name__icontains=query)
-        )
-        serializer = self.get_serializer(cart_items, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['get'])
-    def summary(self, request):
-        """Get a summary of the cart including item count, total price, and store info"""
         try:
-            cart_items = self.get_queryset()
+            cart_items = self.get_queryset().filter(
+                Q(product__name__icontains=query) |
+                Q(product__description__icontains=query) |
+                Q(store__name__icontains=query) |
+                Q(variant__name__icontains=query)
+            )
             
-            if not cart_items.exists():
-                return Response({
-                    'store': None,
-                    'total_items': 0,
-                    'total_price': 0,
-                    'item_count': 0,
-                    'has_variants': False
-                })
-
-            store = cart_items.first().store
-            total_items = sum(item.quantity for item in cart_items)
-            total_price = sum(item.total_price for item in cart_items)
-            has_variants = any(item.variant for item in cart_items)
-
-            return Response({
-                'store': StoreSerializer(store).data if store else None,
-                'total_items': total_items,
-                'total_price': total_price,
-                'item_count': cart_items.count(),
-                'has_variants': has_variants,
-                'last_updated': cart_items.latest('updated_at').updated_at
-            })
+            serializer = CartSerializer(cart_items, many=True)
+            return Response(serializer.data)
         except Exception as e:
-            logger.error(f"Error in cart summary: {str(e)}")
+            logger.error(f"Error searching cart: {str(e)}")
             return Response(
-                {"error": "An error occurred while fetching cart summary"}, 
+                {'error': 'Failed to search cart'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
     @action(detail=False, methods=['post'])
-    def bulk_update(self, request):
-        """Update multiple cart items at once"""
-        updates = request.data.get('updates', [])
-        if not updates:
-            return Response(
-                {'error': 'No updates provided'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        results = []
-        errors = []
-
-        for update in updates:
-            cart_id = update.get('id')
-            quantity = update.get('quantity')
-            
-            try:
-                cart_item = self.get_queryset().get(id=cart_id)
-                cart_item.quantity = quantity
-                cart_item.save()
-                results.append({
-                    'id': cart_id,
-                    'status': 'success',
-                    'quantity': quantity
-                })
-            except Cart.DoesNotExist:
-                errors.append({
-                    'id': cart_id,
-                    'error': 'Cart item not found'
-                })
-            except ValidationError as e:
-                errors.append({
-                    'id': cart_id,
-                    'error': str(e)
-                })
-
-        return Response({
-            'success': results,
-            'errors': errors
-        })
-
-    @action(detail=False, methods=['get'])
-    def store_summary(self, request):
-        """Get a summary of cart items grouped by store"""
-        cart_items = self.get_queryset()
-        
-        store_summary = {}
-        for item in cart_items:
-            store = item.store
-            if store.id not in store_summary:
-                store_summary[store.id] = {
-                    'store': StoreSerializer(store).data,
-                    'total_items': 0,
-                    'total_price': 0,
-                    'item_count': 0
-                }
-            
-            store_summary[store.id]['total_items'] += item.quantity
-            store_summary[store.id]['total_price'] += item.total_price
-            store_summary[store.id]['item_count'] += 1
-
-        return Response(list(store_summary.values()))
-
-    @action(detail=False, methods=['get'])
-    def recent_items(self, request):
-        """Get recently added items to cart"""
-        days = int(request.query_params.get('days', 7))
-        date_threshold = timezone.now() - timezone.timedelta(days=days)
-        
-        recent_items = self.get_queryset().filter(
-            created_at__gte=date_threshold
-        ).order_by('-created_at')
-        
-        serializer = self.get_serializer(recent_items, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['post'])
     def move_to_wishlist(self, request):
         """Move cart items to wishlist"""
-        from wishlist.models import Wishlist  # Import here to avoid circular import
-        
-        cart_ids = request.data.get('cart_ids', [])
-        if not cart_ids:
+        try:
+            cart_ids = request.data.get('cart_ids', [])
+            if not cart_ids:
+                return Response(
+                    {'error': 'No cart items specified'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Import here to avoid circular imports
+            from wishlist.models import Wishlist
+            
+            results = []
+            errors = []
+
+            for cart_id in cart_ids:
+                try:
+                    cart_item = self.get_queryset().get(id=cart_id)
+                    
+                    # Create wishlist item
+                    wishlist_item, created = Wishlist.objects.get_or_create(
+                        user=request.user,
+                        product=cart_item.product,
+                        store=cart_item.store,
+                        defaults={'variant': cart_item.variant}
+                    )
+                    
+                    # Remove from cart
+                    cart_item.soft_delete(user=request.user)
+                    
+                    results.append({
+                        'id': str(cart_id),
+                        'status': 'success',
+                        'message': 'Moved to wishlist'
+                    })
+                except Cart.DoesNotExist:
+                    errors.append({
+                        'id': cart_id,
+                        'error': 'Cart item not found'
+                    })
+                except Exception as e:
+                    errors.append({
+                        'id': cart_id,
+                        'error': str(e)
+                    })
+
+            return Response({
+                'success': results,
+                'errors': errors
+            })
+        except Exception as e:
+            logger.error(f"Error moving to wishlist: {str(e)}")
             return Response(
-                {'error': 'No cart items specified'},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'Failed to move items to wishlist'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        results = []
-        errors = []
-
-        for cart_id in cart_ids:
-            try:
-                cart_item = self.get_queryset().get(id=cart_id)
+    @action(detail=False, methods=['get'])
+    def validate_stock(self, request):
+        """Validate stock availability for all cart items"""
+        try:
+            cart_items = self.get_queryset()
+            validation_results = []
+            
+            for item in cart_items:
+                stock = item.variant.stock if item.variant else item.product.stock
+                is_available = stock >= item.quantity
                 
-                # Create wishlist item
-                wishlist_item, created = Wishlist.objects.get_or_create(
-                    user=request.user,
-                    product=cart_item.product,
-                    store=cart_item.store
-                )
-                
-                # Remove from cart
-                cart_item.delete()
-                
-                results.append({
-                    'id': cart_id,
-                    'status': 'success',
-                    'message': 'Moved to wishlist'
+                validation_results.append({
+                    'id': str(item.id),
+                    'product_name': item.product.name,
+                    'variant_name': item.variant.name if item.variant else None,
+                    'requested_quantity': item.quantity,
+                    'available_stock': stock,
+                    'is_available': is_available,
+                    'shortage': max(0, item.quantity - stock) if not is_available else 0
                 })
-            except Cart.DoesNotExist:
-                errors.append({
-                    'id': cart_id,
-                    'error': 'Cart item not found'
-                })
-            except Exception as e:
-                errors.append({
-                    'id': cart_id,
-                    'error': str(e)
-                })
-
-        return Response({
-            'success': results,
-            'errors': errors
-        })
+            
+            return Response(validation_results)
+        except Exception as e:
+            logger.error(f"Error validating stock: {str(e)}")
+            return Response(
+                {'error': 'Failed to validate stock'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=False, methods=['get'])
     def low_stock_items(self, request):
-        """Get cart items that are low in stock"""
-        threshold = int(request.query_params.get('threshold', 5))
-        
-        low_stock_items = []
-        for item in self.get_queryset():
-            stock = item.variant.stock if item.variant else item.product.stock
-            if stock <= threshold:
-                low_stock_items.append(item)
-        
-        serializer = self.get_serializer(low_stock_items, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['post'])
-    def validate_stock(self, request):
-        """Validate stock availability for all cart items"""
-        cart_items = self.get_queryset()
-        validation_results = []
-        
-        for item in cart_items:
-            stock = item.variant.stock if item.variant else item.product.stock
-            is_available = stock >= item.quantity
-            
-            validation_results.append({
-                'id': item.id,
-                'product': item.product.name,
-                'variant': item.variant.name if item.variant else None,
-                'requested_quantity': item.quantity,
-                'available_stock': stock,
-                'is_available': is_available
-            })
-        
-        return Response(validation_results)
-
-    @action(detail=False, methods=['get'])
-    def count(self, request):
-        """Get the total number of items in the cart and total quantity"""
-        cart_items = self.get_queryset()
-        
-        # Get total number of unique items
-        unique_items_count = cart_items.count()
-        
-        # Get total quantity of all items
-        total_quantity = cart_items.aggregate(
-            total_quantity=Sum('quantity')
-        )['total_quantity'] or 0
-        
-        # Get count by store
-        store_counts = cart_items.values('store__name').annotate(
-            item_count=Count('id'),
-            total_quantity=Sum('quantity')
-        )
-
-        return Response({
-            'unique_items': unique_items_count,
-            'total_quantity': total_quantity,
-            'store_breakdown': store_counts,
-            'has_items': unique_items_count > 0
-        })
-
-    @action(detail=False, methods=['get'])
-    def user_cart_count(self, request):
-        """Get the cart count for a specific user"""
-        user_id = request.query_params.get('user_id')
-        
-        if not user_id:
-            return Response(
-                {'error': 'user_id is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+        """Get cart items with low stock"""
         try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response(
-                {'error': 'User not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Get cart items for the specific user
-        cart_items = Cart.objects.filter(user=user)
-        
-        # Get total number of unique items
-        unique_items_count = cart_items.count()
-        
-        # Get total quantity of all items
-        total_quantity = cart_items.aggregate(
-            total_quantity=Sum('quantity')
-        )['total_quantity'] or 0
-        
-        # Get count by store
-        store_counts = cart_items.values('store__name').annotate(
-            item_count=Count('id'),
-            total_quantity=Sum('quantity')
-        )
-
-        # Get product categories breakdown
-        category_counts = cart_items.values(
-            'product__category__name'
-        ).annotate(
-            item_count=Count('id'),
-            total_quantity=Sum('quantity')
-        )
-
-        return Response({
-            'user': {
-                'id': user.id,
-                'username': user.username
-            },
-            'cart_summary': {
-                'unique_items': unique_items_count,
-                'total_quantity': total_quantity,
-                'has_items': unique_items_count > 0
-            },
-            'store_breakdown': store_counts,
-            'category_breakdown': category_counts,
-            'last_updated': cart_items.latest('updated_at').updated_at if cart_items.exists() else None
-        })
-
-    @action(detail=False, methods=['get'])
-    def debug(self, request):
-        """Debug endpoint to check cart status and data"""
-        try:
-            # Check if user is authenticated
-            if not request.user.is_authenticated:
-                return Response({
-                    'error': 'User not authenticated',
-                    'user_id': None
-                }, status=status.HTTP_401_UNAUTHORIZED)
+            threshold = int(request.query_params.get('threshold', 5))
+            low_stock_items = []
             
-            # Get all cart items for user (including deleted)
-            all_cart_items = Cart.objects.filter(user=request.user)
-            active_cart_items = Cart.objects.filter(user=request.user, is_deleted=False)
+            for item in self.get_queryset():
+                stock = item.variant.stock if item.variant else item.product.stock
+                if stock <= threshold:
+                    low_stock_items.append(item)
             
-            # Get cart items with related data
-            cart_with_data = active_cart_items.select_related(
-                'product', 'product__store', 'store', 'variant'
-            )
-            
-            # Check if there are any products in the system
-            total_products = Product.objects.count()
-            published_products = Product.objects.filter(status='published').count()
-            
-            # Check if there are any stores
-            total_stores = Store.objects.count()
-            active_stores = Store.objects.filter(status='active').count()
-            
-            debug_info = {
-                'user': {
-                    'id': request.user.id,
-                    'username': request.user.username,
-                    'email': request.user.email,
-                    'is_authenticated': request.user.is_authenticated
-                },
-                'cart_summary': {
-                    'total_cart_items': all_cart_items.count(),
-                    'active_cart_items': active_cart_items.count(),
-                    'deleted_cart_items': all_cart_items.filter(is_deleted=True).count()
-                },
-                'system_data': {
-                    'total_products': total_products,
-                    'published_products': published_products,
-                    'total_stores': total_stores,
-                    'active_stores': active_stores
-                },
-                'cart_items': []
-            }
-            
-            # Add cart items data
-            for item in cart_with_data:
-                debug_info['cart_items'].append({
-                    'id': str(item.id),
-                    'product_name': item.product.name if item.product else 'No product',
-                    'store_name': item.store.name if item.store else 'No store',
-                    'quantity': item.quantity,
-                    'is_deleted': item.is_deleted,
-                    'created_at': item.created_at.isoformat() if item.created_at else None
-                })
-            
-            return Response(debug_info)
-            
+            serializer = CartSerializer(low_stock_items, many=True)
+            return Response(serializer.data)
         except Exception as e:
-            logger.error(f"Error in cart debug endpoint: {str(e)}")
-            import traceback
-            return Response({
-                'error': 'Debug endpoint error',
-                'message': str(e),
-                'traceback': traceback.format_exc()
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Error getting low stock items: {str(e)}")
+            return Response(
+                {'error': 'Failed to get low stock items'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
