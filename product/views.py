@@ -290,16 +290,35 @@ class ProductViewSet(viewsets.ModelViewSet):
             'sample_products': list(queryset[:5].values('id', 'name', 'status', 'category__name'))
         }
         
-        paginated_queryset = self.paginate_queryset(queryset)
+        # Handle pagination more carefully
+        try:
+            # If we have 10 or fewer products, skip pagination to avoid issues
+            if queryset.count() <= 10:
+                paginated_queryset = None
+                debug_info['pagination_skipped'] = True
+                debug_info['reason'] = 'Small result set (≤10 items)'
+            else:
+                paginated_queryset = self.paginate_queryset(queryset)
+                debug_info['pagination_applied'] = paginated_queryset is not None
+                debug_info['paginated_count'] = len(paginated_queryset) if paginated_queryset else 0
+        except Exception as pagination_error:
+            debug_info['pagination_error'] = str(pagination_error)
+            paginated_queryset = None
         
         # Add error handling for serialization
         try:
-            serializer = self.get_serializer(paginated_queryset, many=True)
-            products_data = serializer.data
+            if paginated_queryset is not None:
+                serializer = self.get_serializer(paginated_queryset, many=True)
+                products_data = serializer.data
+            else:
+                # If pagination failed, serialize the full queryset
+                serializer = self.get_serializer(queryset, many=True)
+                products_data = serializer.data
         except Exception as e:
             # If serialization fails, try to get basic product info
             products_data = []
-            for product in paginated_queryset:
+            target_queryset = paginated_queryset if paginated_queryset is not None else queryset
+            for product in target_queryset:
                 try:
                     products_data.append({
                         'id': str(product.id),
