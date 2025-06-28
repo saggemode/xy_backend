@@ -32,7 +32,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Category.objects.prefetch_related('subcategories').annotate(product_count=Count('products')).order_by('-product_count')
 
-    @action(detail=False, methods=['get'], url_path='home')
+    @action(detail=False, methods=['get'], url_path='homecategories')
     def homecategories(self, request):
         """Returns 5 random categories for the homepage."""
         # Use a simpler queryset for random selection
