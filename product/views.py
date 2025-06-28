@@ -226,7 +226,8 @@ class ProductViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        queryset = self.get_queryset()
+        # Use a more inclusive queryset for category filtering
+        queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants', 'reviews')
         
         # Filter by category
         if category_id:
@@ -259,6 +260,11 @@ class ProductViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(current_price__gte=min_price)
         if max_price:
             queryset = queryset.filter(current_price__lte=max_price)
+        
+        # Status filter (optional)
+        status_filter = request.query_params.get('status', 'published')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
         
         # Sort options
         sort_by = request.query_params.get('sort', 'newest')
