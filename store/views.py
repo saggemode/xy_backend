@@ -124,6 +124,36 @@ class StoreViewSet(viewsets.ModelViewSet):
     serializer_class = StoreSerializer
     permission_classes = [AllowAny]
     
+    def _add_related_data_to_stores(self, stores_data, request):
+        """Helper method to add products, staff, and analytics data to store data."""
+        for store_data in stores_data:
+            store_id = store_data['id']
+            store_obj = Store.objects.get(id=store_id)
+            
+            # Get products
+            products = store_obj.products.all()
+            if products.exists():
+                from product.serializers import ProductSerializer
+                store_data['products'] = ProductSerializer(products, many=True, context={'request': request}).data
+            else:
+                store_data['products'] = []
+            
+            # Get staff
+            staff = store_obj.staff_members.filter(deleted_at__isnull=True)
+            if staff.exists():
+                store_data['staff'] = StoreStaffSerializer(staff, many=True, context={'request': request}).data
+            else:
+                store_data['staff'] = []
+            
+            # Get analytics
+            try:
+                analytics = store_obj.analytics
+                store_data['analytics'] = StoreAnalyticsSerializer(analytics, context={'request': request}).data
+            except StoreAnalytics.DoesNotExist:
+                store_data['analytics'] = None
+        
+        return stores_data
+
     def list(self, request, *args, **kwargs):
         """Simple list method for debugging."""
         try:
@@ -134,31 +164,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             data = serializer.data
             
             # Manually add products and staff for each store
-            for store_data in data:
-                store_id = store_data['id']
-                store_obj = Store.objects.get(id=store_id)
-                
-                # Get products
-                products = store_obj.products.all()
-                if products.exists():
-                    from product.serializers import ProductSerializer
-                    store_data['products'] = ProductSerializer(products, many=True, context={'request': request}).data
-                else:
-                    store_data['products'] = []
-                
-                # Get staff
-                staff = store_obj.staff_members.filter(deleted_at__isnull=True)
-                if staff.exists():
-                    store_data['staff'] = StoreStaffSerializer(staff, many=True, context={'request': request}).data
-                else:
-                    store_data['staff'] = []
-                
-                # Get analytics
-                try:
-                    analytics = store_obj.analytics
-                    store_data['analytics'] = StoreAnalyticsSerializer(analytics, context={'request': request}).data
-                except StoreAnalytics.DoesNotExist:
-                    store_data['analytics'] = None
+            data = self._add_related_data_to_stores(data, request)
             
             return Response({
                 'status': 'success',
@@ -184,8 +190,13 @@ class StoreViewSet(viewsets.ModelViewSet):
         
         try:
             stores = self.get_queryset().filter(owner=request.user)
-            serializer = self.get_serializer(stores, many=True)
-            return Response(serializer.data)
+            serializer = self.get_serializer(stores, many=True, context={'request': request})
+            data = serializer.data
+            
+            # Manually add products and staff for each store
+            data = self._add_related_data_to_stores(data, request)
+            
+            return Response(data)
         except Exception as e:
             logger.error(f"Error fetching user stores: {str(e)}")
             return Response(
@@ -198,8 +209,13 @@ class StoreViewSet(viewsets.ModelViewSet):
         """Get only active stores."""
         try:
             stores = self.get_queryset().filter(status='active', is_verified=True)
-            serializer = self.get_serializer(stores, many=True)
-            return Response(serializer.data)
+            serializer = self.get_serializer(stores, many=True, context={'request': request})
+            data = serializer.data
+            
+            # Manually add products and staff for each store
+            data = self._add_related_data_to_stores(data, request)
+            
+            return Response(data)
         except Exception as e:
             logger.error(f"Error fetching active stores: {str(e)}")
             return Response(
@@ -212,8 +228,13 @@ class StoreViewSet(viewsets.ModelViewSet):
         """Get only verified stores."""
         try:
             stores = self.get_queryset().filter(is_verified=True)
-            serializer = self.get_serializer(stores, many=True)
-            return Response(serializer.data)
+            serializer = self.get_serializer(stores, many=True, context={'request': request})
+            data = serializer.data
+            
+            # Manually add products and staff for each store
+            data = self._add_related_data_to_stores(data, request)
+            
+            return Response(data)
         except Exception as e:
             logger.error(f"Error fetching verified stores: {str(e)}")
             return Response(
@@ -358,6 +379,25 @@ class StoreViewSet(viewsets.ModelViewSet):
                 {'error': 'Failed to fetch store inventory'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    def retrieve(self, request, *args, **kwargs):
+        """Get individual store with related data."""
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, context={'request': request})
+            data = serializer.data
+            
+            # Add related data
+            data = self._add_related_data_to_stores([data], request)[0]
+            
+            return Response(data)
+        except Exception as e:
+            logger.error(f"Store retrieve error: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'Error retrieving store: {str(e)}',
+                'error_type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class StoreStaffViewSet(viewsets.ModelViewSet):
