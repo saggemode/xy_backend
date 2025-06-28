@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from django.db import transaction
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.core.validators import URLValidator
 import re
 
@@ -13,6 +13,8 @@ from .models import (
     CustomerLifetimeValue
 )
 from product.models import Product, ProductVariant
+
+User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     """Simple user serializer for nested data."""
@@ -229,7 +231,7 @@ class StoreSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'location', 'logo', 'cover_image',
             'contact_email', 'phone_number', 'website_url', 'facebook_url',
-            'instagram_url', 'twitter_url', 'status', 'is_active', 'is_verified',
+            'instagram_url', 'twitter_url', 'status', 'is_verified',
             'commission_rate', 'auto_approve_products', 'created_at', 'updated_at',
             'verified_at', 'deleted_at', 'owner', 'owner_username', 'owner_email',
             'owner_details', 'created_by', 'created_by_username', 'updated_by',

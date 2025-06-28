@@ -169,9 +169,6 @@ class Store(models.Model):
     )
 
     is_deleted = models.BooleanField(default=False, db_index=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, default=None, related_name='created_stores')
-    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, default=None, related_name='updated_stores')
 
     def __str__(self):
         return self.name
