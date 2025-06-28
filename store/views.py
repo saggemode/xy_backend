@@ -118,249 +118,43 @@ class DebugStoreView(APIView):
 class StoreViewSet(viewsets.ModelViewSet):
     """
     Professional ViewSet for Store model with comprehensive CRUD operations.
-    
-    Features:
-    - Full CRUD operations with proper permissions
-    - Advanced filtering and searching
-    - Bulk operations
-    - Statistics and analytics
-    - Soft delete functionality
-    - Caching for performance
-    - Comprehensive error handling
-    - Audit logging
     """
     
     queryset = Store.objects.all().order_by('-created_at')
     serializer_class = StoreSerializer
     permission_classes = [AllowAny]
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    throttle_classes = [UserRateThrottle]
     
-    # Comprehensive filtering options
-    filterset_fields = [
-        'status', 'is_verified', 'owner', 'created_at', 'updated_at',
-        'commission_rate', 'auto_approve_products'
-    ]
-    
-    # Search across multiple fields
-    search_fields = [
-        'name', 'description', 'location', 'contact_email', 'phone_number',
-        'owner__username', 'owner__email', 'owner__first_name', 'owner__last_name'
-    ]
-    
-    # Ordering options
-    ordering_fields = [
-        'name', 'created_at', 'updated_at', 'total_products', 'total_staff',
-        'commission_rate', 'status', 'is_verified'
-    ]
-    ordering = ['-created_at']
-
-    def get_queryset(self):
-        """
-        Filter queryset based on user permissions and exclude soft-deleted stores.
-        
-        - Anonymous users can see all active stores
-        - Regular users can only see their own stores
-        - Staff users can see all stores
-        - Always exclude soft-deleted stores for regular users
-        """
-        queryset = super().get_queryset().filter(deleted_at__isnull=True)
-        
-        # If user is not authenticated, return all active stores
-        if not self.request.user.is_authenticated:
-            return queryset.filter(status='active', is_verified=True)
-        
-        # Staff users can see all stores
-        if self.request.user.is_staff:
-            return queryset
-        
-        # Regular users can only see their own stores
-        return queryset.filter(owner=self.request.user)
-
-    def get_serializer_class(self):
-        """Return appropriate serializer class based on action."""
-        if self.action == 'list':
-            return StoreSerializer
-        elif self.action == 'create':
-            return StoreCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return StoreUpdateSerializer
-        elif self.action == 'retrieve':
-            return StoreDetailSerializer
-        return StoreSerializer
-
-    def get_permissions(self):
-        """Set permissions based on action."""
-        if self.action in ['destroy', 'bulk_delete', 'clear_all']:
-            permission_classes = [IsAdminUser]
-        else:
-            permission_classes = [AllowAny]
-        return [permission() for permission in permission_classes]
-
-    def perform_create(self, serializer):
-        """Set the owner to the current user when creating a store."""
+    def list(self, request, *args, **kwargs):
+        """Simple list method for debugging."""
         try:
-            store = serializer.save(owner=self.request.user)
-            logger.info(f"Store created: {store.name} by user {store.owner.username}")
-            
-            # Clear cache for user's store count
-            cache_key = f"store_count_{store.owner.id}"
-            cache.delete(cache_key)
-            
-            # Create notification for store creation
-            self.create_store_notification(store, "created")
-            
-        except Exception as e:
-            logger.error(f"Error creating store: {str(e)}")
-            raise
-
-    def perform_update(self, serializer):
-        """Handle store updates with logging."""
-        try:
-            store = serializer.save()
-            logger.info(f"Store updated: {store.name}")
-            
-            # Create notification for store update
-            self.create_store_notification(store, "updated")
-            
-        except Exception as e:
-            logger.error(f"Error updating store: {str(e)}")
-            raise
-
-    def perform_destroy(self, instance):
-        """Soft delete store instead of hard delete."""
-        try:
-            instance.soft_delete(self.request.user)
-            logger.info(f"Store soft deleted: {instance.name}")
-            
-            # Clear cache
-            cache_key = f"store_count_{instance.owner.id}"
-            cache.delete(cache_key)
-            
-            # Create notification for store deletion
-            self.create_store_notification(instance, "deleted")
-            
-        except Exception as e:
-            logger.error(f"Error soft deleting store: {str(e)}")
-            raise
-
-    @action(detail=True, methods=['patch'])
-    def activate(self, request, pk=None):
-        """Activate a store."""
-        try:
-            store = self.get_object()
-            store.activate(request.user)
-            
-            serializer = self.get_serializer(store)
-            logger.info(f"Store activated: {store.name}")
-            
-            # Create notification
-            self.create_store_notification(store, "activated")
-            
-            return Response(serializer.data)
-            
-        except Exception as e:
-            logger.error(f"Error activating store: {str(e)}")
-            return Response(
-                {'error': 'Failed to activate store'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=True, methods=['patch'])
-    def deactivate(self, request, pk=None):
-        """Deactivate a store."""
-        try:
-            store = self.get_object()
-            store.deactivate(request.user)
-            
-            serializer = self.get_serializer(store)
-            logger.info(f"Store deactivated: {store.name}")
-            
-            # Create notification
-            self.create_store_notification(store, "deactivated")
-            
-            return Response(serializer.data)
-            
-        except Exception as e:
-            logger.error(f"Error deactivating store: {str(e)}")
-            return Response(
-                {'error': 'Failed to deactivate store'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=True, methods=['patch'])
-    def verify(self, request, pk=None):
-        """Verify a store (admin only)."""
-        if not request.user.is_staff:
+            queryset = self.get_queryset()
+            serializer = self.get_serializer(queryset, many=True)
             return Response({
-                "error": "Only staff members can verify stores"
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        try:
-            store = self.get_object()
-            store.verify(request.user)
-            
-            serializer = self.get_serializer(store)
-            logger.info(f"Store verified: {store.name}")
-            
-            # Create notification
-            self.create_store_notification(store, "verified")
-            
-            return Response(serializer.data)
-            
+                'status': 'success',
+                'count': queryset.count(),
+                'data': serializer.data
+            })
         except Exception as e:
-            logger.error(f"Error verifying store: {str(e)}")
-            return Response(
-                {'error': 'Failed to verify store'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=True, methods=['patch'])
-    def close(self, request, pk=None):
-        """Close a store permanently."""
-        try:
-            store = self.get_object()
-            store.close(request.user)
-            
-            serializer = self.get_serializer(store)
-            logger.info(f"Store closed: {store.name}")
-            
-            # Create notification
-            self.create_store_notification(store, "closed")
-            
-            return Response(serializer.data)
-            
-        except Exception as e:
-            logger.error(f"Error closing store: {str(e)}")
-            return Response(
-                {'error': 'Failed to close store'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            logger.error(f"Store list error: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'Error in store list: {str(e)}',
+                'error_type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def my_stores(self, request):
-        """Get current user's stores with caching."""
+        """Get current user's stores."""
         if not request.user.is_authenticated:
             return Response(
                 {'error': 'Authentication required'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
-            
-        cache_key = f"my_stores_{request.user.id}"
-        cached_data = cache.get(cache_key)
-        
-        if cached_data and not request.query_params:
-            return Response(cached_data)
         
         try:
             stores = self.get_queryset().filter(owner=request.user)
             serializer = self.get_serializer(stores, many=True)
-            
-            # Cache for 5 minutes
-            cache.set(cache_key, serializer.data, 300)
-            
             return Response(serializer.data)
-            
         except Exception as e:
             logger.error(f"Error fetching user stores: {str(e)}")
             return Response(
@@ -375,7 +169,6 @@ class StoreViewSet(viewsets.ModelViewSet):
             stores = self.get_queryset().filter(status='active', is_verified=True)
             serializer = self.get_serializer(stores, many=True)
             return Response(serializer.data)
-            
         except Exception as e:
             logger.error(f"Error fetching active stores: {str(e)}")
             return Response(
@@ -390,7 +183,6 @@ class StoreViewSet(viewsets.ModelViewSet):
             stores = self.get_queryset().filter(is_verified=True)
             serializer = self.get_serializer(stores, many=True)
             return Response(serializer.data)
-            
         except Exception as e:
             logger.error(f"Error fetching verified stores: {str(e)}")
             return Response(
@@ -400,78 +192,26 @@ class StoreViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def store_statistics(self, request):
-        """Get comprehensive store statistics."""
+        """Get store statistics."""
         if not request.user.is_authenticated:
             return Response(
                 {'error': 'Authentication required'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
-            
-        cache_key = f"store_stats_{request.user.id}"
-        cached_stats = cache.get(cache_key)
-        
-        if cached_stats:
-            return Response(cached_stats)
         
         try:
             queryset = self.get_queryset()
-            
-            # Basic counts
             total_stores = queryset.count()
             active_stores = queryset.filter(status='active').count()
             verified_stores = queryset.filter(is_verified=True).count()
-            inactive_stores = total_stores - active_stores
-            unverified_stores = total_stores - verified_stores
-            
-            # Product and staff statistics
-            total_products = Product.objects.count()
-            total_staff = StoreStaff.objects.filter(deleted_at__isnull=True).count()
-            
-            # Financial statistics
-            total_revenue = StoreAnalytics.objects.aggregate(
-                total=Sum('revenue')
-            )['total'] or 0
-            
-            average_commission_rate = queryset.aggregate(
-                avg=Avg('commission_rate')
-            )['avg'] or 0
-            
-            # Store categories distribution
-            store_categories = queryset.values('products__category__name').annotate(
-                count=Count('id', distinct=True)
-            ).exclude(products__category__name__isnull=True)
-            
-            # Calculate rates
-            verification_rate = round((verified_stores / total_stores) * 100, 2) if total_stores > 0 else 0
-            activation_rate = round((active_stores / total_stores) * 100, 2) if total_stores > 0 else 0
-            
-            # Recent stores
-            recent_stores = queryset.values(
-                'id', 'name', 'status', 'is_verified', 'created_at'
-            )[:10]
             
             stats = {
                 'total_stores': total_stores,
                 'active_stores': active_stores,
                 'verified_stores': verified_stores,
-                'inactive_stores': inactive_stores,
-                'unverified_stores': unverified_stores,
-                'total_products': total_products,
-                'total_staff': total_staff,
-                'total_revenue': total_revenue,
-                'average_commission_rate': average_commission_rate,
-                'store_categories': list(store_categories),
-                'verification_rate': verification_rate,
-                'activation_rate': activation_rate,
-                'recent_stores': list(recent_stores)
             }
             
-            # Cache for 10 minutes
-            cache.set(cache_key, stats, 600)
-            
-            serializer = StoreStatisticsSerializer(stats)
-            return Response(serializer.data)
-            
+            return Response(stats)
         except Exception as e:
             logger.error(f"Error generating store stats: {str(e)}")
             return Response(
@@ -487,56 +227,87 @@ class StoreViewSet(viewsets.ModelViewSet):
                 {'error': 'Authentication required'},
                 status=status.HTTP_401_UNAUTHORIZED
             )
-            
-        serializer = BulkStoreActionSerializer(data=request.data, context={'request': request})
         
-        if serializer.is_valid():
-            try:
-                with transaction.atomic():
-                    store_ids = serializer.validated_data['store_ids']
-                    action = serializer.validated_data['action']
-                    
-                    stores = Store.objects.filter(
-                        id__in=store_ids,
-                        deleted_at__isnull=True
-                    )
-                    
-                    updated_count = 0
-                    for store in stores:
-                        if hasattr(store, action):
-                            getattr(store, action)(request.user)
-                            updated_count += 1
-                    
-                    logger.info(f"Bulk {action} performed on {updated_count} stores")
-                    
-                    return Response({
-                        'message': f'Successfully {action} {updated_count} stores',
-                        'updated_count': updated_count
-                    })
-                    
-            except Exception as e:
-                logger.error(f"Error in bulk store actions: {str(e)}")
-                return Response(
-                    {'error': 'Failed to perform bulk actions'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+        try:
+            return Response({'message': 'Bulk actions endpoint'})
+        except Exception as e:
+            logger.error(f"Error in bulk store actions: {str(e)}")
+            return Response(
+                {'error': 'Failed to perform bulk actions'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['patch'])
+    def activate(self, request, pk=None):
+        """Activate a store."""
+        try:
+            store = self.get_object()
+            store.activate(request.user)
+            serializer = self.get_serializer(store)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error activating store: {str(e)}")
+            return Response(
+                {'error': 'Failed to activate store'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['patch'])
+    def deactivate(self, request, pk=None):
+        """Deactivate a store."""
+        try:
+            store = self.get_object()
+            store.deactivate(request.user)
+            serializer = self.get_serializer(store)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error deactivating store: {str(e)}")
+            return Response(
+                {'error': 'Failed to deactivate store'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['patch'])
+    def verify(self, request, pk=None):
+        """Verify a store."""
+        if not request.user.is_staff:
+            return Response({
+                "error": "Only staff members can verify stores"
+            }, status=status.HTTP_403_FORBIDDEN)
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            store = self.get_object()
+            store.verify(request.user)
+            serializer = self.get_serializer(store)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error verifying store: {str(e)}")
+            return Response(
+                {'error': 'Failed to verify store'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=True, methods=['patch'])
+    def close(self, request, pk=None):
+        """Close a store."""
+        try:
+            store = self.get_object()
+            store.close(request.user)
+            serializer = self.get_serializer(store)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error closing store: {str(e)}")
+            return Response(
+                {'error': 'Failed to close store'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=['get'])
     def analytics(self, request, pk=None):
-        """Get analytics for a specific store."""
+        """Get store analytics."""
         try:
             store = self.get_object()
-            analytics, created = StoreAnalytics.objects.get_or_create(store=store)
-            
-            # Calculate analytics if not recently calculated
-            if not analytics.calculated_at or (timezone.now() - analytics.calculated_at).days > 1:
-                analytics.calculate_analytics()
-            
-            serializer = StoreAnalyticsSerializer(analytics)
-            return Response(serializer.data)
-            
+            return Response({'message': 'Analytics endpoint', 'store_id': str(store.id)})
         except Exception as e:
             logger.error(f"Error fetching store analytics: {str(e)}")
             return Response(
@@ -546,89 +317,16 @@ class StoreViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def inventory(self, request, pk=None):
-        """Get inventory overview for a store."""
+        """Get store inventory."""
         try:
             store = self.get_object()
-            products = Product.objects.filter(store=store)
-            
-            # Stock levels
-            low_stock_products = products.filter(stock__lt=5)
-            out_of_stock_products = products.filter(stock=0)
-            well_stocked_products = products.filter(stock__gte=10)
-            
-            # Category distribution
-            category_distribution = products.values('category__name').annotate(
-                count=Count('id'),
-                total_stock=Sum('stock')
-            )
-            
-            inventory = {
-                'store_id': store.id,
-                'store_name': store.name,
-                'stock_levels': {
-                    'total_products': products.count(),
-                    'low_stock_products': low_stock_products.count(),
-                    'out_of_stock_products': out_of_stock_products.count(),
-                    'well_stocked_products': well_stocked_products.count()
-                },
-                'low_stock_alerts': list(low_stock_products.values('id', 'name', 'stock')),
-                'out_of_stock_alerts': list(out_of_stock_products.values('id', 'name')),
-                'category_distribution': list(category_distribution)
-            }
-            
-            return Response(inventory)
-            
+            return Response({'message': 'Inventory endpoint', 'store_id': str(store.id)})
         except Exception as e:
             logger.error(f"Error fetching store inventory: {str(e)}")
             return Response(
                 {'error': 'Failed to fetch store inventory'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-    def create_store_notification(self, store, action):
-        """Create notification for store action."""
-        try:
-            action_messages = {
-                'created': f"Your store '{store.name}' has been successfully created and is pending verification.",
-                'updated': f"Your store '{store.name}' has been updated successfully.",
-                'activated': f"Your store '{store.name}' has been activated and is now live.",
-                'deactivated': f"Your store '{store.name}' has been deactivated.",
-                'verified': f"Your store '{store.name}' has been verified by our team.",
-                'deleted': f"Your store '{store.name}' has been deleted.",
-                'closed': f"Your store '{store.name}' has been permanently closed."
-            }
-            
-            notification_type_map = {
-                'created': Notification.NotificationType.ACCOUNT_UPDATE,
-                'updated': Notification.NotificationType.ACCOUNT_UPDATE,
-                'activated': Notification.NotificationType.ACCOUNT_UPDATE,
-                'deactivated': Notification.NotificationType.SYSTEM_ALERT,
-                'verified': Notification.NotificationType.ACCOUNT_UPDATE,
-                'deleted': Notification.NotificationType.SYSTEM_ALERT,
-                'closed': Notification.NotificationType.SYSTEM_ALERT
-            }
-            
-            level_map = {
-                'created': Notification.NotificationLevel.INFO,
-                'updated': Notification.NotificationLevel.INFO,
-                'activated': Notification.NotificationLevel.SUCCESS,
-                'deactivated': Notification.NotificationLevel.WARNING,
-                'verified': Notification.NotificationLevel.SUCCESS,
-                'deleted': Notification.NotificationLevel.WARNING,
-                'closed': Notification.NotificationLevel.WARNING
-            }
-            
-            Notification.objects.create(
-                recipient=store.owner,
-                title=f"Store {action.title()}: {store.name}",
-                message=action_messages.get(action, f"Your store '{store.name}' has been {action}."),
-                notification_type=notification_type_map.get(action, Notification.NotificationType.ACCOUNT_UPDATE),
-                level=level_map.get(action, Notification.NotificationLevel.INFO),
-                link=f'/stores/{store.id}/'
-            )
-        except Exception as e:
-            logger.error(f"Error creating store notification: {e}")
-            # Don't raise the exception - just log it and continue
 
 
 class StoreStaffViewSet(viewsets.ModelViewSet):
@@ -1138,5 +836,66 @@ class SimpleStoreTestView(APIView):
             return Response({
                 'status': 'error',
                 'message': f'Error in simple store test: {str(e)}',
+                'error_type': type(e).__name__
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class StoreViewSetDebugView(APIView):
+    """Debug view to test StoreViewSet functionality."""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Test the StoreViewSet list method."""
+        try:
+            # Create a temporary viewset instance
+            viewset = StoreViewSet()
+            viewset.request = request
+            viewset.action = 'list'
+            
+            # Get the queryset
+            queryset = viewset.get_queryset()
+            
+            # Get the serializer
+            serializer_class = viewset.get_serializer_class()
+            serializer = serializer_class(queryset, many=True, context={'request': request})
+            
+            return Response({
+                'status': 'success',
+                'message': 'StoreViewSet list method works',
+                'count': queryset.count(),
+                'data': serializer.data
+            })
+            
+        except Exception as e:
+            logger.error(f"StoreViewSet debug error: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'Error in StoreViewSet debug: {str(e)}',
+                'error_type': type(e).__name__,
+                'error_details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class MinimalStoreViewSet(viewsets.ModelViewSet):
+    """Minimal store viewset for debugging."""
+    queryset = Store.objects.all()
+    serializer_class = StoreSerializer
+    permission_classes = [AllowAny]
+    
+    def list(self, request, *args, **kwargs):
+        """Simple list method."""
+        try:
+            queryset = self.get_queryset()
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({
+                'status': 'success',
+                'count': queryset.count(),
+                'data': serializer.data
+            })
+        except Exception as e:
+            logger.error(f"Minimal store list error: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': f'Error in minimal store list: {str(e)}',
                 'error_type': type(e).__name__
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

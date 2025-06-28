@@ -24,6 +24,10 @@ urlpatterns = [
     # Main stores endpoint test
     path('stores-test/', views.StoreViewSet.as_view({'get': 'list'}), name='stores-test'),
     
+    # Direct stores endpoint (bypassing router)
+    path('stores/', views.StoreViewSet.as_view({'get': 'list', 'post': 'create'}), name='stores-list'),
+    path('stores/<uuid:pk>/', views.StoreViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='stores-detail'),
+    
     # Include router URLs for standard CRUD operations
     path('', include(router.urls)),
     
