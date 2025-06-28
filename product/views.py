@@ -281,8 +281,38 @@ class ProductViewSet(viewsets.ModelViewSet):
         else:  # newest (default)
             queryset = queryset.order_by('-created_at')
         
+        # Debug information
+        debug_info = {
+            'category_id': category_id,
+            'status_filter': status_filter,
+            'total_before_pagination': queryset.count(),
+            'queryset_sql': str(queryset.query),
+            'sample_products': list(queryset[:5].values('id', 'name', 'status', 'category__name'))
+        }
+        
         paginated_queryset = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(paginated_queryset, many=True)
+        
+        # Add error handling for serialization
+        try:
+            serializer = self.get_serializer(paginated_queryset, many=True)
+            products_data = serializer.data
+        except Exception as e:
+            # If serialization fails, try to get basic product info
+            products_data = []
+            for product in paginated_queryset:
+                try:
+                    products_data.append({
+                        'id': str(product.id),
+                        'name': product.name,
+                        'status': product.status,
+                        'error': 'Serialization failed'
+                    })
+                except Exception as product_error:
+                    products_data.append({
+                        'id': str(product.id) if hasattr(product, 'id') else 'unknown',
+                        'error': f'Product error: {str(product_error)}'
+                    })
+            debug_info['serialization_error'] = str(e)
         
         # Add category info to response
         response_data = {
@@ -293,7 +323,8 @@ class ProductViewSet(viewsets.ModelViewSet):
                 'subcategory_name': subcategory.name if subcategory_id else None,
             },
             'total_products': queryset.count(),
-            'products': serializer.data
+            'products': products_data,
+            'debug_info': debug_info  # Add debug info to help troubleshoot
         }
         
         return self.get_paginated_response(response_data) if paginated_queryset is not None else Response(response_data)
