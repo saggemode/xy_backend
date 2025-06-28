@@ -295,20 +295,66 @@ class CartViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def count(self, request):
-        """Get cart item count"""
+        """Get cart item count with comprehensive information"""
         try:
             cart_items = self.get_queryset()
+            
+            if not cart_items.exists():
+                return Response({
+                    'item_count': 0,
+                    'total_quantity': 0,
+                    'total_price': 0,
+                    'has_items': False,
+                    'store_count': 0,
+                    'stores': [],
+                    'message': 'Your cart is empty'
+                })
+
+            # Calculate comprehensive counts
+            item_count = cart_items.count()
             total_quantity = sum(item.quantity for item in cart_items)
             
+            # Calculate total price with error handling
+            total_price = 0
+            for item in cart_items:
+                try:
+                    total_price += item.total_price
+                except Exception as e:
+                    logger.warning(f"Error calculating total price for item {item.id}: {str(e)}")
+                    # Fallback calculation
+                    if item.variant:
+                        total_price += item.variant.current_price * item.quantity
+                    elif item.product:
+                        total_price += item.product.current_price * item.quantity
+
+            # Get unique stores
+            stores = cart_items.values('store__id', 'store__name', 'store__status').distinct()
+            store_count = stores.count()
+            stores_list = [
+                {
+                    'id': str(store['store__id']),
+                    'name': store['store__name'],
+                    'status': store['store__status']
+                }
+                for store in stores
+            ]
+
             return Response({
-                'item_count': cart_items.count(),
+                'item_count': item_count,
                 'total_quantity': total_quantity,
-                'has_items': cart_items.exists()
+                'total_price': total_price,
+                'has_items': True,
+                'store_count': store_count,
+                'stores': stores_list,
+                'last_updated': cart_items.latest('updated_at').updated_at.isoformat() if cart_items.exists() else None
             })
+            
         except Exception as e:
             logger.error(f"Error getting cart count: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return Response(
-                {'error': 'Failed to get cart count'},
+                {'error': 'Failed to get cart count', 'details': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
