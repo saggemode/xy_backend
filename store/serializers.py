@@ -188,17 +188,30 @@ class StoreSerializer(serializers.ModelSerializer):
     analytics = serializers.SerializerMethodField()
 
     def get_total_products(self, obj):
-        return obj.total_products
+        try:
+            return obj.total_products
+        except Exception:
+            return 0
 
     def get_total_staff(self, obj):
-        return obj.total_staff
+        try:
+            return obj.total_staff
+        except Exception:
+            return 0
     
     def get_is_operational(self, obj):
-        return obj.is_operational()
+        try:
+            return obj.is_operational()
+        except Exception:
+            return False
     
     def get_products(self, obj):
         request = self.context.get('request')
         include_products = self.context.get('include_products', False)
+        
+        # For anonymous users, don't include products by default
+        if request and not request.user.is_authenticated:
+            return None
         
         # Check both query parameters and context variables
         if (request and request.query_params.get('include_products') == 'true') or include_products:
@@ -210,6 +223,10 @@ class StoreSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         include_staff = self.context.get('include_staff', False)
         
+        # For anonymous users, don't include staff by default
+        if request and not request.user.is_authenticated:
+            return None
+        
         # Check both query parameters and context variables
         if (request and request.query_params.get('include_staff') == 'true') or include_staff:
             staff = obj.staff_members.filter(deleted_at__isnull=True)
@@ -219,6 +236,10 @@ class StoreSerializer(serializers.ModelSerializer):
     def get_analytics(self, obj):
         request = self.context.get('request')
         include_analytics = self.context.get('include_analytics', False)
+        
+        # For anonymous users, don't include analytics by default
+        if request and not request.user.is_authenticated:
+            return None
         
         # Check both query parameters and context variables
         if (request and request.query_params.get('include_analytics') == 'true') or include_analytics:
@@ -337,14 +358,23 @@ class StoreDetailSerializer(StoreSerializer):
     """Detailed store serializer with all nested data."""
     
     def get_products(self, obj):
+        request = self.context.get('request')
+        if request and not request.user.is_authenticated:
+            return None
         products = obj.products.all()
         return SimpleProductSerializer(products, many=True, context=self.context).data
     
     def get_staff(self, obj):
+        request = self.context.get('request')
+        if request and not request.user.is_authenticated:
+            return None
         staff = obj.staff_members.filter(deleted_at__isnull=True)
         return StoreStaffSerializer(staff, many=True, context=self.context).data
 
     def get_analytics(self, obj):
+        request = self.context.get('request')
+        if request and not request.user.is_authenticated:
+            return None
         try:
             analytics = obj.analytics
             return StoreAnalyticsSerializer(analytics, context=self.context).data

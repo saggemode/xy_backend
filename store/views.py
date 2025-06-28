@@ -81,15 +81,16 @@ class StoreViewSet(viewsets.ModelViewSet):
         """
         Filter queryset based on user permissions and exclude soft-deleted stores.
         
+        - Anonymous users can see all active stores
         - Regular users can only see their own stores
         - Staff users can see all stores
         - Always exclude soft-deleted stores for regular users
         """
         queryset = super().get_queryset().filter(deleted_at__isnull=True)
         
-        # If user is not authenticated, return empty queryset
+        # If user is not authenticated, return all active stores
         if not self.request.user.is_authenticated:
-            return queryset.none()
+            return queryset.filter(status='active', is_verified=True)
         
         # Staff users can see all stores
         if self.request.user.is_staff:

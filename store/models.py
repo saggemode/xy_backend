@@ -268,7 +268,7 @@ class Store(models.Model):
     @property
     def total_staff(self):
         """Get total number of staff for this store."""
-        return self.storestaff_set.filter(deleted_at__isnull=True).count()
+        return self.staff_members.filter(deleted_at__isnull=True).count()
 
     def is_operational(self):
         """Check if store is operational (active and verified)."""
