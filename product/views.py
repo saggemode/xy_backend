@@ -217,8 +217,8 @@ class ProductViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='productbycategory')
     def productbycategory(self, request):
         """Returns products filtered by category."""
-        category_id = request.query_params.get('category_id', None)
-        subcategory_id = request.query_params.get('subcategory_id', None)
+        category_id = request.query_params.get('categoryId', None)
+        subcategory_id = request.query_params.get('subcategoryId', None)
         
         if not category_id and not subcategory_id:
             return Response(
