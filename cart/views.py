@@ -59,6 +59,54 @@ class CartViewSet(viewsets.ModelViewSet):
         instance.soft_delete(user=self.request.user)
 
     @action(detail=False, methods=['get'])
+    def get_user_cart(self, request):
+        """Get current user's cart with detailed information"""
+        try:
+            cart_items = self.get_queryset()
+            
+            if not cart_items.exists():
+                return Response({
+                    'user_id': request.user.id,
+                    'username': request.user.username,
+                    'cart_items': [],
+                    'total_items': 0,
+                    'total_price': 0,
+                    'item_count': 0,
+                    'store': None,
+                    'message': 'Your cart is empty'
+                })
+
+            # Calculate totals
+            total_items = sum(item.quantity for item in cart_items)
+            total_price = sum(item.total_price for item in cart_items)
+            store = cart_items.first().store
+
+            # Serialize cart items
+            serializer = CartSerializer(cart_items, many=True)
+            
+            return Response({
+                'user_id': request.user.id,
+                'username': request.user.username,
+                'cart_items': serializer.data,
+                'total_items': total_items,
+                'total_price': total_price,
+                'item_count': cart_items.count(),
+                'store': {
+                    'id': store.id,
+                    'name': store.name,
+                    'status': store.status
+                } if store else None,
+                'last_updated': cart_items.latest('updated_at').updated_at if cart_items.exists() else None
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting user cart: {str(e)}")
+            return Response(
+                {'error': 'Failed to fetch your cart'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+    @action(detail=False, methods=['get'])
     @method_decorator(cache_page(60 * 5))  # Cache for 5 minutes
     @method_decorator(vary_on_cookie)
     def summary(self, request):
