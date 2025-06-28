@@ -179,6 +179,47 @@ class StoreViewSet(viewsets.ModelViewSet):
                 'error_type': type(e).__name__
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    @action(detail=False, methods=['get'], url_path='homestore')
+    def homestore(self, request):
+        """Returns 5 random active and verified stores for the homepage."""
+        try:
+            # Get active and verified stores
+            queryset = Store.objects.filter(
+                status='active',
+                is_verified=True,
+                deleted_at__isnull=True
+            )
+            
+            # Convert to list and shuffle for random selection
+            shuffled_queryset = list(queryset)
+            random.shuffle(shuffled_queryset)
+            
+            # Take first 5 items
+            selected_stores = shuffled_queryset[:5]
+            
+            # Now get the full data with related fields for the selected stores
+            full_queryset = Store.objects.select_related('owner').prefetch_related(
+                'products', 'staff_members', 'analytics'
+            ).filter(id__in=[store.id for store in selected_stores])
+            
+            # Use the basic serializer for homepage display
+            serializer = self.get_serializer(full_queryset, many=True, context={'request': request})
+            
+            return Response({
+                'status': 'success',
+                'message': 'Featured stores for homepage',
+                'count': len(selected_stores),
+                'stores': serializer.data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in homestore endpoint: {str(e)}")
+            return Response({
+                'status': 'error',
+                'message': 'Failed to fetch featured stores',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     @action(detail=False, methods=['get'])
     def my_stores(self, request):
         """Get current user's stores."""
