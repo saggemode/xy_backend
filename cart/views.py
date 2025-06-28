@@ -34,8 +34,6 @@ class CartViewSet(viewsets.ModelViewSet):
             is_deleted=False
         ).select_related(
             'product', 'product__store', 'store', 'variant'
-        ).prefetch_related(
-            'product__images', 'variant__images'
         )
 
     def get_serializer_class(self):
