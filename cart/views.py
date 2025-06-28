@@ -76,33 +76,77 @@ class CartViewSet(viewsets.ModelViewSet):
                     'message': 'Your cart is empty'
                 })
 
-            # Calculate totals
-            total_items = sum(item.quantity for item in cart_items)
-            total_price = sum(item.total_price for item in cart_items)
-            store = cart_items.first().store
-
-            # Serialize cart items
-            serializer = CartSerializer(cart_items, many=True)
+            # Calculate totals safely
+            total_items = 0
+            total_price = 0
             
-            return Response({
+            for item in cart_items:
+                total_items += item.quantity
+                try:
+                    total_price += item.total_price
+                except Exception as e:
+                    logger.warning(f"Error calculating total price for item {item.id}: {str(e)}")
+                    # Use a fallback calculation
+                    if item.variant:
+                        total_price += item.variant.current_price * item.quantity
+                    elif item.product:
+                        total_price += item.product.current_price * item.quantity
+
+            store = cart_items.first().store if cart_items.exists() else None
+
+            # Serialize cart items with error handling
+            try:
+                serializer = CartSerializer(cart_items, many=True)
+                cart_data = serializer.data
+            except Exception as e:
+                logger.error(f"Error serializing cart items: {str(e)}")
+                # Fallback to basic data
+                cart_data = []
+                for item in cart_items:
+                    cart_data.append({
+                        'id': str(item.id),
+                        'quantity': item.quantity,
+                        'selected_size': item.selected_size,
+                        'selected_color': item.selected_color,
+                        'created_at': item.created_at.isoformat() if item.created_at else None,
+                        'updated_at': item.updated_at.isoformat() if item.updated_at else None
+                    })
+            
+            response_data = {
                 'user_id': request.user.id,
                 'username': request.user.username,
-                'cart_items': serializer.data,
+                'cart_items': cart_data,
                 'total_items': total_items,
                 'total_price': total_price,
                 'item_count': cart_items.count(),
-                'store': {
-                    'id': store.id,
+                'store': None
+            }
+            
+            # Add store info if available
+            if store:
+                response_data['store'] = {
+                    'id': str(store.id),
                     'name': store.name,
-                    'status': store.status
-                } if store else None,
-                'last_updated': cart_items.latest('updated_at').updated_at if cart_items.exists() else None
-            })
+                    'status': getattr(store, 'status', 'unknown')
+                }
+            
+            # Add last updated if available
+            try:
+                if cart_items.exists():
+                    latest_item = cart_items.latest('updated_at')
+                    response_data['last_updated'] = latest_item.updated_at.isoformat() if latest_item.updated_at else None
+            except Exception as e:
+                logger.warning(f"Error getting last updated: {str(e)}")
+                response_data['last_updated'] = None
+            
+            return Response(response_data)
             
         except Exception as e:
             logger.error(f"Error getting user cart: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return Response(
-                {'error': 'Failed to fetch your cart'},
+                {'error': 'Failed to fetch your cart', 'details': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

@@ -1,23 +1,38 @@
 from rest_framework import serializers
 from .models import Cart
-from product.serializers import ProductSerializer, ProductVariantSerializer
-from store.serializers import StoreSerializer
 
 class CartSerializer(serializers.ModelSerializer):
-    product_details = ProductSerializer(source='product', read_only=True)
-    store_details = StoreSerializer(source='store', read_only=True)
-    variant_details = ProductVariantSerializer(source='variant', read_only=True)
     total_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
     class Meta:
         model = Cart
         fields = [
-            'id', 'user', 'store', 'store_details', 'product', 'product_details',
-            'variant', 'variant_details', 'quantity', 'selected_size',
+            'id', 'user', 'store', 'product', 'variant', 'quantity', 'selected_size',
             'selected_color', 'unit_price', 'total_price', 'created_at', 'updated_at'
         ]
         read_only_fields = ['user', 'created_at', 'updated_at']
+
+    def to_representation(self, instance):
+        """Custom representation to include basic product and store info"""
+        data = super().to_representation(instance)
+        
+        # Add basic product info
+        if instance.product:
+            data['product_name'] = instance.product.name
+            data['product_price'] = str(instance.product.current_price)
+        
+        # Add basic store info
+        if instance.store:
+            data['store_name'] = instance.store.name
+            data['store_status'] = getattr(instance.store, 'status', 'unknown')
+        
+        # Add basic variant info
+        if instance.variant:
+            data['variant_name'] = instance.variant.name
+            data['variant_price'] = str(instance.variant.current_price)
+        
+        return data
 
     def validate_quantity(self, value):
         """Validate quantity is positive"""
@@ -120,7 +135,7 @@ class CartSummarySerializer(serializers.Serializer):
     total_items = serializers.IntegerField()
     total_price = serializers.DecimalField(max_digits=10, decimal_places=2)
     item_count = serializers.IntegerField()
-    store = StoreSerializer()
+    store = serializers.DictField()
     items = CartSerializer(many=True)
 
 class CartBulkUpdateSerializer(serializers.Serializer):
