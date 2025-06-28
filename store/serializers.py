@@ -213,15 +213,10 @@ class StoreSerializer(serializers.ModelSerializer):
             return False
     
     def get_products(self, obj):
-        request = self.context.get('request')
         include_products = self.context.get('include_products', False)
         
-        # For anonymous users, don't include products by default
-        if request and not request.user.is_authenticated:
-            return None
-        
-        # Check both query parameters and context variables
-        if (request and request.query_params.get('include_products') == 'true') or include_products:
+        # Always include products if the flag is set
+        if include_products:
             products = obj.products.all()
             return SimpleProductSerializer(products, many=True, context=self.context).data
         return None

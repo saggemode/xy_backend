@@ -128,11 +128,42 @@ class StoreViewSet(viewsets.ModelViewSet):
         """Simple list method for debugging."""
         try:
             queryset = self.get_queryset()
-            serializer = self.get_serializer(queryset, many=True)
+            
+            # Use the basic serializer first
+            serializer = self.get_serializer(queryset, many=True, context={'request': request})
+            data = serializer.data
+            
+            # Manually add products and staff for each store
+            for store_data in data:
+                store_id = store_data['id']
+                store_obj = Store.objects.get(id=store_id)
+                
+                # Get products
+                products = store_obj.products.all()
+                if products.exists():
+                    from product.serializers import ProductSerializer
+                    store_data['products'] = ProductSerializer(products, many=True, context={'request': request}).data
+                else:
+                    store_data['products'] = []
+                
+                # Get staff
+                staff = store_obj.staff_members.filter(deleted_at__isnull=True)
+                if staff.exists():
+                    store_data['staff'] = StoreStaffSerializer(staff, many=True, context={'request': request}).data
+                else:
+                    store_data['staff'] = []
+                
+                # Get analytics
+                try:
+                    analytics = store_obj.analytics
+                    store_data['analytics'] = StoreAnalyticsSerializer(analytics, context={'request': request}).data
+                except StoreAnalytics.DoesNotExist:
+                    store_data['analytics'] = None
+            
             return Response({
                 'status': 'success',
                 'count': queryset.count(),
-                'data': serializer.data
+                'data': data
             })
         except Exception as e:
             logger.error(f"Store list error: {str(e)}")
