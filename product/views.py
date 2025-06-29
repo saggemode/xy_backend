@@ -150,9 +150,26 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def similar(self, request, pk=None):
-        """Returns products from the same category, excluding the product itself."""
+        """Returns products from the same category and store, excluding the product itself."""
         product = self.get_object()
-        queryset = self.get_queryset().filter(category=product.category).exclude(id=product.id)[:10]
+        queryset = self.get_queryset().filter(
+            category=product.category,
+            store=product.store
+        ).exclude(id=product.id)[:10]
+        paginated_queryset = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(paginated_queryset, many=True)
+        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='similar-other-stores')
+    def similar_other_stores(self, request, pk=None):
+        """Returns products from the same category but different stores, excluding the product itself."""
+        product = self.get_object()
+        queryset = self.get_queryset().filter(
+            category=product.category
+        ).exclude(
+            id=product.id,
+            store=product.store
+        )[:10]
         paginated_queryset = self.paginate_queryset(queryset)
         serializer = self.get_serializer(paginated_queryset, many=True)
         return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
