@@ -210,14 +210,19 @@ class ProductViewSet(viewsets.ModelViewSet):
     def similar_other_stores(self, request, pk=None):
         """Returns products from the same category but different stores, excluding the product itself."""
         product = self.get_object()
-        queryset = self.get_queryset().filter(
-            category=product.category
-        ).exclude(
+        
+        # Get all products in the same category
+        same_category_products = self.get_queryset().filter(category=product.category)
+        
+        # Get products from other stores
+        other_stores_products = same_category_products.exclude(
             id=product.id,
             store=product.store
-        )[:10]
+        )
         
-        # Add debug information
+        queryset = other_stores_products[:10]
+        
+        # Add detailed debug information
         debug_info = {
             'product_id': str(product.id),
             'product_name': product.name,
@@ -225,18 +230,15 @@ class ProductViewSet(viewsets.ModelViewSet):
             'category_name': product.category.name,
             'store_id': str(product.store.id),
             'store_name': product.store.name,
-            'other_stores_count': self.get_queryset().filter(
-                category=product.category
-            ).exclude(
-                id=product.id,
-                store=product.store
-            ).count(),
-            'total_products_in_category': self.get_queryset().filter(
-                category=product.category
-            ).count(),
-            'unique_stores_in_category': self.get_queryset().filter(
-                category=product.category
-            ).values('store').distinct().count()
+            'other_stores_count': other_stores_products.count(),
+            'total_products_in_category': same_category_products.count(),
+            'unique_stores_in_category': same_category_products.values('store').distinct().count(),
+            'all_products_in_category': list(same_category_products.values('id', 'name', 'store__id', 'store__name')),
+            'other_stores_products': list(other_stores_products.values('id', 'name', 'store__id', 'store__name')),
+            'current_product_store': {
+                'id': str(product.store.id),
+                'name': product.store.name
+            }
         }
         
         paginated_queryset = self.paginate_queryset(queryset)
