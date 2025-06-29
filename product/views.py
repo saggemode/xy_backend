@@ -190,7 +190,14 @@ class ProductViewSet(viewsets.ModelViewSet):
         }
         
         paginated_queryset = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(paginated_queryset, many=True)
+        
+        # Handle pagination more carefully for small result sets
+        if queryset.count() <= 10:
+            paginated_queryset = None
+            debug_info['pagination_skipped'] = True
+            debug_info['reason'] = 'Small result set (≤10 items)'
+        
+        serializer = self.get_serializer(paginated_queryset, many=True) if paginated_queryset is not None else self.get_serializer(queryset, many=True)
         
         response_data = {
             'similar_products': serializer.data,
@@ -233,7 +240,14 @@ class ProductViewSet(viewsets.ModelViewSet):
         }
         
         paginated_queryset = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(paginated_queryset, many=True)
+        
+        # Handle pagination more carefully for small result sets
+        if queryset.count() <= 10:
+            paginated_queryset = None
+            debug_info['pagination_skipped'] = True
+            debug_info['reason'] = 'Small result set (≤10 items)'
+        
+        serializer = self.get_serializer(paginated_queryset, many=True) if paginated_queryset is not None else self.get_serializer(queryset, many=True)
         
         response_data = {
             'similar_products_other_stores': serializer.data,
