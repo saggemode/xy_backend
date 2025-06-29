@@ -152,13 +152,52 @@ class ProductViewSet(viewsets.ModelViewSet):
     def similar(self, request, pk=None):
         """Returns products from the same category and store, excluding the product itself."""
         product = self.get_object()
+        
+        # First try: same category and same store
         queryset = self.get_queryset().filter(
             category=product.category,
             store=product.store
         ).exclude(id=product.id)[:10]
+        
+        # If no results, fallback to same category only
+        if not queryset.exists():
+            queryset = self.get_queryset().filter(
+                category=product.category
+            ).exclude(id=product.id)[:10]
+        
+        # Add debug information
+        debug_info = {
+            'product_id': str(product.id),
+            'product_name': product.name,
+            'category_id': str(product.category.id),
+            'category_name': product.category.name,
+            'store_id': str(product.store.id),
+            'store_name': product.store.name,
+            'same_store_count': self.get_queryset().filter(
+                category=product.category,
+                store=product.store
+            ).exclude(id=product.id).count(),
+            'same_category_count': self.get_queryset().filter(
+                category=product.category
+            ).exclude(id=product.id).count(),
+            'total_products_in_category': self.get_queryset().filter(
+                category=product.category
+            ).count(),
+            'fallback_used': not self.get_queryset().filter(
+                category=product.category,
+                store=product.store
+            ).exclude(id=product.id).exists()
+        }
+        
         paginated_queryset = self.paginate_queryset(queryset)
         serializer = self.get_serializer(paginated_queryset, many=True)
-        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+        
+        response_data = {
+            'similar_products': serializer.data,
+            'debug_info': debug_info
+        }
+        
+        return self.get_paginated_response(response_data) if paginated_queryset is not None else Response(response_data)
 
     @action(detail=True, methods=['get'], url_path='similar-other-stores')
     def similar_other_stores(self, request, pk=None):
@@ -170,9 +209,38 @@ class ProductViewSet(viewsets.ModelViewSet):
             id=product.id,
             store=product.store
         )[:10]
+        
+        # Add debug information
+        debug_info = {
+            'product_id': str(product.id),
+            'product_name': product.name,
+            'category_id': str(product.category.id),
+            'category_name': product.category.name,
+            'store_id': str(product.store.id),
+            'store_name': product.store.name,
+            'other_stores_count': self.get_queryset().filter(
+                category=product.category
+            ).exclude(
+                id=product.id,
+                store=product.store
+            ).count(),
+            'total_products_in_category': self.get_queryset().filter(
+                category=product.category
+            ).count(),
+            'unique_stores_in_category': self.get_queryset().filter(
+                category=product.category
+            ).values('store').distinct().count()
+        }
+        
         paginated_queryset = self.paginate_queryset(queryset)
         serializer = self.get_serializer(paginated_queryset, many=True)
-        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+        
+        response_data = {
+            'similar_products_other_stores': serializer.data,
+            'debug_info': debug_info
+        }
+        
+        return self.get_paginated_response(response_data) if paginated_queryset is not None else Response(response_data)
 
     @action(detail=False, methods=['get'], url_path='myproducts')
     def myproducts(self, request):
