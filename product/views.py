@@ -603,6 +603,188 @@ class ProductViewSet(viewsets.ModelViewSet):
         else:
             return Response({'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=False, methods=['get'], url_path='productsbystore')
+    def productsbystore(self, request):
+        """Returns products filtered by store with optional filtering."""
+        store_id = request.query_params.get('store', None)
+        
+        if not store_id:
+            return Response(
+                {"error": "Store ID is required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Use a more inclusive queryset for store filtering
+        queryset = Product.objects.select_related('store', 'category', 'subcategory').prefetch_related('variants', 'reviews')
+        
+        # Filter by store
+        try:
+            from store.models import Store
+            store = Store.objects.get(id=store_id)
+            queryset = queryset.filter(store=store)
+        except Store.DoesNotExist:
+            return Response(
+                {"error": f"Store with id {store_id} not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Apply additional filters from query params
+        min_price = request.query_params.get('min_price', None)
+        max_price = request.query_params.get('max_price', None)
+        if min_price:
+            queryset = queryset.filter(current_price__gte=min_price)
+        if max_price:
+            queryset = queryset.filter(current_price__lte=max_price)
+        
+        # Status filter (optional)
+        status_filter = request.query_params.get('status', 'published')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        
+        # Category filter
+        category_id = request.query_params.get('category', None)
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+        
+        # Brand filter
+        brand = request.query_params.get('brand', None)
+        if brand:
+            queryset = queryset.filter(brand__icontains=brand)
+        
+        # Sort options
+        sort_by = request.query_params.get('sort', 'newest')
+        if sort_by == 'price_low':
+            queryset = queryset.order_by('current_price')
+        elif sort_by == 'price_high':
+            queryset = queryset.order_by('-current_price')
+        elif sort_by == 'name':
+            queryset = queryset.order_by('name')
+        elif sort_by == 'popular':
+            queryset = queryset.annotate(
+                review_count=Count('reviews')
+            ).order_by('-review_count')
+        elif sort_by == 'featured':
+            queryset = queryset.order_by('-is_featured', '-created_at')
+        else:  # newest (default)
+            queryset = queryset.order_by('-created_at')
+        
+        paginated_queryset = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(paginated_queryset, many=True) if paginated_queryset is not None else self.get_serializer(queryset, many=True)
+        
+        response_data = {
+            'store_info': {
+                'id': str(store.id),
+                'name': store.name,
+                'is_verified': store.is_verified,
+                'location': store.location
+            },
+            'total_products': queryset.count(),
+            'data': serializer.data
+        }
+        
+        return self.get_paginated_response(response_data) if paginated_queryset is not None else Response(response_data)
+
+    @action(detail=True, methods=['get'], url_path='smart-similar')
+    def smart_similar(self, request, pk=None):
+        """Returns smart similar products based on category, brand, and other criteria."""
+        product = self.get_object()
+        
+        # Get all products from the same store
+        store_products = self.get_queryset().filter(store=product.store).exclude(id=product.id)
+        
+        # Calculate similarity scores for each product
+        similar_products = []
+        for store_product in store_products:
+            score = 0
+            
+            # Category match (highest weight)
+            if store_product.category == product.category:
+                score += 50
+            
+            # Brand match (high weight)
+            if store_product.brand.lower() == product.brand.lower():
+                score += 30
+            
+            # Subcategory match (medium weight)
+            if store_product.subcategory and product.subcategory and store_product.subcategory == product.subcategory:
+                score += 20
+            
+            # Price range similarity (medium weight)
+            price_diff = abs(store_product.current_price - product.current_price)
+            price_ratio = price_diff / product.current_price
+            if price_ratio <= 0.2:  # Within 20% price range
+                score += 15
+            elif price_ratio <= 0.5:  # Within 50% price range
+                score += 10
+            
+            # Featured status bonus
+            if store_product.is_featured:
+                score += 5
+            
+            # Rating bonus
+            if hasattr(store_product, 'average_rating') and store_product.average_rating:
+                score += min(store_product.average_rating * 2, 10)  # Max 10 points for rating
+            
+            # Only include products with some similarity
+            if score > 0:
+                similar_products.append({
+                    'product': store_product,
+                    'score': score,
+                    'similarity_reasons': []
+                })
+                
+                # Add similarity reasons
+                if store_product.category == product.category:
+                    similar_products[-1]['similarity_reasons'].append('Same category')
+                if store_product.brand.lower() == product.brand.lower():
+                    similar_products[-1]['similarity_reasons'].append('Same brand')
+                if store_product.subcategory and product.subcategory and store_product.subcategory == product.subcategory:
+                    similar_products[-1]['similarity_reasons'].append('Same subcategory')
+                if store_product.is_featured:
+                    similar_products[-1]['similarity_reasons'].append('Featured product')
+        
+        # Sort by similarity score (highest first)
+        similar_products.sort(key=lambda x: x['score'], reverse=True)
+        
+        # Take top 10 products
+        top_products = similar_products[:10]
+        
+        # Serialize the products
+        products_data = []
+        for item in top_products:
+            product_data = self.get_serializer(item['product']).data
+            product_data['similarity_score'] = item['score']
+            product_data['similarity_reasons'] = item['similarity_reasons']
+            products_data.append(product_data)
+        
+        # Add debug information
+        debug_info = {
+            'product_id': str(product.id),
+            'product_name': product.name,
+            'category_id': str(product.category.id),
+            'category_name': product.category.name,
+            'brand': product.brand,
+            'store_id': str(product.store.id),
+            'store_name': product.store.name,
+            'total_store_products': store_products.count(),
+            'similar_products_found': len(similar_products),
+            'similarity_criteria': {
+                'category_match_weight': 50,
+                'brand_match_weight': 30,
+                'subcategory_match_weight': 20,
+                'price_similarity_weight': 15,
+                'featured_bonus': 5,
+                'rating_bonus_max': 10
+            }
+        }
+        
+        response_data = {
+            'similar_products': products_data,
+            'debug_info': debug_info
+        }
+        
+        return Response(response_data)
+
 class ProductVariantViewSet(viewsets.ModelViewSet):
     queryset = ProductVariant.objects.all()
     serializer_class = ProductVariantSerializer
