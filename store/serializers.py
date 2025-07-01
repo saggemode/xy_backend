@@ -479,3 +479,77 @@ class StoreStatisticsSerializer(serializers.Serializer):
     store_categories = serializers.ListField()
     verification_rate = serializers.FloatField()
     activation_rate = serializers.FloatField()
+
+
+# Custom dj-rest-auth serializers for extra fields
+from dj_rest_auth.registration.serializers import RegisterSerializer
+from dj_rest_auth.serializers import UserDetailsSerializer
+
+class CustomRegisterSerializer(RegisterSerializer):
+    """Custom registration serializer with extra fields"""
+    full_name = serializers.CharField(required=True, max_length=255)
+    phone_number = serializers.CharField(required=False, max_length=15, allow_blank=True)
+    address = serializers.CharField(required=False, allow_blank=True)
+    
+    def custom_signup(self, request, user):
+        """Set custom fields during signup"""
+        user.first_name = self.validated_data.get('full_name', '').split()[0] if self.validated_data.get('full_name') else ''
+        user.last_name = ' '.join(self.validated_data.get('full_name', '').split()[1:]) if len(self.validated_data.get('full_name', '').split()) > 1 else ''
+        user.save()
+        
+        # Store additional info in user profile or custom model if needed
+        # For now, we'll store phone and address in a simple way
+        # You can create a UserProfile model later if needed
+
+class CustomUserDetailsSerializer(UserDetailsSerializer):
+    """Extended user details serializer with custom fields"""
+    full_name = serializers.SerializerMethodField()
+    phone_number = serializers.CharField(read_only=True, allow_blank=True, default='')
+    address = serializers.CharField(read_only=True, allow_blank=True, default='')
+    
+    class Meta(UserDetailsSerializer.Meta):
+        fields = UserDetailsSerializer.Meta.fields + ('full_name', 'phone_number', 'address')
+    
+    def get_full_name(self, obj):
+        """Get full name from first_name and last_name"""
+        if obj.first_name and obj.last_name:
+            return f"{obj.first_name} {obj.last_name}"
+        elif obj.first_name:
+            return obj.first_name
+        elif obj.last_name:
+            return obj.last_name
+        return obj.username
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating user profile"""
+    full_name = serializers.CharField(required=False, max_length=255)
+    phone_number = serializers.CharField(required=False, max_length=15, allow_blank=True)
+    address = serializers.CharField(required=False, allow_blank=True)
+    
+    class Meta:
+        model = User
+        fields = ('first_name', 'last_name', 'full_name', 'phone_number', 'address')
+    
+    def validate_phone_number(self, value):
+        """Validate phone number format"""
+        if value and len(value) < 10:
+            raise serializers.ValidationError("Phone number must be at least 10 digits")
+        return value
+    
+    def update(self, instance, validated_data):
+        """Update user with full_name handling"""
+        full_name = validated_data.pop('full_name', None)
+        if full_name:
+            name_parts = full_name.split()
+            instance.first_name = name_parts[0] if name_parts else ''
+            instance.last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+        
+        # Update other fields
+        for attr, value in validated_data.items():
+            if attr in ['phone_number', 'address']:
+                # Store in profile or custom field
+                continue
+            setattr(instance, attr, value)
+        
+        instance.save()
+        return instance

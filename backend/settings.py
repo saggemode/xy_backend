@@ -219,6 +219,8 @@ REST_AUTH = {
     'USE_JWT': True,
     # 'JWT_AUTH_COOKIE': 'auth',
     'JWT_AUTH_HTTPONLY': False,
+    'REGISTER_SERIALIZER': 'store.serializers.CustomRegisterSerializer',
+    'USER_DETAILS_SERIALIZER': 'store.serializers.CustomUserDetailsSerializer',
 }
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
