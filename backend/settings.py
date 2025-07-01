@@ -83,6 +83,8 @@ INSTALLED_APPS = [
     # 'corsheaders',
     
     # 'PILLOW',
+    'dj_rest_auth',
+    'dj_rest_auth.registration',
 ]
 
 CRISPY_TEMPLATE_PACK = 'bootstrap4'
@@ -212,10 +214,9 @@ AUTH_USER_MODEL = 'auth.User'
 # }
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework.authentication.TokenAuthentication',
-       
-    ),
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
     ],
@@ -228,7 +229,7 @@ from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False,
+    'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
@@ -276,3 +277,6 @@ EMAIL_HOST_PASSWORD = 'google#@readings1234'
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', 'your_twilio_account_sid')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', 'your_twilio_auth_token')
 TWILIO_FROM_NUMBER = os.getenv('TWILIO_FROM_NUMBER', '+1234567890')
+
+# dj-rest-auth settings
+REST_USE_JWT = True

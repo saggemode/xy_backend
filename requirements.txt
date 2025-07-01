@@ -6,6 +6,7 @@ charset-normalizer==3.4.2
 crispy-bootstrap4==2025.6
 cryptography==44.0.3
 defusedxml==0.7.1
+dj-rest-auth==7.0.1
 Django==5.2.1
 django-admin-berry==1.0.16
 django-allauth==65.9.0
@@ -16,6 +17,7 @@ django-countries==7.6.1
 django-crispy-forms==2.4
 django-filter==25.1
 django-jazzmin==3.0.1
+django-otp==1.6.0
 django-phonenumber-field==8.1.0
 djangorestframework==3.16.0
 djangorestframework_simplejwt==5.5.0
@@ -31,6 +33,7 @@ psycopg-binary==3.2.9
 psycopg2-binary==2.9.10
 pycparser==2.22
 PyJWT==2.9.0
+pyotp==2.9.0
 python-dotenv==1.1.0
 python-utils==3.9.1
 python3-openid==3.2.0
