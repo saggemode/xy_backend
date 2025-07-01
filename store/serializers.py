@@ -487,6 +487,8 @@ from dj_rest_auth.serializers import UserDetailsSerializer
 
 class CustomRegisterSerializer(RegisterSerializer):
     """Custom registration serializer with extra fields"""
+    username = serializers.CharField(required=True, max_length=150)
+    email = serializers.EmailField(required=False, allow_blank=True)
     full_name = serializers.CharField(required=True, max_length=255)
     phone_number = serializers.CharField(required=False, max_length=15, allow_blank=True)
     address = serializers.CharField(required=False, allow_blank=True)
