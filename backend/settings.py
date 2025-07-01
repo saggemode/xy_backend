@@ -213,9 +213,25 @@ AUTH_USER_MODEL = 'auth.User'
 #     )
 # }
 
+# REST_AUTH = {
+#     'SESSION_LOGIN': True,
+#     'USE_JWT': True,
+#     'JWT_AUTH_COOKIE': 'auth',
+#     'JWT_AUTH_HTTPONLY': False,
+# }
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_EMAIL_VERIFICATION = 'optional'
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+
+        # 'rest_framework.authentication.TokenAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # 'rest_framework.authentication.SessionAuthentication',
+        # 'dj_rest_auth.jwt_auth.JWTCookieAuthentication'
     ],
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
@@ -266,12 +282,6 @@ AUTHENTICATION_BACKENDS = (
     "allauth.account.auth_backends.AuthenticationBackend",
 )
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'  # Use your email provider's SMTP server
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'umeh288@gmail.com'
-EMAIL_HOST_PASSWORD = 'google#@readings1234'
 
 # Twilio SMS settings (add your real credentials in production or .env)
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', 'your_twilio_account_sid')
@@ -280,3 +290,7 @@ TWILIO_FROM_NUMBER = os.getenv('TWILIO_FROM_NUMBER', '+1234567890')
 
 # dj-rest-auth settings
 REST_USE_JWT = True
+
+# Add new recommended settings
+ACCOUNT_LOGIN_METHODS = {'email'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
