@@ -213,12 +213,13 @@ AUTH_USER_MODEL = 'auth.User'
 #     )
 # }
 
-# REST_AUTH = {
-#     'SESSION_LOGIN': True,
-#     'USE_JWT': True,
-#     'JWT_AUTH_COOKIE': 'auth',
-#     'JWT_AUTH_HTTPONLY': False,
-# }
+# dj-rest-auth settings
+REST_AUTH = {
+    # 'SESSION_LOGIN': True,
+    'USE_JWT': True,
+    # 'JWT_AUTH_COOKIE': 'auth',
+    'JWT_AUTH_HTTPONLY': False,
+}
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 ACCOUNT_EMAIL_REQUIRED = True
@@ -288,9 +289,7 @@ TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', 'your_twilio_account_sid')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', 'your_twilio_auth_token')
 TWILIO_FROM_NUMBER = os.getenv('TWILIO_FROM_NUMBER', '+1234567890')
 
-# dj-rest-auth settings
-REST_USE_JWT = True
 
-# Add new recommended settings
-ACCOUNT_LOGIN_METHODS = {'email'}
-ACCOUNT_SIGNUP_FIELDS = ['email*', 'username*', 'password1*', 'password2*']
+
+
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
