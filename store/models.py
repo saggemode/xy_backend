@@ -105,6 +105,14 @@ class Store(models.Model):
         validators=[URLValidator()],
         help_text=_('Twitter profile URL')
     )
+
+    whatsapp_url = models.URLField(
+        max_length=500, 
+        blank=True, 
+        null=True,
+        validators=[URLValidator()],
+        help_text=_('Whatsapp profile URL')
+    )
     
     # Status and verification
     status = models.CharField(
