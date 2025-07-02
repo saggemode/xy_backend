@@ -214,12 +214,12 @@ AUTH_USER_MODEL = 'auth.User'
 # }
 
 # dj-rest-auth settings
-# REST_AUTH = {
-#     # 'SESSION_LOGIN': True,
-#     'USE_JWT': True,
-#     # 'JWT_AUTH_COOKIE': 'auth',
-#     'JWT_AUTH_HTTPONLY': False,
-# }
+REST_AUTH = {
+    'SESSION_LOGIN': True,
+    'USE_JWT': True,
+    'JWT_AUTH_COOKIE': 'auth',
+    'JWT_AUTH_HTTPONLY': False,
+}
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 ACCOUNT_EMAIL_REQUIRED = False
@@ -228,10 +228,7 @@ ACCOUNT_EMAIL_VERIFICATION = 'optional'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-
-     
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-
          'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.TokenAuthentication',
         'dj_rest_auth.jwt_auth.JWTCookieAuthentication'
