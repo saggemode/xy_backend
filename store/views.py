@@ -139,7 +139,7 @@ class StoreViewSet(viewsets.ModelViewSet):
                 store_data['products'] = []
             
             # Get staff
-            staff = store_obj.staff_members.filter(deleted_at__isnull=True, is_active=True)
+            staff = store_obj.staff_members.filter(is_active=True)
             if staff.exists():
                 store_data['staff'] = StoreStaffSerializer(staff, many=True, context={'request': request}).data
             else:
@@ -679,13 +679,12 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
         Regular users can only see staff from their own stores.
         Staff users can see all staff members.
         """
-        queryset = super().get_queryset().filter(deleted_at__isnull=True, is_active=True)
+        queryset = super().get_queryset().filter(is_active=True)
         
         if not self.request.user.is_staff:
             # Users can only see staff from stores they own or are staff at
             user_stores = StoreStaff.objects.filter(
                 user=self.request.user,
-                deleted_at__isnull=True,
                 is_active=True
             ).values_list('store_id', flat=True)
             queryset = queryset.filter(store_id__in=user_stores)
@@ -695,12 +694,10 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Create staff member with proper permissions."""
         try:
-            staff_member = serializer.save(created_by=self.request.user, updated_by=self.request.user)
+            staff_member = serializer.save()
             logger.info(f"Staff member created: {staff_member.user.username} at {staff_member.store.name}")
-            
             # Create notification
             self.create_staff_notification(staff_member, "added")
-            
         except Exception as e:
             logger.error(f"Error creating staff member: {str(e)}")
             raise
@@ -708,12 +705,10 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         """Update staff member with logging."""
         try:
-            staff_member = serializer.save(updated_by=self.request.user)
+            staff_member = serializer.save()
             logger.info(f"Staff member updated: {staff_member.user.username}")
-            
             # Create notification
             self.create_staff_notification(staff_member, "updated")
-            
         except Exception as e:
             logger.error(f"Error updating staff member: {str(e)}")
             raise
@@ -721,12 +716,10 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         """Soft delete staff member."""
         try:
-            instance.soft_delete(self.request.user)
+            instance.soft_delete()
             logger.info(f"Staff member soft deleted: {instance.user.username}")
-            
             # Create notification
             self.create_staff_notification(instance, "removed")
-            
         except Exception as e:
             logger.error(f"Error soft deleting staff member: {str(e)}")
             raise
@@ -745,7 +738,6 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
                     
                     staff_members = StoreStaff.objects.filter(
                         id__in=staff_ids,
-                        deleted_at__isnull=True,
                         is_active=True
                     )
                     
@@ -753,7 +745,6 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
                     for staff_member in staff_members:
                         if action == 'assign_role' and role:
                             staff_member.role = role
-                            staff_member.updated_by = request.user
                             staff_member.save()
                             updated_count += 1
                     
@@ -893,7 +884,7 @@ class StoreAnalyticsViewSet(viewsets.ModelViewSet):
             # Users can only see analytics from stores they own or are staff at
             user_stores = StoreStaff.objects.filter(
                 user=self.request.user,
-                deleted_at__isnull=True
+                is_active=True
             ).values_list('store_id', flat=True)
             queryset = queryset.filter(store_id__in=user_stores)
         

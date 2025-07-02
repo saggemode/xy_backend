@@ -13,11 +13,11 @@ from .models import Store, StoreAnalytics, StoreStaff, CustomerLifetimeValue
 
 @admin.register(Store)
 class StoreAdmin(admin.ModelAdmin):
-    list_display = ('name', 'owner',  'is_verified', 'is_deleted', 'created_at', 'updated_at', 'created_by', 'updated_by')
-    list_filter = ( 'is_verified', 'is_deleted', 'created_at')
+    list_display = ('name', 'owner',  'is_verified', 'created_at', 'updated_at')
+    list_filter = ( 'is_verified', 'created_at')
     search_fields = ('name', 'owner__username', 'description')
-    readonly_fields = ('created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by')
-    actions = ['soft_delete_stores', 'restore_stores']
+    readonly_fields = ('created_at', 'updated_at')
+    actions = []
     fieldsets = (
         ('Basic Information', {
             'fields': ('name', 'description', 'location', 'owner')
@@ -34,14 +34,14 @@ class StoreAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Status & Verification', {
-            'fields': ('status',  'is_verified', 'verified_at', 'verified_by')
+            'fields': ('status',  'is_verified')
         }),
         ('Business Settings', {
-            'fields': ('commission_rate', 'auto_approve_products'),
+            'fields': ('commission_rate',),
             'classes': ('collapse',)
         }),
         ('Audit Information', {
-            'fields': ('created_at', 'updated_at', 'created_by', 'updated_by', 'deleted_at'),
+            'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
@@ -115,7 +115,7 @@ class StoreStaffAdmin(admin.ModelAdmin):
         'store__name'
     ]
     readonly_fields = [
-        'id', 'joined_at', 'last_active', 'created_by', 'updated_by', 'deleted_at'
+        'id', 'joined_at', 'last_active'
     ]
     fieldsets = (
         ('Basic Information', {
@@ -129,15 +129,8 @@ class StoreStaffAdmin(admin.ModelAdmin):
             'fields': ('joined_at', 'last_active'),
             'classes': ('collapse',)
         }),
-        ('Audit Information', {
-            'fields': ('created_by', 'updated_by', 'deleted_at'),
-            'classes': ('collapse',)
-        }),
     )
-    actions = [
-        'bulk_assign_role',
-        'bulk_update_permissions'
-    ]
+    actions = []
     date_hierarchy = 'joined_at'
     ordering = ['-joined_at']
     list_per_page = 25

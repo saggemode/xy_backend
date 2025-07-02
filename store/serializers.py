@@ -50,13 +50,9 @@ class StoreStaffSerializer(serializers.ModelSerializer):
     staff_first_name = serializers.CharField(source='user.first_name', read_only=True)
     staff_last_name = serializers.CharField(source='user.last_name', read_only=True)
     role_display = serializers.CharField(source='get_role_display', read_only=True)
-    created_by_username = serializers.CharField(source='created_by.username', read_only=True, default=None)
-    updated_by_username = serializers.CharField(source='updated_by.username', read_only=True, default=None)
     store_name = serializers.CharField(source='store.name', read_only=True)
-    
     # Nested user data
     user_details = UserSerializer(source='user', read_only=True)
-    
     class Meta:
         model = StoreStaff
         fields = [
@@ -64,12 +60,10 @@ class StoreStaffSerializer(serializers.ModelSerializer):
             'role', 'role_display', 'is_active', 'joined_at',
             'staff_username', 'staff_email', 'staff_first_name', 'staff_last_name',
             'can_manage_products', 'can_manage_orders', 'can_manage_staff', 'can_view_analytics',
-            'created_by', 'created_by_username',
-            'updated_by', 'updated_by_username',
             'deleted_at', 'last_active'
         ]
         read_only_fields = [
-            'id', 'joined_at', 'created_by', 'updated_by', 'deleted_at', 'last_active',
+            'id', 'joined_at', 'deleted_at', 'last_active',
             'can_manage_products', 'can_manage_orders', 'can_manage_staff', 'can_view_analytics'
         ]
 
@@ -178,17 +172,10 @@ class StoreSerializer(serializers.ModelSerializer):
     total_products = serializers.SerializerMethodField()
     total_staff = serializers.SerializerMethodField()
     is_operational = serializers.SerializerMethodField()
-    
     # Owner information
     owner_username = serializers.CharField(source='owner.username', read_only=True)
     owner_email = serializers.CharField(source='owner.email', read_only=True)
     owner_details = UserSerializer(source='owner', read_only=True)
-    
-    # Audit information
-    created_by_username = serializers.CharField(source='created_by.username', read_only=True, default=None)
-    updated_by_username = serializers.CharField(source='updated_by.username', read_only=True, default=None)
-    verified_by_username = serializers.CharField(source='verified_by.username', read_only=True, default=None)
-    
     # Optional nested fields
     products = serializers.SerializerMethodField()
     staff = serializers.SerializerMethodField()
@@ -258,11 +245,9 @@ class StoreSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'location', 'logo', 'cover_image',
             'contact_email', 'phone_number', 'website_url', 'facebook_url',
             'instagram_url', 'twitter_url', 'status', 'is_verified',
-            'commission_rate', 'auto_approve_products', 'created_at', 'updated_at',
+            'commission_rate', 'created_at', 'updated_at',
             'verified_at', 'deleted_at', 'owner', 'owner_username', 'owner_email',
-            'owner_details', 'created_by', 'created_by_username', 'updated_by',
-            'updated_by_username', 'verified_by', 'verified_by_username',
-            'total_products', 'total_staff', 'is_operational',
+            'owner_details', 'total_products', 'total_staff', 'is_operational',
             'products', 'staff', 'analytics'
         ]
         read_only_fields = [

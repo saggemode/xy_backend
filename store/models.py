@@ -126,39 +126,10 @@ class Store(models.Model):
         validators=[MinValueValidator(0), MaxValueValidator(100)],
         help_text=_('Commission rate percentage (0-100)')
     )
-    auto_approve_products = models.BooleanField(
-        default=True,
-        help_text=_('Whether products are auto-approved for this store')
-    )
     
     # Audit fields
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        default=None,
-        related_name='created_stores'
-    )
-    updated_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        default=None,
-        related_name='updated_stores'
-    )
-    verified_at = models.DateTimeField(null=True, blank=True)
-    verified_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='verified_stores'
-    )
-    deleted_at = models.DateTimeField(null=True, blank=True)
     
     # Owner relationship
     owner = models.ForeignKey(
@@ -166,8 +137,6 @@ class Store(models.Model):
         on_delete=models.CASCADE,
         related_name='owned_stores'
     )
-
-    is_deleted = models.BooleanField(default=False, db_index=True)
 
     def __str__(self):
         return self.name
@@ -202,11 +171,6 @@ class Store(models.Model):
 
     def save(self, *args, **kwargs):
         """Override save to handle business logic."""
-        user = getattr(self, '_current_user', None)
-        if not self.pk and not self.created_by and user:
-            self.created_by = user
-        if user:
-            self.updated_by = user
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -214,46 +178,30 @@ class Store(models.Model):
     def activate(self, user=None):
         """Activate the store."""
         self.status = 'active'
-        self.updated_by = user
         self.save()
 
     def deactivate(self, user=None):
         """Deactivate the store."""
         self.status = 'suspended'
-        self.updated_by = user
         self.save()
 
     def verify(self, user=None):
         """Verify the store."""
         self.is_verified = True
-        self.verified_at = timezone.now()
-        self.verified_by = user
-        self.updated_by = user
         self.save()
 
     def close(self, user=None):
         """Close the store permanently."""
         self.status = 'closed'
-        self.updated_by = user
         self.save()
 
     def soft_delete(self, user=None):
         """Soft delete the store."""
-        if not self.is_deleted:
-            self.is_deleted = True
-            self.deleted_at = timezone.now()
-            if user:
-                self.updated_by = user
-            self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
+        pass
 
     def restore(self, user=None):
         """Restore the store."""
-        if self.is_deleted:
-            self.is_deleted = False
-            self.deleted_at = None
-            if user:
-                self.updated_by = user
-            self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
+        pass
 
     @property
     def total_products(self):
@@ -268,7 +216,7 @@ class Store(models.Model):
     @property
     def total_staff(self):
         """Get total number of active staff for this store."""
-        return self.staff_members.filter(deleted_at__isnull=True, is_active=True).count()
+        return self.staff_members.filter(is_active=True).count()
 
     def is_operational(self):
         """Check if store is operational (active and verified)."""
@@ -332,23 +280,6 @@ class StoreStaff(models.Model):
     joined_at = models.DateTimeField(auto_now_add=True)
     last_active = models.DateTimeField(null=True, blank=True)
     
-    # Audit fields
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
-        related_name='created_store_staff', 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True
-    )
-    updated_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
-        related_name='updated_store_staff', 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True
-    )
-    deleted_at = models.DateTimeField(null=True, blank=True)
-
     class Meta:
         unique_together = ('store', 'user')
         verbose_name = "Store Staff"
@@ -356,7 +287,7 @@ class StoreStaff(models.Model):
         indexes = [
             models.Index(fields=['store', 'role']),
             models.Index(fields=['user', 'role']),
-            models.Index(fields=['role', 'deleted_at']),
+            models.Index(fields=['role']),
         ]
 
     def __str__(self):
@@ -371,7 +302,7 @@ class StoreStaff(models.Model):
             existing_owner = StoreStaff.objects.filter(
                 store=self.store,
                 role=self.Roles.OWNER,
-                deleted_at__isnull=True
+                is_active=True
             ).exclude(pk=self.pk)
             
             if existing_owner.exists():
@@ -410,7 +341,7 @@ class StoreStaff(models.Model):
             user=user, 
             store=store, 
             role=StoreStaff.Roles.OWNER, 
-            deleted_at__isnull=True
+            is_active=True
         ).exists()
 
     @staticmethod
@@ -420,7 +351,7 @@ class StoreStaff(models.Model):
             user=user, 
             store=store, 
             role__in=[StoreStaff.Roles.OWNER, StoreStaff.Roles.MANAGER], 
-            deleted_at__isnull=True
+            is_active=True
         ).exists()
 
     @staticmethod
@@ -429,14 +360,12 @@ class StoreStaff(models.Model):
         return StoreStaff.objects.filter(
             user=user, 
             store=store, 
-            deleted_at__isnull=True
+            is_active=True
         ).exists()
 
     def soft_delete(self, user=None):
         """Soft delete the staff member."""
-        self.deleted_at = timezone.now()
-        self.updated_by = user
-        self.save()
+        pass
 
     def update_last_active(self):
         """Update last active timestamp."""
