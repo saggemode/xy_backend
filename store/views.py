@@ -186,8 +186,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             # Get active and verified stores
             queryset = Store.objects.filter(
                 status='active',
-                is_verified=True,
-                deleted_at__isnull=True
+                is_verified=True
             )
             
             # Convert to list and shuffle for random selection
