@@ -60,10 +60,10 @@ class StoreStaffSerializer(serializers.ModelSerializer):
             'role', 'role_display', 'is_active', 'joined_at',
             'staff_username', 'staff_email', 'staff_first_name', 'staff_last_name',
             'can_manage_products', 'can_manage_orders', 'can_manage_staff', 'can_view_analytics',
-            'deleted_at', 'last_active'
+            'last_active'
         ]
         read_only_fields = [
-            'id', 'joined_at', 'deleted_at', 'last_active',
+            'id', 'joined_at', 'last_active',
             'can_manage_products', 'can_manage_orders', 'can_manage_staff', 'can_view_analytics'
         ]
 
@@ -77,8 +77,7 @@ class StoreStaffSerializer(serializers.ModelSerializer):
         if store and user:
             existing_staff = StoreStaff.objects.filter(
                 store=store, 
-                user=user, 
-                deleted_at__isnull=True
+                user=user
             )
             if instance:
                 existing_staff = existing_staff.exclude(pk=instance.pk)
@@ -95,8 +94,7 @@ class StoreStaffSerializer(serializers.ModelSerializer):
             if store:
                 existing_owner = StoreStaff.objects.filter(
                     store=store,
-                    role=StoreStaff.Roles.OWNER,
-                    deleted_at__isnull=True
+                    role=StoreStaff.Roles.OWNER
                 )
                 if instance:
                     existing_owner = existing_owner.exclude(pk=instance.pk)
@@ -218,7 +216,7 @@ class StoreSerializer(serializers.ModelSerializer):
         
         # Check both query parameters and context variables
         if (request and request.query_params.get('include_staff') == 'true') or include_staff:
-            staff = obj.staff_members.filter(deleted_at__isnull=True, is_active=True)
+            staff = obj.staff_members.filter(is_active=True)
             return StoreStaffSerializer(staff, many=True, context=self.context).data
         return None
 
@@ -355,7 +353,7 @@ class StoreDetailSerializer(StoreSerializer):
         request = self.context.get('request')
         if request and not request.user.is_authenticated:
             return None
-        staff = obj.staff_members.filter(deleted_at__isnull=True, is_active=True)
+        staff = obj.staff_members.filter(is_active=True)
         return StoreStaffSerializer(staff, many=True, context=self.context).data
 
     def get_analytics(self, obj):
@@ -377,8 +375,7 @@ class StoreCreateSerializer(StoreSerializer):
         owner = data.get('owner')
         if owner:
             existing_store = Store.objects.filter(
-                owner=owner,
-                deleted_at__isnull=True
+                owner=owner
             ).first()
             
             if existing_store:
