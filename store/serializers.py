@@ -244,14 +244,14 @@ class StoreSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'description', 'location', 'logo', 'cover_image',
             'contact_email', 'phone_number', 'website_url', 'facebook_url',
-            'instagram_url', 'twitter_url', 'status', 'is_verified',
+            'instagram_url', 'twitter_url', 'whatsapp_url', 'status', 'is_verified',
             'commission_rate', 'created_at', 'updated_at',
-            'verified_at', 'deleted_at', 'owner', 'owner_username', 'owner_email',
+            'owner', 'owner_username', 'owner_email',
             'owner_details', 'total_products', 'total_staff', 'is_operational',
             'products', 'staff', 'analytics'
         ]
         read_only_fields = [
-            'id', 'created_at', 'updated_at', 'verified_at', 'deleted_at',
+            'id', 'created_at', 'updated_at',
             'total_products', 'total_staff', 'is_operational'
         ]
 
