@@ -53,7 +53,19 @@ class WishlistViewSet(viewsets.ModelViewSet):
     def my_wishlist(self, request):
         wishlist_items = self.get_queryset()
         serializer = self.get_serializer(wishlist_items, many=True)
-        return Response(serializer.data)
+        
+        # Add debugging information
+        debug_info = {
+            'user_authenticated': request.user.is_authenticated,
+            'user_id': request.user.id if request.user.is_authenticated else None,
+            'total_wishlist_items': wishlist_items.count(),
+            'total_wishlist_items_in_db': Wishlist.objects.count(),
+        }
+        
+        return Response({
+            'data': serializer.data,
+            'debug_info': debug_info
+        })
 
     @action(detail=False, methods=['get'])
     def search(self, request):
