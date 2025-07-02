@@ -24,7 +24,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
 from .models import Store, StoreAnalytics, StoreStaff, CustomerLifetimeValue
-from product.models import Product, ProductVariant
+from product.models import Product, ProductVariant, Category
 from .serializers import (
     StoreSerializer, StoreDetailSerializer, StoreCreateSerializer, StoreUpdateSerializer,
     StoreStaffSerializer, StoreAnalyticsSerializer, CustomerLifetimeValueSerializer,
@@ -641,6 +641,29 @@ class StoreViewSet(viewsets.ModelViewSet):
                 'message': f'Error retrieving store: {str(e)}',
                 'error_type': type(e).__name__
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'], url_path='stores-by-product')
+    def stores_by_product(self, request):
+        """Get all stores that offer the same kind of product (by product_id or category_id)."""
+        product_id = request.query_params.get('product_id')
+        category_id = request.query_params.get('category_id')
+        if not product_id and not category_id:
+            return Response({'error': 'product_id or category_id is required'}, status=400)
+
+        if product_id:
+            try:
+                product = Product.objects.get(id=product_id)
+            except Product.DoesNotExist:
+                return Response({'error': 'Product not found'}, status=404)
+            # Get all stores that have a product with the same name (kind)
+            stores = Store.objects.filter(products__name=product.name).distinct()
+        else:
+            # Get all stores that have a product in the given category
+            stores = Store.objects.filter(products__category_id=category_id).distinct()
+
+        serializer = self.get_serializer(stores, many=True, context={'request': request})
+        data = self._add_related_data_to_stores(serializer.data, request)
+        return Response({'status': 'success', 'count': len(data), 'stores': data})
 
 
 class StoreStaffViewSet(viewsets.ModelViewSet):
