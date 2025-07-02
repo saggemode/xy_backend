@@ -23,8 +23,8 @@ from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    path('auth/', include('djoser.urls')),
-    path('auth/', include('djoser.urls.authtoken')),
+    # path('auth/', include('djoser.urls')),
+    # path('auth/', include('djoser.urls.authtoken')),
 
     path('api/auth/', include('dj_rest_auth.urls')),  # Login, logout, password reset, etc.
     path('api/auth/registration/', include('dj_rest_auth.registration.urls')),  # Registration endpoints
