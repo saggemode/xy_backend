@@ -125,39 +125,6 @@ class ShippingAddress(models.Model):
         help_text="When this address was last updated"
     )
 
-    is_deleted = models.BooleanField(
-        default=False,
-        verbose_name=_('Is Deleted'),
-        help_text=_('Whether this address has been soft deleted'),
-        db_index=True
-    )
-    deleted_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        verbose_name=_('Deleted At'),
-        help_text=_('Timestamp when the address was soft deleted')
-    )
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        default=None,
-        related_name='created_shipping_addresses',
-        verbose_name=_('Created By'),
-        help_text=_('User who created this address')
-    )
-    updated_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        default=None,
-        related_name='updated_shipping_addresses',
-        verbose_name=_('Updated By'),
-        help_text=_('User who last updated this address')
-    )
-
     class Meta:
         verbose_name = "Shipping Address"
         verbose_name_plural = "Shipping Addresses"
@@ -165,12 +132,11 @@ class ShippingAddress(models.Model):
         indexes = [
             models.Index(fields=['user', 'is_default']),
             models.Index(fields=['user', 'created_at']),
-            models.Index(fields=['user', 'is_deleted']),
         ]
         constraints = [
             models.UniqueConstraint(
                 fields=['user'],
-                condition=models.Q(is_default=True, is_deleted=False),
+                condition=models.Q(is_default=True),
                 name='unique_default_address_per_user'
             )
         ]
@@ -210,11 +176,11 @@ class ShippingAddress(models.Model):
     def save(self, *args, **kwargs):
         """Override save to handle default address logic"""
         # If this is the user's first address, make it default
-        if not self.pk and not ShippingAddress.objects.filter(user=self.user, is_deleted=False).exists():
+        if not self.pk and not ShippingAddress.objects.filter(user=self.user).exists():
             self.is_default = True
         # Ensure only one default per user
         if self.is_default:
-            ShippingAddress.objects.filter(user=self.user, is_default=True, is_deleted=False).exclude(pk=self.pk).update(is_default=False)
+            ShippingAddress.objects.filter(user=self.user, is_default=True).exclude(pk=self.pk).update(is_default=False)
         super().save(*args, **kwargs)
 
     @property
@@ -255,19 +221,9 @@ class ShippingAddress(models.Model):
             return f"Shipping Address {self.id}"
 
     def soft_delete(self, user=None):
-        if not self.is_deleted:
-            self.is_deleted = True
-            self.deleted_at = timezone.now()
-            if user:
-                self.updated_by = user
-            self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
+        pass
 
     def restore(self, user=None):
-        if self.is_deleted:
-            self.is_deleted = False
-            self.deleted_at = None
-            if user:
-                self.updated_by = user
-            self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
+        pass
 
     
