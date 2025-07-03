@@ -234,11 +234,17 @@ REST_FRAMEWORK = {
         'dj_rest_auth.jwt_auth.JWTCookieAuthentication'
        
     ],
+     'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+        
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '5/minute',  # Adjust as needed
+        'user': '1000/day',
+        'anon': '100/day',  # Adjust as needed
     }
 }
 
