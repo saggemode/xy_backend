@@ -181,6 +181,42 @@ class Product(models.Model):
     def original_price(self):
         """Always return the base price"""
         return self.base_price
+    
+    @property
+    def size_variants(self):
+        """Get all size variants for this product"""
+        return self.variants.filter(variant_type='size', is_active=True)
+    
+    @property
+    def color_variants(self):
+        """Get all color variants for this product"""
+        return self.variants.filter(variant_type='color', is_active=True)
+    
+    @property
+    def has_size_variants(self):
+        """Check if product has size variants"""
+        return self.size_variants.exists()
+    
+    @property
+    def has_color_variants(self):
+        """Check if product has color variants"""
+        return self.color_variants.exists()
+    
+    def get_variant_by_size(self, size_name):
+        """Get a specific size variant"""
+        return self.size_variants.filter(name__iexact=size_name).first()
+    
+    def get_variant_by_color(self, color_name):
+        """Get a specific color variant"""
+        return self.color_variants.filter(name__iexact=color_name).first()
+    
+    def get_available_sizes(self):
+        """Get list of available sizes from variants"""
+        return list(self.size_variants.values_list('name', flat=True))
+    
+    def get_available_colors(self):
+        """Get list of available colors from variants"""
+        return list(self.color_variants.values_list('name', flat=True))
 
     @classmethod
     def create_product(cls, store, name, description, base_price, categories=None):
@@ -281,6 +317,19 @@ class ProductDiscount(models.Model):
         return base_price
 
 class ProductVariant(models.Model):
+    PRICING_MODES = [
+        ('adjustment', 'Price Adjustment'),
+        ('individual', 'Individual Price'),
+    ]
+    
+    VARIANT_TYPES = [
+        ('color', 'Color'),
+        ('size', 'Size'),
+        ('style', 'Style'),
+        ('material', 'Material'),
+        ('other', 'Other'),
+    ]
+    
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
@@ -289,8 +338,35 @@ class ProductVariant(models.Model):
     )
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='variants')
     name = models.CharField(max_length=100)
+    variant_type = models.CharField(
+        max_length=20,
+        choices=VARIANT_TYPES,
+        default='other',
+        help_text="Type of variant (color, size, style, etc.)"
+    )
     sku = models.CharField(max_length=50, unique=True, blank=True)
-    price_adjustment = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Pricing fields
+    pricing_mode = models.CharField(
+        max_length=20, 
+        choices=PRICING_MODES, 
+        default='adjustment',
+        help_text="Price adjustment: adds to product base price. Individual price: sets specific price for this variant."
+    )
+    price_adjustment = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        default=0,
+        help_text="Amount to add/subtract from product base price (used when pricing_mode is 'adjustment')"
+    )
+    individual_price = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        help_text="Specific price for this variant (used when pricing_mode is 'individual')"
+    )
+    
     stock = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(default=timezone.now)
@@ -322,11 +398,39 @@ class ProductVariant(models.Model):
             self.sku = self._generate_sku()
         super().save(*args, **kwargs)
 
+    def clean(self):
+        """Validate pricing fields based on pricing mode"""
+        if self.pricing_mode == 'individual':
+            if self.individual_price is None or self.individual_price <= 0:
+                raise ValidationError("Individual price must be set and greater than 0 when using individual pricing mode")
+        elif self.pricing_mode == 'adjustment':
+            if self.individual_price is not None:
+                raise ValidationError("Individual price should not be set when using price adjustment mode")
+    
     @property
     def current_price(self):
-        """Calculate current price including product discount and variant adjustment"""
-        base_price = self.product.current_price  # This includes any active discount
-        return base_price + self.price_adjustment
+        """Calculate current price based on pricing mode and product discounts"""
+        if self.pricing_mode == 'individual':
+            # Use individual price directly
+            base_price = self.individual_price
+        else:
+            # Use product base price + adjustment
+            base_price = self.product.base_price + self.price_adjustment
+        
+        # Apply product-level discounts if any
+        if self.product.on_sale:
+            discount = self.product.active_discount
+            return discount.calculate_discount_price(base_price)
+        
+        return base_price
+    
+    @property
+    def base_price(self):
+        """Get the base price without any product discounts"""
+        if self.pricing_mode == 'individual':
+            return self.individual_price
+        else:
+            return self.product.base_price + self.price_adjustment
 
 class ProductReview(models.Model):
     id = models.UUIDField(

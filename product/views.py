@@ -6,6 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import get_user_model
 import random
 from django.db.models import Count, Avg, Q, F
+from django.db import models
 from rest_framework.decorators import action
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -789,6 +790,96 @@ class ProductViewSet(viewsets.ModelViewSet):
 class ProductVariantViewSet(viewsets.ModelViewSet):
     queryset = ProductVariant.objects.all()
     serializer_class = ProductVariantSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['variant_type', 'pricing_mode', 'is_active', 'product']
+    search_fields = ['name', 'sku', 'product__name']
+    ordering_fields = ['name', 'current_price', 'stock', 'created_at']
+    ordering = ['-created_at']
+    
+    def get_queryset(self):
+        """Enhanced filtering for variants"""
+        queryset = super().get_queryset().select_related('product')
+        
+        # Product filter
+        product_id = self.request.query_params.get('product', None)
+        if product_id:
+            queryset = queryset.filter(product_id=product_id)
+        
+        # Variant type filter
+        variant_type = self.request.query_params.get('variant_type', None)
+        if variant_type:
+            queryset = queryset.filter(variant_type=variant_type)
+        
+        # Pricing mode filter
+        pricing_mode = self.request.query_params.get('pricing_mode', None)
+        if pricing_mode:
+            queryset = queryset.filter(pricing_mode=pricing_mode)
+        
+        # Stock filter
+        in_stock = self.request.query_params.get('in_stock', None)
+        if in_stock == 'true':
+            queryset = queryset.filter(stock__gt=0)
+        elif in_stock == 'false':
+            queryset = queryset.filter(stock=0)
+        
+        # Price range filter
+        min_price = self.request.query_params.get('min_price', None)
+        max_price = self.request.query_params.get('max_price', None)
+        if min_price or max_price:
+            # This is a simplified filter - in production you might want to calculate current_price
+            if min_price:
+                queryset = queryset.filter(
+                    models.Q(individual_price__gte=min_price) | 
+                    models.Q(price_adjustment__gte=min_price)
+                )
+            if max_price:
+                queryset = queryset.filter(
+                    models.Q(individual_price__lte=max_price) | 
+                    models.Q(price_adjustment__lte=max_price)
+                )
+        
+        return queryset
+    
+    @action(detail=False, methods=['get'], url_path='by-type')
+    def by_type(self, request):
+        """Get variants grouped by type"""
+        variant_type = request.query_params.get('type', None)
+        if not variant_type:
+            return Response(
+                {"error": "Variant type is required"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        queryset = self.get_queryset().filter(variant_type=variant_type)
+        paginated_queryset = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(paginated_queryset, many=True)
+        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='size-variants')
+    def size_variants(self, request):
+        """Get only size variants"""
+        product_id = request.query_params.get('product', None)
+        if product_id:
+            queryset = self.get_queryset().filter(product_id=product_id, variant_type='size')
+        else:
+            queryset = self.get_queryset().filter(variant_type='size')
+        
+        paginated_queryset = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(paginated_queryset, many=True)
+        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='color-variants')
+    def color_variants(self, request):
+        """Get only color variants"""
+        product_id = request.query_params.get('product', None)
+        if product_id:
+            queryset = self.get_queryset().filter(product_id=product_id, variant_type='color')
+        else:
+            queryset = self.get_queryset().filter(variant_type='color')
+        
+        paginated_queryset = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(paginated_queryset, many=True)
+        return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
 
 class SubCategoryViewSet(viewsets.ModelViewSet):
     queryset = SubCategory.objects.all()

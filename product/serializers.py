@@ -30,9 +30,20 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'image_url', 'subcategories', 'product_count', 'created_at']
 
 class ProductVariantSerializer(serializers.ModelSerializer):
+    variant_type_display = serializers.CharField(source='get_variant_type_display', read_only=True)
+    pricing_mode_display = serializers.CharField(source='get_pricing_mode_display', read_only=True)
+    current_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    base_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    
     class Meta:
         model = ProductVariant
-        fields = '__all__'
+        fields = [
+            'id', 'product', 'name', 'variant_type', 'variant_type_display',
+            'pricing_mode', 'pricing_mode_display', 'price_adjustment', 
+            'individual_price', 'current_price', 'base_price', 'stock', 
+            'is_active', 'sku', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['sku', 'current_price', 'base_price']
 
 class SimpleStoreSerializer(serializers.ModelSerializer):
     """A simple serializer for store details to be nested in products."""
@@ -53,6 +64,8 @@ class ProductDiscountSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, read_only=True)
+    size_variants = serializers.SerializerMethodField()
+    color_variants = serializers.SerializerMethodField()
     reviews = ProductReviewSerializer(many=True, read_only=True)
     store = SimpleStoreSerializer(read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -64,6 +77,8 @@ class ProductSerializer(serializers.ModelSerializer):
     active_discount = ProductDiscountSerializer(read_only=True)
     review_count = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
+    has_size_variants = serializers.BooleanField(read_only=True)
+    has_color_variants = serializers.BooleanField(read_only=True)
 
     def get_review_count(self, obj):
         return obj.reviews.count()
@@ -73,16 +88,26 @@ class ProductSerializer(serializers.ModelSerializer):
         if reviews.exists():
             return round(sum(review.rating for review in reviews) / reviews.count(), 2)
         return 0.0
+    
+    def get_size_variants(self, obj):
+        """Get only size variants"""
+        size_variants = obj.size_variants
+        return ProductVariantSerializer(size_variants, many=True).data
+    
+    def get_color_variants(self, obj):
+        """Get only color variants"""
+        color_variants = obj.color_variants
+        return ProductVariantSerializer(color_variants, many=True).data
 
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'brand', 'base_price', 'original_price', 'current_price', 'on_sale',
             'discount_percentage', 'active_discount', 'description', 'image_urls', 'stock', 
-            'is_featured', 'has_variants', 'sku', 'slug', 'status',
+            'is_featured', 'has_variants', 'has_size_variants', 'has_color_variants', 'sku', 'slug', 'status',
             'available_sizes', 'available_colors', 'created_at', 'updated_at', 
-            'store', 'category', 'subcategory', 'variants', 'category_name', 
-            'subcategory_name', 'reviews', 'review_count', 'average_rating'
+            'store', 'category', 'subcategory', 'variants', 'size_variants', 'color_variants', 
+            'category_name', 'subcategory_name', 'reviews', 'review_count', 'average_rating'
         ]
         read_only_fields = ['sku', 'slug']
 

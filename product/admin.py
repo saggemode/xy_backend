@@ -5,10 +5,10 @@ from django.utils.html import format_html
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'store', 'base_price', 'current_price_display', 'on_sale_badge', 'stock', 'is_deleted', 'created_at', 'updated_at')
-    list_filter = ('store', 'is_deleted', 'created_at')
+    list_display = ('name', 'store', 'base_price', 'current_price_display', 'variants_info', 'on_sale_badge', 'stock', 'is_deleted', 'created_at', 'updated_at')
+    list_filter = ('store', 'is_deleted', 'created_at', 'has_variants')
     search_fields = ('name', 'sku')
-    readonly_fields = ('created_at', 'updated_at', 'deleted_at', 'current_price_display', 'on_sale_badge')
+    readonly_fields = ('created_at', 'updated_at', 'deleted_at', 'current_price_display', 'on_sale_badge', 'variants_info')
     actions = ['soft_delete_products', 'restore_products']
     
     def current_price_display(self, obj):
@@ -28,6 +28,31 @@ class ProductAdmin(admin.ModelAdmin):
         return '-'
     on_sale_badge.short_description = 'Sale Status'
     
+    def variants_info(self, obj):
+        """Display variant information"""
+        if not obj.has_variants:
+            return '-'
+        
+        variant_counts = {}
+        for variant in obj.variants.filter(is_active=True):
+            variant_type = variant.get_variant_type_display()
+            if variant_type not in variant_counts:
+                variant_counts[variant_type] = 0
+            variant_counts[variant_type] += 1
+        
+        if not variant_counts:
+            return '-'
+        
+        info_parts = []
+        for variant_type, count in variant_counts.items():
+            info_parts.append(f"{variant_type}: {count}")
+        
+        return format_html(
+            '<span style="background-color: #007bff; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px;">{}</span>',
+            ', '.join(info_parts)
+        )
+    variants_info.short_description = 'Variants'
+    
     def soft_delete_products(self, request, queryset):
         updated = 0
         for product in queryset:
@@ -46,7 +71,78 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(ProductVariant)
 class ProductVariantAdmin(admin.ModelAdmin):
-    search_fields = ('name', 'sku')
+    list_display = ('name', 'variant_type', 'product', 'pricing_mode', 'price_display', 'stock', 'is_active')
+    list_filter = ('variant_type', 'pricing_mode', 'is_active', 'product__store')
+    search_fields = ('name', 'sku', 'product__name')
+    readonly_fields = ('created_at', 'updated_at', 'price_display')
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('product', 'name', 'variant_type', 'sku')
+        }),
+        ('Pricing', {
+            'fields': ('pricing_mode', 'price_adjustment', 'individual_price', 'price_display')
+        }),
+        ('Inventory', {
+            'fields': ('stock', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def price_display(self, obj):
+        """Display the current price with formatting"""
+        try:
+            current_price = obj.current_price
+            base_price = obj.base_price
+            
+            if obj.pricing_mode == 'individual':
+                # Show individual price
+                if obj.product.on_sale:
+                    discount = obj.product.active_discount
+                    discounted_price = discount.calculate_discount_price(base_price)
+                    if discounted_price != base_price:
+                        savings = base_price - discounted_price
+                        savings_percentage = (savings / base_price) * 100
+                        return format_html(
+                            '<div style="line-height: 1.4;">'
+                            '<div><span style="color: red; text-decoration: line-through;">${:,.2f}</span></div>'
+                            '<div><strong style="color: green; font-size: 14px;">${:,.2f}</strong></div>'
+                            '<div style="color: #666; font-size: 11px;">'
+                            '<span style="color: #28a745;">↓ Save ${:,.2f}</span> ({:.1f}% off)'
+                            '</div>'
+                            '</div>',
+                            base_price, discounted_price, savings, savings_percentage
+                        )
+                    else:
+                        return format_html('<strong>${:,.2f}</strong>', base_price)
+                else:
+                    return format_html('<strong>${:,.2f}</strong>', base_price)
+            else:
+                # Show adjustment-based pricing
+                product_price = obj.product.current_price
+                final_price = product_price + obj.price_adjustment
+                
+                if obj.price_adjustment > 0:
+                    return format_html(
+                        '<div>Product: ${:,.2f}</div>'
+                        '<div><strong>+${:,.2f} = ${:,.2f}</strong></div>',
+                        product_price, obj.price_adjustment, final_price
+                    )
+                elif obj.price_adjustment < 0:
+                    return format_html(
+                        '<div>Product: ${:,.2f}</div>'
+                        '<div><strong>-${:,.2f} = ${:,.2f}</strong></div>',
+                        product_price, abs(obj.price_adjustment), final_price
+                    )
+                else:
+                    return format_html('<strong>${:,.2f}</strong>', final_price)
+        except Exception as e:
+            return f"Error: {str(e)}"
+    
+    price_display.short_description = 'Current Price'
 
 @admin.register(ProductDiscount)
 class ProductDiscountAdmin(admin.ModelAdmin):
