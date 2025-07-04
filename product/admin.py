@@ -5,10 +5,10 @@ from django.utils.html import format_html
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'store', 'base_price', 'current_price_display', 'on_sale_badge', 'stock', 'is_deleted', 'created_at', 'updated_at', 'created_by', 'updated_by')
+    list_display = ('name', 'store', 'base_price', 'current_price_display', 'on_sale_badge', 'stock', 'is_deleted', 'created_at', 'updated_at')
     list_filter = ('store', 'is_deleted', 'created_at')
     search_fields = ('name', 'sku')
-    readonly_fields = ('created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by', 'current_price_display', 'on_sale_badge')
+    readonly_fields = ('created_at', 'updated_at', 'deleted_at', 'current_price_display', 'on_sale_badge')
     actions = ['soft_delete_products', 'restore_products']
     
     def current_price_display(self, obj):
@@ -50,10 +50,51 @@ class ProductVariantAdmin(admin.ModelAdmin):
 
 @admin.register(ProductDiscount)
 class ProductDiscountAdmin(admin.ModelAdmin):
-    list_display = ['product', 'discount_type', 'discount_value', 'start_date', 'end_date', 'is_active', 'is_valid_badge']
+    list_display = ['product', 'product_base_price', 'discount_type', 'discount_value', 'calculated_price', 'start_date', 'end_date', 'is_active', 'is_valid_badge']
     list_filter = ['discount_type', 'is_active', 'start_date', 'end_date']
     search_fields = ['product__name']
-    readonly_fields = ['created_at', 'updated_at']
+    readonly_fields = ['created_at', 'updated_at', 'product_base_price', 'calculated_price']
+    
+    fieldsets = (
+        ('Product Information', {
+            'fields': ('product', 'product_base_price')
+        }),
+        ('Discount Details', {
+            'fields': ('discount_type', 'discount_value', 'calculated_price', 'max_discount_amount')
+        }),
+        ('Timing & Conditions', {
+            'fields': ('start_date', 'end_date', 'is_active', 'min_quantity')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def product_base_price(self, obj):
+        """Display the product's base price"""
+        if obj.product:
+            return format_html('<strong>${}</strong>', obj.product.base_price)
+        return '-'
+    product_base_price.short_description = 'Base Price'
+    product_base_price.admin_order_field = 'product__base_price'
+    
+    def calculated_price(self, obj):
+        """Display the calculated discounted price"""
+        if obj.product and obj.discount_value:
+            try:
+                discounted_price = obj.calculate_discount_price(obj.product.base_price)
+                if discounted_price != obj.product.base_price:
+                    return format_html(
+                        '<span style="color: red; text-decoration: line-through;">${}</span> <strong style="color: green;">${}</strong>',
+                        obj.product.base_price, discounted_price
+                    )
+                else:
+                    return format_html('<strong>${}</strong>', obj.product.base_price)
+            except:
+                return format_html('<strong>${}</strong>', obj.product.base_price)
+        return '-'
+    calculated_price.short_description = 'Discounted Price'
     
     def is_valid_badge(self, obj):
         if obj.is_valid:
