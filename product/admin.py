@@ -181,7 +181,20 @@ class ProductDiscountAdmin(admin.ModelAdmin):
         if obj.product and obj.discount_value:
             try:
                 base_price = float(obj.product.base_price)
-                discounted_price = float(obj.calculate_discount_price(base_price))
+                
+                # Debug information
+                is_valid = obj.is_valid
+                discount_type = obj.discount_type
+                discount_value = float(obj.discount_value)
+                
+                # Calculate discount manually to debug
+                if is_valid and discount_type == 'percentage':
+                    discount_amount = (base_price * discount_value) / 100
+                    if obj.max_discount_amount:
+                        discount_amount = min(discount_amount, float(obj.max_discount_amount))
+                    discounted_price = base_price - discount_amount
+                else:
+                    discounted_price = base_price
                 
                 if discounted_price != base_price:
                     # Calculate savings
@@ -195,14 +208,26 @@ class ProductDiscountAdmin(admin.ModelAdmin):
                         '<div style="color: #666; font-size: 11px;">'
                         '<span style="color: #28a745;">↓ Save ${}</span> ({}% off)'
                         '</div>'
+                        '<div style="color: #999; font-size: 10px;">'
+                        'Valid: {}, Type: {}, Value: {}'
+                        '</div>'
                         '</div>',
                         f"{base_price:,.2f}", f"{discounted_price:,.2f}", 
-                        f"{savings:,.2f}", f"{savings_percentage:.1f}"
+                        f"{savings:,.2f}", f"{savings_percentage:.1f}",
+                        is_valid, discount_type, discount_value
                     )
                 else:
-                    return format_html('<strong>${}</strong>', f"{base_price:,.2f}")
+                    return format_html(
+                        '<div>'
+                        '<strong>${}</strong>'
+                        '<div style="color: #999; font-size: 10px;">'
+                        'Valid: {}, Type: {}, Value: {}'
+                        '</div>'
+                        '</div>',
+                        f"{base_price:,.2f}", is_valid, discount_type, discount_value
+                    )
             except Exception as e:
-                return format_html('<strong>${}</strong>', f"{float(obj.product.base_price):,.2f}")
+                return format_html('<strong>Error: {}</strong>', str(e))
         return '-'
     calculated_price.short_description = 'Discounted Price & Savings'
     
