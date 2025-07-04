@@ -109,6 +109,11 @@ class CartCreateSerializer(serializers.ModelSerializer):
         validated_data.pop('product_id', None)
         validated_data.pop('store_id', None)
         validated_data.pop('variant_id', None)
+        
+        # Ensure variant is None if not provided
+        if 'variant' not in validated_data:
+            validated_data['variant'] = None
+            
         return super().create(validated_data)
 
 class CartUpdateSerializer(serializers.ModelSerializer):
