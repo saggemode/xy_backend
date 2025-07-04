@@ -167,7 +167,7 @@ class ProductVariantAdmin(admin.ModelAdmin):
                         colors = ','.join(product.available_colors) if product.available_colors else ''
                         
                         # Add data attributes to the choice
-                        choice_text = f"{product.name} ({product.store.name})"
+                        choice_text = f"{product.name} ({product.store.name}) - ${product.base_price}"
                         if sizes or colors:
                             choice_text += f" [Sizes: {sizes}] [Colors: {colors}]"
                         
