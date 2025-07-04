@@ -8,9 +8,15 @@
     'use strict';
     
     $(document).ready(function() {
+        console.log('ProductVariant form script loaded');
+        
         var productSelect = $('#id_product');
         var variantTypeSelect = $('#id_variant_type');
         var variantNameField = $('#id_name');
+        
+        console.log('Product select found:', productSelect.length);
+        console.log('Variant type select found:', variantTypeSelect.length);
+        console.log('Variant name field found:', variantNameField.length);
         
         // Store product data
         var productData = {};
@@ -20,6 +26,8 @@
             var option = $(this);
             var productId = option.val();
             var optionText = option.text();
+            
+            console.log('Processing option:', productId, optionText);
             
             if (productId && optionText) {
                 // Parse sizes and colors from the option text
@@ -32,6 +40,7 @@
                     sizes = sizesMatch[1].split(',').map(function(size) {
                         return size.trim();
                     });
+                    console.log('Found sizes for product', productId, ':', sizes);
                 }
                 
                 // Extract colors from [Colors: Red,Blue,Green] format
@@ -40,6 +49,7 @@
                     colors = colorsMatch[1].split(',').map(function(color) {
                         return color.trim();
                     });
+                    console.log('Found colors for product', productId, ':', colors);
                 }
                 
                 productData[productId] = {
@@ -49,12 +59,20 @@
             }
         });
         
+        console.log('Product data:', productData);
+        
         // Function to update variant name options
         function updateVariantOptions() {
+            console.log('updateVariantOptions called');
+            
             var productId = productSelect.val();
             var variantType = variantTypeSelect.val();
             
+            console.log('Product ID:', productId);
+            console.log('Variant Type:', variantType);
+            
             if (!productId || !variantType) {
+                console.log('No product or variant type selected, resetting to text input');
                 // Reset to text input if no product or variant type selected
                 if (variantNameField.is('select')) {
                     variantNameField.replaceWith('<input type="text" name="name" id="id_name" class="vTextField" maxlength="100">');
@@ -65,11 +83,15 @@
             var options = [];
             if (variantType === 'size' && productData[productId]) {
                 options = productData[productId].sizes;
+                console.log('Size options:', options);
             } else if (variantType === 'color' && productData[productId]) {
                 options = productData[productId].colors;
+                console.log('Color options:', options);
             }
             
             if (options.length > 0) {
+                console.log('Creating dropdown with options:', options);
+                
                 // Create select dropdown with options
                 var selectHtml = '<select name="name" id="id_name" class="vTextField">';
                 selectHtml += '<option value="">---------</option>';
@@ -80,15 +102,23 @@
                 
                 selectHtml += '</select>';
                 
+                console.log('Select HTML:', selectHtml);
+                
                 // Replace the input field with select dropdown
                 variantNameField.replaceWith(selectHtml);
+                
+                // Update the reference to the new field
+                variantNameField = $('#id_name');
                 
                 // Add a helpful label
                 var label = variantNameField.closest('.form-row').find('label[for="id_name"]');
                 if (label.length > 0) {
                     label.text('Variant Name (' + variantType.charAt(0).toUpperCase() + variantType.slice(1) + ' Options)');
                 }
+                
+                console.log('Dropdown created successfully');
             } else {
+                console.log('No options available, keeping as text input');
                 // Reset to text input if no options available
                 if (variantNameField.is('select')) {
                     variantNameField.replaceWith('<input type="text" name="name" id="id_name" class="vTextField" maxlength="100">');
@@ -103,11 +133,19 @@
         }
         
         // Bind events
-        productSelect.on('change', updateVariantOptions);
-        variantTypeSelect.on('change', updateVariantOptions);
+        productSelect.on('change', function() {
+            console.log('Product selection changed');
+            updateVariantOptions();
+        });
+        
+        variantTypeSelect.on('change', function() {
+            console.log('Variant type selection changed');
+            updateVariantOptions();
+        });
         
         // Initial setup if values are already selected
         if (productSelect.val() && variantTypeSelect.val()) {
+            console.log('Initial values found, updating options');
             updateVariantOptions();
         }
     });
