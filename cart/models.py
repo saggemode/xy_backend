@@ -25,10 +25,6 @@ class Cart(models.Model):
     selected_color = models.CharField(max_length=50, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    is_deleted = models.BooleanField(default=False, db_index=True)
-    deleted_at = models.DateTimeField(null=True, blank=True)
-    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, default=None, related_name='created_cart_items')
-    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, default=None, related_name='updated_cart_items')
 
     class Meta:
         verbose_name = _('Cart')
@@ -36,8 +32,8 @@ class Cart(models.Model):
         db_table = 'cart_cart'
         unique_together = ('user', 'store', 'product', 'variant')
         indexes = [
-            models.Index(fields=['user', 'is_deleted']),
-            models.Index(fields=['store', 'is_deleted']),
+            models.Index(fields=['user']),
+            models.Index(fields=['store']),
             models.Index(fields=['created_at']),
         ]
         ordering = ['-created_at']
@@ -72,11 +68,7 @@ class Cart(models.Model):
                 raise ValidationError(_('Insufficient stock for product'))
 
     def save(self, *args, **kwargs):
-        """Override save to add audit fields and validation"""
-        if not self.pk:  # New instance
-            if not self.created_by:
-                self.created_by = getattr(self, '_current_user', None)
-        self.updated_by = getattr(self, '_current_user', None)
+        """Override save to add validation"""
         self.full_clean()
         super().save(*args, **kwargs)
 
@@ -92,24 +84,12 @@ class Cart(models.Model):
         """Calculate total price for this cart item"""
         return self.unit_price * self.quantity
 
-    def soft_delete(self, user=None):
-        """Soft delete the cart item"""
-        self.is_deleted = True
-        self.deleted_at = timezone.now()
-        self.updated_by = user
-        self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
 
-    def restore(self, user=None):
-        """Restore soft deleted cart item"""
-        self.is_deleted = False
-        self.deleted_at = None
-        self.updated_by = user
-        self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
 
     @classmethod
     def get_user_cart(cls, user):
-        """Get all active cart items for a user"""
-        return cls.objects.filter(user=user, is_deleted=False)
+        """Get all cart items for a user"""
+        return cls.objects.filter(user=user)
 
     @classmethod
     def get_cart_total(cls, user):
@@ -127,5 +107,4 @@ class Cart(models.Model):
     def clear_user_cart(cls, user):
         """Clear all items from user's cart"""
         cart_items = cls.get_user_cart(user)
-        for item in cart_items:
-            item.soft_delete(user=user)
+        cart_items.delete()

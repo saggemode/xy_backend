@@ -13,39 +13,27 @@ class CartItemFilter(SimpleListFilter):
 
     def lookups(self, request, model_admin):
         return (
-            ('active', 'Active Items'),
-            ('deleted', 'Deleted Items'),
             ('low_stock', 'Low Stock Items'),
             ('high_value', 'High Value Items (>$100)'),
         )
 
     def queryset(self, request, queryset):
-        if self.value() == 'active':
-            return queryset.filter(is_deleted=False)
-        elif self.value() == 'deleted':
-            return queryset.filter(is_deleted=True)
-        elif self.value() == 'low_stock':
+        if self.value() == 'low_stock':
             # Simplified low stock filter
-            return queryset.filter(
-                is_deleted=False,
-                quantity__gte=1
-            )
+            return queryset.filter(quantity__gte=1)
         elif self.value() == 'high_value':
             # Simplified high value filter
-            return queryset.filter(
-                is_deleted=False,
-                quantity__gte=1
-            )
+            return queryset.filter(quantity__gte=1)
         return queryset
 
 @admin.register(Cart)
 class CartAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'user_link', 'product_link', 'store_link', 'quantity', 
-        'total_price_display', 'status_badge', 'created_at', 'updated_at'
+        'total_price_display', 'created_at', 'updated_at'
     )
     list_filter = (
-        CartItemFilter, 'store', 'created_at', 'updated_at', 'is_deleted',
+        CartItemFilter, 'store', 'created_at', 'updated_at',
         'selected_size', 'selected_color'
     )
     search_fields = (
@@ -53,13 +41,13 @@ class CartAdmin(admin.ModelAdmin):
         'store__name', 'variant__name'
     )
     readonly_fields = (
-        'id', 'created_at', 'updated_at', 'deleted_at', 
-        'created_by', 'updated_by', 'total_price_display', 'unit_price_display'
+        'id', 'created_at', 'updated_at', 
+        'total_price_display', 'unit_price_display'
     )
     list_per_page = 25
-    list_select_related = ('user', 'product', 'store', 'variant', 'created_by', 'updated_by')
+    list_select_related = ('user', 'product', 'store', 'variant')
     actions = [
-        'soft_delete_items', 'restore_items', 'export_to_csv',
+        'delete_items', 'export_to_csv',
         'bulk_update_quantity', 'move_to_wishlist'
     ]
     
@@ -70,11 +58,8 @@ class CartAdmin(admin.ModelAdmin):
         ('Item Details', {
             'fields': ('quantity', 'selected_size', 'selected_color', 'unit_price_display', 'total_price_display')
         }),
-        ('Status', {
-            'fields': ('is_deleted', 'deleted_at')
-        }),
-        ('Audit Information', {
-            'fields': ('created_at', 'updated_at', 'created_by', 'updated_by'),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
@@ -112,32 +97,13 @@ class CartAdmin(admin.ModelAdmin):
         return format_html('${}', obj.unit_price)
     unit_price_display.short_description = 'Unit Price'
 
-    def status_badge(self, obj):
-        if obj.is_deleted:
-            return format_html(
-                '<span style="background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">Deleted</span>'
-            )
-        else:
-            return format_html(
-                '<span style="background-color: #28a745; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">Active</span>'
-            )
-    status_badge.short_description = 'Status'
 
-    def soft_delete_items(self, request, queryset):
-        updated = 0
-        for item in queryset:
-            item.soft_delete(user=request.user)
-            updated += 1
-        self.message_user(request, f"Soft deleted {updated} cart item(s).")
-    soft_delete_items.short_description = "Soft delete selected cart items"
 
-    def restore_items(self, request, queryset):
-        updated = 0
-        for item in queryset:
-            item.restore(user=request.user)
-            updated += 1
-        self.message_user(request, f"Restored {updated} cart item(s).")
-    restore_items.short_description = "Restore selected cart items"
+    def delete_items(self, request, queryset):
+        count = queryset.count()
+        queryset.delete()
+        self.message_user(request, f"Deleted {count} cart item(s).")
+    delete_items.short_description = "Delete selected cart items"
 
     def export_to_csv(self, request, queryset):
         import csv
@@ -149,7 +115,7 @@ class CartAdmin(admin.ModelAdmin):
         writer = csv.writer(response)
         writer.writerow([
             'ID', 'User', 'Store', 'Product', 'Variant', 'Quantity', 
-            'Size', 'Color', 'Unit Price', 'Total Price', 'Status', 'Created At'
+            'Size', 'Color', 'Unit Price', 'Total Price', 'Created At'
         ])
         
         for item in queryset:
@@ -164,7 +130,6 @@ class CartAdmin(admin.ModelAdmin):
                 item.selected_color or '', 
                 str(item.unit_price),
                 str(item.total_price), 
-                'Deleted' if item.is_deleted else 'Active',
                 item.created_at.strftime('%Y-%m-%d %H:%M:%S') if item.created_at else ''
             ])
         
@@ -184,7 +149,6 @@ class CartAdmin(admin.ModelAdmin):
                 updated = 0
                 for item in queryset:
                     item.quantity = new_quantity
-                    item._current_user = request.user
                     item.save()
                     updated += 1
                 self.message_user(request, f"Updated quantity to {new_quantity} for {updated} item(s).")
@@ -203,15 +167,14 @@ class CartAdmin(admin.ModelAdmin):
         
         for item in queryset:
             try:
-                if not item.is_deleted:
-                    wishlist_item, created = Wishlist.objects.get_or_create(
-                        user=item.user,
-                        product=item.product,
-                        store=item.store,
-                        defaults={'variant': item.variant}
-                    )
-                    item.soft_delete(user=request.user)
-                    moved += 1
+                wishlist_item, created = Wishlist.objects.get_or_create(
+                    user=item.user,
+                    product=item.product,
+                    store=item.store,
+                    defaults={'variant': item.variant}
+                )
+                item.delete()
+                moved += 1
             except Exception:
                 errors += 1
         
@@ -224,15 +187,10 @@ class CartAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         """Optimize queryset with select_related"""
         return super().get_queryset(request).select_related(
-            'user', 'product', 'store', 'variant', 'created_by', 'updated_by'
+            'user', 'product', 'store', 'variant'
         )
 
-    def get_readonly_fields(self, request, obj=None):
-        """Make certain fields readonly based on object state"""
-        readonly_fields = list(super().get_readonly_fields(request, obj))
-        if obj and obj.is_deleted:
-            readonly_fields.extend(['user', 'store', 'product', 'variant', 'quantity'])
-        return readonly_fields
+
 
     class Media:
         css = {

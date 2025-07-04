@@ -30,8 +30,7 @@ class CartViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Get user's cart items with optimized queries"""
         return Cart.objects.filter(
-            user=self.request.user,
-            is_deleted=False
+            user=self.request.user
         ).select_related(
             'product', 'product__store', 'store', 'variant'
         )
@@ -46,15 +45,15 @@ class CartViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Create cart item with user assignment"""
-        serializer.save(user=self.request.user, _current_user=self.request.user)
+        serializer.save(user=self.request.user)
 
     def perform_update(self, serializer):
-        """Update cart item with audit trail"""
-        serializer.save(_current_user=self.request.user)
+        """Update cart item"""
+        serializer.save()
 
     def perform_destroy(self, instance):
-        """Soft delete cart item"""
-        instance.soft_delete(user=self.request.user)
+        """Delete cart item"""
+        instance.delete()
 
     @action(detail=False, methods=['get'])
     def get_user_cart(self, request):
@@ -203,13 +202,12 @@ class CartViewSet(viewsets.ModelViewSet):
                 # Update quantity
                 new_quantity = existing_item.quantity + serializer.validated_data.get('quantity', 1)
                 existing_item.quantity = new_quantity
-                existing_item._current_user = request.user
                 existing_item.save()
                 cart_serializer = CartSerializer(existing_item)
                 return Response(cart_serializer.data, status=status.HTTP_200_OK)
             else:
                 # Create new item
-                cart_item = serializer.save(user=request.user, _current_user=request.user)
+                cart_item = serializer.save(user=request.user)
                 cart_serializer = CartSerializer(cart_item)
                 return Response(cart_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -242,7 +240,6 @@ class CartViewSet(viewsets.ModelViewSet):
                     try:
                         cart_item = self.get_queryset().get(id=serializer.validated_data['cart_id'])
                         cart_item.quantity = serializer.validated_data['quantity']
-                        cart_item._current_user = request.user
                         cart_item.save()
                         results.append({
                             'id': str(cart_item.id),
@@ -279,8 +276,7 @@ class CartViewSet(viewsets.ModelViewSet):
             cart_items = self.get_queryset()
             count = cart_items.count()
             
-            for item in cart_items:
-                item.soft_delete(user=request.user)
+            cart_items.delete()
             
             return Response({
                 'message': f'Cleared {count} items from cart',
@@ -415,7 +411,7 @@ class CartViewSet(viewsets.ModelViewSet):
                     )
                     
                     # Remove from cart
-                    cart_item.soft_delete(user=request.user)
+                    cart_item.delete()
                     
                     results.append({
                         'id': str(cart_id),
