@@ -67,15 +67,14 @@ class CartSerializer(serializers.ModelSerializer):
 
         return data
 
-class CartCreateSerializer(serializers.ModelSerializer):
+class CartCreateSerializer(serializers.Serializer):
     """Serializer for creating cart items"""
-    product_id = serializers.UUIDField(write_only=True)
-    variant_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
-    store_id = serializers.UUIDField(write_only=True)
-
-    class Meta:
-        model = Cart
-        fields = ['product_id', 'variant_id', 'store_id', 'quantity', 'selected_size', 'selected_color']
+    product_id = serializers.UUIDField()
+    variant_id = serializers.UUIDField(required=False, allow_null=True)
+    store_id = serializers.UUIDField()
+    quantity = serializers.IntegerField(min_value=1, default=1)
+    selected_size = serializers.CharField(max_length=10, required=False, allow_null=True, allow_blank=True)
+    selected_color = serializers.CharField(max_length=50, required=False, allow_null=True, allow_blank=True)
 
     def validate(self, data):
         """Validate cart creation data"""
@@ -93,28 +92,39 @@ class CartCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Product does not belong to the selected store")
 
         # Validate variant if provided
+        variant = None
         if data.get('variant_id'):
             try:
                 variant = ProductVariant.objects.get(id=data['variant_id'], product=product)
-                data['variant'] = variant
             except ProductVariant.DoesNotExist:
                 raise serializers.ValidationError("Invalid variant for this product")
 
+        # Check stock availability
+        if variant:
+            if data['quantity'] > variant.stock:
+                raise serializers.ValidationError(f"Insufficient stock. Available: {variant.stock}")
+        else:
+            if data['quantity'] > product.stock:
+                raise serializers.ValidationError(f"Insufficient stock. Available: {product.stock}")
+
+        # Store the actual objects for creation
         data['product'] = product
         data['store'] = store
+        data['variant'] = variant
         return data
 
     def create(self, validated_data):
-        # Remove the write-only IDs before creating the Cart instance
-        validated_data.pop('product_id', None)
-        validated_data.pop('store_id', None)
-        validated_data.pop('variant_id', None)
+        # Extract the actual model fields
+        cart_data = {
+            'product': validated_data['product'],
+            'store': validated_data['store'],
+            'variant': validated_data['variant'],
+            'quantity': validated_data['quantity'],
+            'selected_size': validated_data.get('selected_size'),
+            'selected_color': validated_data.get('selected_color'),
+        }
         
-        # Ensure variant is None if not provided
-        if 'variant' not in validated_data:
-            validated_data['variant'] = None
-            
-        return super().create(validated_data)
+        return Cart.objects.create(**cart_data)
 
 class CartUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating cart items"""
