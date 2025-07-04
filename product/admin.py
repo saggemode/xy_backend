@@ -172,13 +172,16 @@ class ProductVariantAdmin(admin.ModelAdmin):
                     products = Product.objects.all()
                     
                     for product in products:
-                        sizes = ','.join(product.available_sizes) if product.available_sizes else ''
-                        colors = ','.join(product.available_colors) if product.available_colors else ''
+                        # Convert sizes and colors to strings and filter out empty values
+                        sizes = ','.join(str(size) for size in product.available_sizes) if product.available_sizes else ''
+                        colors = ','.join(str(color) for color in product.available_colors) if product.available_colors else ''
                         
                         # Add data attributes to the choice
                         choice_text = f"{product.name} ({product.store.name}) - ${product.base_price}"
-                        if sizes or colors:
-                            choice_text += f" [Sizes: {sizes}] [Colors: {colors}]"
+                        if sizes:
+                            choice_text += f" [Sizes: {sizes}]"
+                        if colors:
+                            choice_text += f" [Colors: {colors}]"
                         
                         new_choices.append((str(product.id), choice_text))
                     
