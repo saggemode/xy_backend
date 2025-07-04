@@ -1,7 +1,8 @@
 from django.shortcuts import render, get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status, generics, viewsets
+from rest_framework import status, generics, viewsets, permissions
+from rest_framework.exceptions import PermissionDenied
 from django.contrib.auth import get_user_model
 import random
 from django.db.models import Count, Avg, Q, F
@@ -13,14 +14,14 @@ from datetime import datetime
 
 from .serializers import (
     CategorySerializer, SubCategorySerializer, ProductSerializer,
-    ProductVariantSerializer,
+    ProductVariantSerializer, ProductDiscountSerializer,
       FlashSaleSerializer,
     FlashSaleItemSerializer, ProductReviewSerializer
 )
 
 from .models import (
     Category, SubCategory, Product, ProductVariant,
-      FlashSale, FlashSaleItem, ProductReview
+      FlashSale, FlashSaleItem, ProductReview, ProductDiscount
 )
 
 User = get_user_model()
@@ -96,9 +97,9 @@ class ProductViewSet(viewsets.ModelViewSet):
         # On sale filter
         on_sale = self.request.query_params.get('on_sale', None)
         if on_sale == 'true':
-            queryset = queryset.filter(discount_price__isnull=False).filter(discount_price__lt=F('base_price'))
+            queryset = queryset.filter(discounts__is_active=True)
         elif on_sale == 'false':
-            queryset = queryset.filter(Q(discount_price__isnull=True) | Q(discount_price__gte=F('base_price')))
+            queryset = queryset.filter(discounts__isnull=True)
 
         # Featured filter
         featured = self.request.query_params.get('featured', None)
@@ -284,8 +285,8 @@ class ProductViewSet(viewsets.ModelViewSet):
     def on_sale(self, request):
         """Returns products that are currently on sale."""
         queryset = self.get_queryset().filter(
-            discount_price__isnull=False
-        ).filter(discount_price__lt=F('base_price'))
+            discounts__is_active=True
+        ).distinct()
         paginated_queryset = self.paginate_queryset(queryset)
         serializer = self.get_serializer(paginated_queryset, many=True)
         return self.get_paginated_response(serializer.data) if paginated_queryset is not None else Response(serializer.data)
@@ -474,7 +475,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             'is_on_sale': product.on_sale,
             'current_price': str(product.current_price),
             'base_price': str(product.base_price),
-            'discount_percentage': round(((product.base_price - product.current_price) / product.base_price) * 100, 2) if product.on_sale else 0,
+            'discount_percentage': product.discount_percentage,
             'created_at': product.created_at,
             'last_updated': product.updated_at
         }
@@ -806,6 +807,27 @@ class FlashSaleViewSet(viewsets.ModelViewSet):
 class FlashSaleItemViewSet(viewsets.ModelViewSet):
     queryset = FlashSaleItem.objects.all()
     serializer_class = FlashSaleItemSerializer
+
+class ProductDiscountViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing product discounts"""
+    serializer_class = ProductDiscountSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """Get discounts for products owned by the authenticated user"""
+        return ProductDiscount.objects.filter(
+            product__store__owner=self.request.user
+        ).select_related('product')
+    
+    def perform_create(self, serializer):
+        """Create discount with validation"""
+        product = serializer.validated_data['product']
+        
+        # Check if user owns the product
+        if product.store.owner != self.request.user:
+            raise PermissionDenied("You can only create discounts for your own products")
+        
+        serializer.save()
 
 class ProductReviewViewSet(viewsets.ModelViewSet):
     serializer_class = ProductReviewSerializer

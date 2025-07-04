@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (
     Product, ProductVariant, Category, SubCategory, Coupon,  
-    CouponUsage, FlashSale, FlashSaleItem, ProductReview
+    CouponUsage, FlashSale, FlashSaleItem, ProductReview, ProductDiscount
 )
 from store.models import Store
 
@@ -42,6 +42,15 @@ class SimpleStoreSerializer(serializers.ModelSerializer):
             'id', 'name', 'logo', 'is_verified', 'location'
         ]
 
+class ProductDiscountSerializer(serializers.ModelSerializer):
+    """Serializer for product discounts"""
+    class Meta:
+        model = ProductDiscount
+        fields = [
+            'id', 'discount_type', 'discount_value', 'start_date', 'end_date',
+            'is_active', 'min_quantity', 'max_discount_amount'
+        ]
+
 class ProductSerializer(serializers.ModelSerializer):
     variants = ProductVariantSerializer(many=True, read_only=True)
     reviews = ProductReviewSerializer(many=True, read_only=True)
@@ -50,6 +59,9 @@ class ProductSerializer(serializers.ModelSerializer):
     subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
     on_sale = serializers.BooleanField(read_only=True)
     current_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    original_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    discount_percentage = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    active_discount = ProductDiscountSerializer(read_only=True)
     review_count = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
 
@@ -65,9 +77,9 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'brand', 'base_price', 'discount_price', 'current_price', 'on_sale',
-            'description', 'image_urls', 'stock', 'is_featured', 'has_variants',
-            'sku', 'slug', 'status',
+            'id', 'name', 'brand', 'base_price', 'original_price', 'current_price', 'on_sale',
+            'discount_percentage', 'active_discount', 'description', 'image_urls', 'stock', 
+            'is_featured', 'has_variants', 'sku', 'slug', 'status',
             'available_sizes', 'available_colors', 'created_at', 'updated_at', 
             'store', 'category', 'subcategory', 'variants', 'category_name', 
             'subcategory_name', 'reviews', 'review_count', 'average_rating'

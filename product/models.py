@@ -66,7 +66,6 @@ class Product(models.Model):
     name = models.CharField(max_length=255)
     brand = models.CharField(max_length=255)
     base_price = models.DecimalField(max_digits=10, decimal_places=2)
-    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     description = models.TextField()
     image_urls = models.JSONField(default=list)  # List of image URLs
     stock = models.PositiveIntegerField()
@@ -119,8 +118,6 @@ class Product(models.Model):
         return f"{self.name} - {self.store.name}"
 
     def clean(self):
-        if self.discount_price and self.discount_price >= self.base_price:
-            raise ValidationError("Discount price must be less than the base price.")
         if self.store.status != 'active':
             raise ValidationError("Cannot create product for inactive store")
         if not self.store.is_verified:
@@ -179,12 +176,35 @@ class Product(models.Model):
             self.save(update_fields=['is_deleted', 'deleted_at', 'updated_by'])
 
     @property
+    def active_discount(self):
+        """Get the currently active discount for this product"""
+        return self.discounts.filter(is_active=True).first()
+    
+    @property
     def on_sale(self):
-        return self.discount_price is not None and self.discount_price < self.base_price
-
+        """Check if product has an active discount"""
+        return self.active_discount is not None
+    
     @property
     def current_price(self):
-        return self.discount_price if self.on_sale else self.base_price
+        """Calculate current price based on active discount"""
+        if not self.on_sale:
+            return self.base_price
+        
+        discount = self.active_discount
+        return discount.calculate_discount_price(self.base_price)
+    
+    @property
+    def discount_percentage(self):
+        """Get discount percentage if applicable"""
+        if self.on_sale and self.active_discount.discount_type == 'percentage':
+            return self.active_discount.discount_value
+        return 0
+    
+    @property
+    def original_price(self):
+        """Always return the base price"""
+        return self.base_price
 
     @classmethod
     def create_product(cls, store, name, description, base_price, categories=None):
@@ -206,6 +226,83 @@ class Product(models.Model):
             product.categories.set(categories)
         
         return product
+
+class ProductDiscount(models.Model):
+    DISCOUNT_TYPES = [
+        ('percentage', 'Percentage'),
+        ('fixed_amount', 'Fixed Amount'),
+        ('buy_one_get_one', 'Buy One Get One'),
+        ('tiered', 'Tiered Discount'),
+    ]
+    
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name=_('ID')
+    )
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='discounts')
+    discount_type = models.CharField(max_length=20, choices=DISCOUNT_TYPES)
+    discount_value = models.DecimalField(max_digits=10, decimal_places=2)  # Percentage or fixed amount
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+    min_quantity = models.PositiveIntegerField(default=1)
+    max_discount_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-start_date']
+        verbose_name = _('Product Discount')
+        verbose_name_plural = _('Product Discounts')
+    
+    def __str__(self):
+        return f"{self.product.name} - {self.get_discount_type_display()} ({self.discount_value})"
+    
+    def clean(self):
+        if self.start_date and self.end_date and self.start_date >= self.end_date:
+            raise ValidationError("End date must be after start date")
+        
+        if self.discount_type == 'percentage' and self.discount_value > 100:
+            raise ValidationError("Percentage discount cannot exceed 100%")
+        
+        if self.max_discount_amount and self.discount_type == 'percentage':
+            if self.max_discount_amount <= 0:
+                raise ValidationError("Maximum discount amount must be greater than 0")
+    
+    @property
+    def is_valid(self):
+        now = timezone.now()
+        return (
+            self.is_active and
+            now >= self.start_date and
+            now <= self.end_date
+        )
+    
+    def calculate_discount_price(self, base_price, quantity=1):
+        """Calculate the discounted price"""
+        if not self.is_valid or quantity < self.min_quantity:
+            return base_price
+            
+        if self.discount_type == 'percentage':
+            discount_amount = (base_price * self.discount_value) / 100
+            if self.max_discount_amount:
+                discount_amount = min(discount_amount, self.max_discount_amount)
+            return base_price - discount_amount
+            
+        elif self.discount_type == 'fixed_amount':
+            return max(0, base_price - self.discount_value)
+            
+        elif self.discount_type == 'buy_one_get_one':
+            if quantity >= 2:
+                # Calculate how many items are free
+                free_items = quantity // 2
+                total_cost = (quantity - free_items) * base_price
+                return total_cost / quantity  # Average price per item
+            return base_price
+            
+        return base_price
 
 class ProductVariant(models.Model):
     id = models.UUIDField(
@@ -251,7 +348,9 @@ class ProductVariant(models.Model):
 
     @property
     def current_price(self):
-        return self.product.base_price + self.price_adjustment
+        """Calculate current price including product discount and variant adjustment"""
+        base_price = self.product.current_price  # This includes any active discount
+        return base_price + self.price_adjustment
 
 class ProductReview(models.Model):
     id = models.UUIDField(
