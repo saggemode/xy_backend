@@ -14,25 +14,36 @@ class CartSerializer(serializers.ModelSerializer):
         read_only_fields = ['user', 'created_at', 'updated_at']
 
     def to_representation(self, instance):
-        """Custom representation to include basic product and store info"""
+        """Custom representation to include detailed product and store info"""
         data = super().to_representation(instance)
         
-        # Add basic product info
+        # Add detailed product info
         if instance.product:
             data['product_name'] = instance.product.name
             data['product_price'] = str(instance.product.current_price)
-            # Add product images
+            data['product_original_price'] = str(instance.product.original_price)
+            data['product_on_sale'] = instance.product.on_sale
+            data['product_discount_percentage'] = instance.product.discount_percentage
             data['product_images'] = instance.product.image_urls or []
+            data['product_sku'] = instance.product.sku
+            data['product_status'] = instance.product.status
         
         # Add basic store info
         if instance.store:
             data['store_name'] = instance.store.name
             data['store_status'] = getattr(instance.store, 'status', 'unknown')
         
-        # Add basic variant info
+        # Add detailed variant info
         if instance.variant:
             data['variant_name'] = instance.variant.name
+            data['variant_type'] = instance.variant.variant_type
             data['variant_price'] = str(instance.variant.current_price)
+            data['variant_base_price'] = str(instance.variant.base_price)
+            data['variant_pricing_mode'] = instance.variant.pricing_mode
+            if instance.variant.pricing_mode == 'adjustment':
+                data['variant_price_adjustment'] = str(instance.variant.price_adjustment)
+            elif instance.variant.pricing_mode == 'individual':
+                data['variant_individual_price'] = str(instance.variant.individual_price)
         
         return data
 
@@ -156,9 +167,12 @@ class CartUpdateSerializer(serializers.ModelSerializer):
         return data
 
 class CartSummarySerializer(serializers.Serializer):
-    """Serializer for cart summary"""
+    """Serializer for cart summary with sale information"""
     total_items = serializers.IntegerField()
     total_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    original_total_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    total_savings = serializers.DecimalField(max_digits=10, decimal_places=2)
+    items_on_sale = serializers.IntegerField()
     item_count = serializers.IntegerField()
     store = serializers.DictField()
     items = CartSerializer(many=True)

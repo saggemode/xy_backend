@@ -168,9 +168,31 @@ class CartViewSet(viewsets.ModelViewSet):
             total_price = sum(item.total_price for item in cart_items)
             store = cart_items.first().store
 
+            # Calculate sale information
+            original_total_price = 0
+            total_savings = 0
+            items_on_sale = 0
+            
+            for item in cart_items:
+                if item.variant:
+                    original_price = item.variant.base_price
+                    current_price = item.variant.current_price
+                else:
+                    original_price = item.product.original_price
+                    current_price = item.product.current_price
+                
+                original_total_price += original_price * item.quantity
+                total_savings += (original_price - current_price) * item.quantity
+                
+                if item.product.on_sale or (item.variant and item.variant.current_price != item.variant.base_price):
+                    items_on_sale += 1
+            
             serializer = CartSummarySerializer({
                 'total_items': total_items,
                 'total_price': total_price,
+                'original_total_price': original_total_price,
+                'total_savings': total_savings,
+                'items_on_sale': items_on_sale,
                 'item_count': cart_items.count(),
                 'store': store,
                 'items': cart_items
