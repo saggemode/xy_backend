@@ -15,17 +15,36 @@
         // Store product data
         var productData = {};
         
-        // Initialize product data from the page
+        // Initialize product data from the page by parsing the option text
         productSelect.find('option').each(function() {
             var option = $(this);
             var productId = option.val();
-            if (productId) {
-                // Extract sizes and colors from the option text or data attributes
-                var optionText = option.text();
-                // For now, we'll use a simple approach - you can enhance this
+            var optionText = option.text();
+            
+            if (productId && optionText) {
+                // Parse sizes and colors from the option text
+                var sizes = [];
+                var colors = [];
+                
+                // Extract sizes from [Sizes: S,M,L,XL] format
+                var sizesMatch = optionText.match(/\[Sizes: ([^\]]+)\]/);
+                if (sizesMatch) {
+                    sizes = sizesMatch[1].split(',').map(function(size) {
+                        return size.trim();
+                    });
+                }
+                
+                // Extract colors from [Colors: Red,Blue,Green] format
+                var colorsMatch = optionText.match(/\[Colors: ([^\]]+)\]/);
+                if (colorsMatch) {
+                    colors = colorsMatch[1].split(',').map(function(color) {
+                        return color.trim();
+                    });
+                }
+                
                 productData[productId] = {
-                    sizes: ['S', 'M', 'L', 'XL'], // Default sizes - you can make this dynamic
-                    colors: ['Red', 'Blue', 'Green', 'Black'] // Default colors - you can make this dynamic
+                    sizes: sizes,
+                    colors: colors
                 };
             }
         });
@@ -63,10 +82,22 @@
                 
                 // Replace the input field with select dropdown
                 variantNameField.replaceWith(selectHtml);
+                
+                // Add a helpful label
+                var label = variantNameField.closest('.form-row').find('label[for="id_name"]');
+                if (label.length > 0) {
+                    label.text('Variant Name (' + variantType.charAt(0).toUpperCase() + variantType.slice(1) + ' Options)');
+                }
             } else {
                 // Reset to text input if no options available
                 if (variantNameField.is('select')) {
                     variantNameField.replaceWith('<input type="text" name="name" id="id_name" class="vTextField" maxlength="100">');
+                }
+                
+                // Reset label
+                var label = variantNameField.closest('.form-row').find('label[for="id_name"]');
+                if (label.length > 0) {
+                    label.text('Variant Name');
                 }
             }
         }
