@@ -106,24 +106,6 @@ class ProductVariantForm(forms.ModelForm):
         model = ProductVariant
         fields = '__all__'
     
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
-        # Get the current instance to check if we have a product
-        instance = kwargs.get('instance')
-        if instance and instance.product:
-            # Set up choices based on variant type
-            self.setup_variant_choices(instance.product, instance.variant_type)
-    
-    def setup_variant_choices(self, product, variant_type):
-        """Setup choices for variant name based on type and product"""
-        if variant_type == 'size' and product.available_sizes:
-            choices = [('', '---------')] + [(size, size) for size in product.available_sizes]
-            self.fields['name'].widget = forms.Select(choices=choices)
-        elif variant_type == 'color' and product.available_colors:
-            choices = [('', '---------')] + [(color, color) for color in product.available_colors]
-            self.fields['name'].widget = forms.Select(choices=choices)
-    
     def clean(self):
         cleaned_data = super().clean()
         product = cleaned_data.get('product')
@@ -171,26 +153,30 @@ class ProductVariantAdmin(admin.ModelAdmin):
         # Add data attributes to product choices for JavaScript
         if 'product' in form.base_fields:
             product_field = form.base_fields['product']
-            if hasattr(product_field, 'choices'):
-                new_choices = [('', '---------')]
-                
-                for choice in product_field.choices[1:]:  # Skip the first empty choice
-                    product_id = choice[0]
-                    try:
-                        product = Product.objects.get(id=product_id)
+            
+            # Only modify choices if they exist and are properly formatted
+            if hasattr(product_field, 'choices') and product_field.choices:
+                try:
+                    new_choices = [('', '---------')]
+                    
+                    # Get all products with their variant data
+                    products = Product.objects.all()
+                    
+                    for product in products:
                         sizes = ','.join(product.available_sizes) if product.available_sizes else ''
                         colors = ','.join(product.available_colors) if product.available_colors else ''
                         
                         # Add data attributes to the choice
-                        choice_text = choice[1]
+                        choice_text = f"{product.name} ({product.store.name})"
                         if sizes or colors:
                             choice_text += f" [Sizes: {sizes}] [Colors: {colors}]"
                         
-                        new_choices.append((product_id, choice_text))
-                    except Product.DoesNotExist:
-                        new_choices.append(choice)
-                
-                product_field.choices = new_choices
+                        new_choices.append((str(product.id), choice_text))
+                    
+                    product_field.choices = new_choices
+                except Exception as e:
+                    # If there's any error, keep the original choices
+                    pass
         
         return form
     
