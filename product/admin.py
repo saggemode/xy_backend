@@ -115,11 +115,20 @@ class ProductVariantForm(forms.ModelForm):
         if product and variant_type and name:
             # Validate that the selected name is available for the product
             if variant_type == 'size' and product.available_sizes:
-                if name not in product.available_sizes:
-                    raise forms.ValidationError(f"'{name}' is not in the product's available sizes: {', '.join(product.available_sizes)}")
+                # For sizes, check if the name contains any of the available sizes
+                # This handles cases where the variant name might include the product name
+                available_sizes_str = [str(size) for size in product.available_sizes]
+                name_matches = any(str(size) in name for size in available_sizes_str)
+                
+                if not name_matches:
+                    raise forms.ValidationError(f"'{name}' does not contain any of the product's available sizes: {', '.join(available_sizes_str)}")
             elif variant_type == 'color' and product.available_colors:
-                if name not in product.available_colors:
-                    raise forms.ValidationError(f"'{name}' is not in the product's available colors: {', '.join(product.available_colors)}")
+                # For colors, check if the name contains any of the available colors
+                available_colors_str = [str(color) for color in product.available_colors]
+                name_matches = any(str(color) in name for color in available_colors_str)
+                
+                if not name_matches:
+                    raise forms.ValidationError(f"'{name}' does not contain any of the product's available colors: {', '.join(available_colors_str)}")
         
         return cleaned_data
 
