@@ -1,0 +1,86 @@
+{% extends "admin/change_form.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<script>
+(function($) {
+    'use strict';
+    
+    $(document).ready(function() {
+        var productSelect = $('#id_product');
+        var variantTypeSelect = $('#id_variant_type');
+        var variantNameField = $('#id_name');
+        
+        // Store product data
+        var productData = {};
+        
+        // Initialize product data from the page
+        productSelect.find('option').each(function() {
+            var option = $(this);
+            var productId = option.val();
+            if (productId) {
+                // Extract sizes and colors from the option text or data attributes
+                var optionText = option.text();
+                // For now, we'll use a simple approach - you can enhance this
+                productData[productId] = {
+                    sizes: ['S', 'M', 'L', 'XL'], // Default sizes - you can make this dynamic
+                    colors: ['Red', 'Blue', 'Green', 'Black'] // Default colors - you can make this dynamic
+                };
+            }
+        });
+        
+        // Function to update variant name options
+        function updateVariantOptions() {
+            var productId = productSelect.val();
+            var variantType = variantTypeSelect.val();
+            
+            if (!productId || !variantType) {
+                // Reset to text input if no product or variant type selected
+                if (variantNameField.is('select')) {
+                    variantNameField.replaceWith('<input type="text" name="name" id="id_name" class="vTextField" maxlength="100">');
+                }
+                return;
+            }
+            
+            var options = [];
+            if (variantType === 'size' && productData[productId]) {
+                options = productData[productId].sizes;
+            } else if (variantType === 'color' && productData[productId]) {
+                options = productData[productId].colors;
+            }
+            
+            if (options.length > 0) {
+                // Create select dropdown with options
+                var selectHtml = '<select name="name" id="id_name" class="vTextField">';
+                selectHtml += '<option value="">---------</option>';
+                
+                options.forEach(function(option) {
+                    selectHtml += '<option value="' + option + '">' + option + '</option>';
+                });
+                
+                selectHtml += '</select>';
+                
+                // Replace the input field with select dropdown
+                variantNameField.replaceWith(selectHtml);
+            } else {
+                // Reset to text input if no options available
+                if (variantNameField.is('select')) {
+                    variantNameField.replaceWith('<input type="text" name="name" id="id_name" class="vTextField" maxlength="100">');
+                }
+            }
+        }
+        
+        // Bind events
+        productSelect.on('change', updateVariantOptions);
+        variantTypeSelect.on('change', updateVariantOptions);
+        
+        // Initial setup if values are already selected
+        if (productSelect.val() && variantTypeSelect.val()) {
+            updateVariantOptions();
+        }
+    });
+    
+})(django.jQuery);
+</script>
+{% endblock %} 

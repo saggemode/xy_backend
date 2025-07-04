@@ -2,6 +2,12 @@ from django.contrib import admin
 from .models import Product, ProductVariant, Category, SubCategory, ProductReview, Coupon, CouponUsage, FlashSale, FlashSaleItem, ProductDiscount
 from django.utils import timezone
 from django.utils.html import format_html
+from django import forms
+from django.contrib.admin import SimpleListFilter
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
@@ -68,9 +74,76 @@ class ProductAdmin(admin.ModelAdmin):
             updated += 1
         self.message_user(request, f"Restored {updated} product(s).")
     restore_products.short_description = "Restore selected products"
+    
+    @method_decorator(csrf_exempt)
+    @method_decorator(require_http_methods(["GET"]))
+    def get_variant_options(self, request):
+        """AJAX endpoint to get variant options for a product"""
+        product_id = request.GET.get('product_id')
+        variant_type = request.GET.get('variant_type')
+        
+        if not product_id or not variant_type:
+            return JsonResponse({'options': []})
+        
+        try:
+            product = Product.objects.get(id=product_id)
+            
+            if variant_type == 'size':
+                options = product.available_sizes or []
+            elif variant_type == 'color':
+                options = product.available_colors or []
+            else:
+                options = []
+            
+            return JsonResponse({'options': options})
+        except Product.DoesNotExist:
+            return JsonResponse({'options': []})
+
+class ProductVariantForm(forms.ModelForm):
+    """Custom form for ProductVariant with dynamic variant options"""
+    
+    class Meta:
+        model = ProductVariant
+        fields = '__all__'
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Get the current instance to check if we have a product
+        instance = kwargs.get('instance')
+        if instance and instance.product:
+            # Set up choices based on variant type
+            self.setup_variant_choices(instance.product, instance.variant_type)
+    
+    def setup_variant_choices(self, product, variant_type):
+        """Setup choices for variant name based on type and product"""
+        if variant_type == 'size' and product.available_sizes:
+            choices = [('', '---------')] + [(size, size) for size in product.available_sizes]
+            self.fields['name'].widget = forms.Select(choices=choices)
+        elif variant_type == 'color' and product.available_colors:
+            choices = [('', '---------')] + [(color, color) for color in product.available_colors]
+            self.fields['name'].widget = forms.Select(choices=choices)
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        product = cleaned_data.get('product')
+        variant_type = cleaned_data.get('variant_type')
+        name = cleaned_data.get('name')
+        
+        if product and variant_type and name:
+            # Validate that the selected name is available for the product
+            if variant_type == 'size' and product.available_sizes:
+                if name not in product.available_sizes:
+                    raise forms.ValidationError(f"'{name}' is not in the product's available sizes: {', '.join(product.available_sizes)}")
+            elif variant_type == 'color' and product.available_colors:
+                if name not in product.available_colors:
+                    raise forms.ValidationError(f"'{name}' is not in the product's available colors: {', '.join(product.available_colors)}")
+        
+        return cleaned_data
 
 @admin.register(ProductVariant)
 class ProductVariantAdmin(admin.ModelAdmin):
+    form = ProductVariantForm
     list_display = ('name', 'variant_type', 'product', 'pricing_mode', 'price_display', 'stock', 'is_active')
     list_filter = ('variant_type', 'pricing_mode', 'is_active', 'product__store')
     search_fields = ('name', 'sku', 'product__name')
@@ -78,7 +151,7 @@ class ProductVariantAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('product', 'name', 'variant_type', 'sku')
+            'fields': ('product', 'variant_type', 'name', 'sku')
         }),
         ('Pricing', {
             'fields': ('pricing_mode', 'price_adjustment', 'individual_price', 'price_display')
@@ -91,6 +164,35 @@ class ProductVariantAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        
+        # Add data attributes to product choices for JavaScript
+        if 'product' in form.base_fields:
+            product_field = form.base_fields['product']
+            if hasattr(product_field, 'choices'):
+                new_choices = [('', '---------')]
+                
+                for choice in product_field.choices[1:]:  # Skip the first empty choice
+                    product_id = choice[0]
+                    try:
+                        product = Product.objects.get(id=product_id)
+                        sizes = ','.join(product.available_sizes) if product.available_sizes else ''
+                        colors = ','.join(product.available_colors) if product.available_colors else ''
+                        
+                        # Add data attributes to the choice
+                        choice_text = choice[1]
+                        if sizes or colors:
+                            choice_text += f" [Sizes: {sizes}] [Colors: {colors}]"
+                        
+                        new_choices.append((product_id, choice_text))
+                    except Product.DoesNotExist:
+                        new_choices.append(choice)
+                
+                product_field.choices = new_choices
+        
+        return form
     
     def price_display(self, obj):
         """Display the current price with formatting"""
