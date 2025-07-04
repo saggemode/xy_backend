@@ -168,7 +168,11 @@ class Product(models.Model):
             return self.base_price
         
         discount = self.active_discount
-        return discount.calculate_discount_price(self.base_price)
+        final_price = discount.calculate_discount_price(self.base_price)
+        
+        # Ensure proper decimal formatting
+        from decimal import Decimal, ROUND_HALF_UP
+        return Decimal(str(final_price)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     
     @property
     def discount_percentage(self):
@@ -301,17 +305,26 @@ class ProductDiscount(models.Model):
             discount_amount = (base_price * self.discount_value) / 100
             if self.max_discount_amount:
                 discount_amount = min(discount_amount, self.max_discount_amount)
-            return base_price - discount_amount
+            final_price = base_price - discount_amount
+            # Round to 2 decimal places to avoid precision issues
+            from decimal import Decimal, ROUND_HALF_UP
+            return Decimal(str(final_price)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             
         elif self.discount_type == 'fixed_amount':
-            return max(0, base_price - self.discount_value)
+            final_price = max(0, base_price - self.discount_value)
+            # Round to 2 decimal places
+            from decimal import Decimal, ROUND_HALF_UP
+            return Decimal(str(final_price)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             
         elif self.discount_type == 'buy_one_get_one':
             if quantity >= 2:
                 # Calculate how many items are free
                 free_items = quantity // 2
                 total_cost = (quantity - free_items) * base_price
-                return total_cost / quantity  # Average price per item
+                final_price = total_cost / quantity  # Average price per item
+                # Round to 2 decimal places
+                from decimal import Decimal, ROUND_HALF_UP
+                return Decimal(str(final_price)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
             return base_price
             
         return base_price
@@ -420,9 +433,13 @@ class ProductVariant(models.Model):
         # Apply product-level discounts if any
         if self.product.on_sale:
             discount = self.product.active_discount
-            return discount.calculate_discount_price(base_price)
+            final_price = discount.calculate_discount_price(base_price)
+        else:
+            final_price = base_price
         
-        return base_price
+        # Ensure proper decimal formatting
+        from decimal import Decimal, ROUND_HALF_UP
+        return Decimal(str(final_price)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     
     @property
     def base_price(self):
