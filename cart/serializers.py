@@ -104,6 +104,13 @@ class CartCreateSerializer(serializers.ModelSerializer):
         data['store'] = store
         return data
 
+    def create(self, validated_data):
+        # Remove the write-only IDs before creating the Cart instance
+        validated_data.pop('product_id', None)
+        validated_data.pop('store_id', None)
+        validated_data.pop('variant_id', None)
+        return super().create(validated_data)
+
 class CartUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating cart items"""
     
