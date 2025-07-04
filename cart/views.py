@@ -206,10 +206,8 @@ class CartViewSet(viewsets.ModelViewSet):
                 cart_serializer = CartSerializer(existing_item)
                 return Response(cart_serializer.data, status=status.HTTP_200_OK)
             else:
-                # Create new item with user assignment
-                cart_data = serializer.validated_data.copy()
-                cart_data['user'] = request.user
-                cart_item = Cart.objects.create(**cart_data)
+                # Create new item
+                cart_item = serializer.save(user=request.user)
                 cart_serializer = CartSerializer(cart_item)
                 return Response(cart_serializer.data, status=status.HTTP_201_CREATED)
 
