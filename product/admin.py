@@ -65,7 +65,7 @@ class ProductDiscountAdmin(admin.ModelAdmin):
                 '<span style="background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px;">INACTIVE</span>'
             )
     is_valid_badge.short_description = 'Status'
-    is_valid_badge.boolean = True
+    is_valid_badge.admin_order_field = 'is_active'
 
 admin.site.register(Category)
 admin.site.register(SubCategory)
