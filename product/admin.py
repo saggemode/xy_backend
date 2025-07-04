@@ -74,27 +74,39 @@ class ProductDiscountAdmin(admin.ModelAdmin):
     def product_base_price(self, obj):
         """Display the product's base price"""
         if obj.product:
-            return format_html('<strong>${}</strong>', obj.product.base_price)
+            return format_html('<strong>${:,.2f}</strong>', float(obj.product.base_price))
         return '-'
     product_base_price.short_description = 'Base Price'
     product_base_price.admin_order_field = 'product__base_price'
     
     def calculated_price(self, obj):
-        """Display the calculated discounted price"""
+        """Display the calculated discounted price with savings info"""
         if obj.product and obj.discount_value:
             try:
-                discounted_price = obj.calculate_discount_price(obj.product.base_price)
-                if discounted_price != obj.product.base_price:
+                base_price = float(obj.product.base_price)
+                discounted_price = float(obj.calculate_discount_price(base_price))
+                
+                if discounted_price != base_price:
+                    # Calculate savings
+                    savings = base_price - discounted_price
+                    savings_percentage = (savings / base_price) * 100
+                    
                     return format_html(
-                        '<span style="color: red; text-decoration: line-through;">${}</span> <strong style="color: green;">${}</strong>',
-                        obj.product.base_price, discounted_price
+                        '<div style="line-height: 1.4;">'
+                        '<div><span style="color: red; text-decoration: line-through;">${:,.2f}</span></div>'
+                        '<div><strong style="color: green; font-size: 14px;">${:,.2f}</strong></div>'
+                        '<div style="color: #666; font-size: 11px;">'
+                        '<span style="color: #28a745;">↓ Save ${:,.2f}</span> ({:.1f}% off)'
+                        '</div>'
+                        '</div>',
+                        base_price, discounted_price, savings, savings_percentage
                     )
                 else:
-                    return format_html('<strong>${}</strong>', obj.product.base_price)
-            except:
-                return format_html('<strong>${}</strong>', obj.product.base_price)
+                    return format_html('<strong>${:,.2f}</strong>', base_price)
+            except Exception as e:
+                return format_html('<strong>${:,.2f}</strong>', float(obj.product.base_price))
         return '-'
-    calculated_price.short_description = 'Discounted Price'
+    calculated_price.short_description = 'Discounted Price & Savings'
     
     def is_valid_badge(self, obj):
         if obj.is_valid:
