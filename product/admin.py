@@ -108,18 +108,19 @@ class ProductVariantAdmin(admin.ModelAdmin):
                         savings_percentage = (savings / base_price) * 100
                         return format_html(
                             '<div style="line-height: 1.4;">'
-                            '<div><span style="color: red; text-decoration: line-through;">${:,.2f}</span></div>'
-                            '<div><strong style="color: green; font-size: 14px;">${:,.2f}</strong></div>'
+                            '<div><span style="color: red; text-decoration: line-through;">${}</span></div>'
+                            '<div><strong style="color: green; font-size: 14px;">${}</strong></div>'
                             '<div style="color: #666; font-size: 11px;">'
-                            '<span style="color: #28a745;">↓ Save ${:,.2f}</span> ({:.1f}% off)'
+                            '<span style="color: #28a745;">↓ Save ${}</span> ({}% off)'
                             '</div>'
                             '</div>',
-                            base_price, discounted_price, savings, savings_percentage
+                            f"{base_price:,.2f}", f"{discounted_price:,.2f}", 
+                            f"{savings:,.2f}", f"{savings_percentage:.1f}"
                         )
                     else:
-                        return format_html('<strong>${:,.2f}</strong>', base_price)
+                        return format_html('<strong>${}</strong>', f"{base_price:,.2f}")
                 else:
-                    return format_html('<strong>${:,.2f}</strong>', base_price)
+                    return format_html('<strong>${}</strong>', f"{base_price:,.2f}")
             else:
                 # Show adjustment-based pricing
                 product_price = obj.product.current_price
@@ -127,18 +128,18 @@ class ProductVariantAdmin(admin.ModelAdmin):
                 
                 if obj.price_adjustment > 0:
                     return format_html(
-                        '<div>Product: ${:,.2f}</div>'
-                        '<div><strong>+${:,.2f} = ${:,.2f}</strong></div>',
-                        product_price, obj.price_adjustment, final_price
+                        '<div>Product: ${}</div>'
+                        '<div><strong>+${} = ${}</strong></div>',
+                        f"{product_price:,.2f}", f"{obj.price_adjustment:,.2f}", f"{final_price:,.2f}"
                     )
                 elif obj.price_adjustment < 0:
                     return format_html(
-                        '<div>Product: ${:,.2f}</div>'
-                        '<div><strong>-${:,.2f} = ${:,.2f}</strong></div>',
-                        product_price, abs(obj.price_adjustment), final_price
+                        '<div>Product: ${}</div>'
+                        '<div><strong>-${} = ${}</strong></div>',
+                        f"{product_price:,.2f}", f"{abs(obj.price_adjustment):,.2f}", f"{final_price:,.2f}"
                     )
                 else:
-                    return format_html('<strong>${:,.2f}</strong>', final_price)
+                    return format_html('<strong>${}</strong>', f"{final_price:,.2f}")
         except Exception as e:
             return f"Error: {str(e)}"
     
@@ -170,7 +171,7 @@ class ProductDiscountAdmin(admin.ModelAdmin):
     def product_base_price(self, obj):
         """Display the product's base price"""
         if obj.product:
-            return format_html('<strong>${:,.2f}</strong>', float(obj.product.base_price))
+            return format_html('<strong>${}</strong>', f"{float(obj.product.base_price):,.2f}")
         return '-'
     product_base_price.short_description = 'Base Price'
     product_base_price.admin_order_field = 'product__base_price'
@@ -189,18 +190,19 @@ class ProductDiscountAdmin(admin.ModelAdmin):
                     
                     return format_html(
                         '<div style="line-height: 1.4;">'
-                        '<div><span style="color: red; text-decoration: line-through;">${:,.2f}</span></div>'
-                        '<div><strong style="color: green; font-size: 14px;">${:,.2f}</strong></div>'
+                        '<div><span style="color: red; text-decoration: line-through;">${}</span></div>'
+                        '<div><strong style="color: green; font-size: 14px;">${}</strong></div>'
                         '<div style="color: #666; font-size: 11px;">'
-                        '<span style="color: #28a745;">↓ Save ${:,.2f}</span> ({:.1f}% off)'
+                        '<span style="color: #28a745;">↓ Save ${}</span> ({}% off)'
                         '</div>'
                         '</div>',
-                        base_price, discounted_price, savings, savings_percentage
+                        f"{base_price:,.2f}", f"{discounted_price:,.2f}", 
+                        f"{savings:,.2f}", f"{savings_percentage:.1f}"
                     )
                 else:
-                    return format_html('<strong>${:,.2f}</strong>', base_price)
+                    return format_html('<strong>${}</strong>', f"{base_price:,.2f}")
             except Exception as e:
-                return format_html('<strong>${:,.2f}</strong>', float(obj.product.base_price))
+                return format_html('<strong>${}</strong>', f"{float(obj.product.base_price):,.2f}")
         return '-'
     calculated_price.short_description = 'Discounted Price & Savings'
     
