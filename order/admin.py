@@ -25,7 +25,7 @@ class OrderAdmin(admin.ModelAdmin):
     # List display configuration
     list_display = [
         'order_number', 'user', 'store', 'status', 'payment_status',
-        'total_amount', 'item_count', 'created_at', 'is_deleted'
+        'total_amount', 'item_count', 'created_at'
     ]
     
     # List display links
@@ -34,7 +34,7 @@ class OrderAdmin(admin.ModelAdmin):
     # List filters for easy filtering
     list_filter = [
         'status', 'payment_status', 'payment_method', 'shipping_method',
-        'is_deleted', 'created_at', 'confirmed_at', 'shipped_at', 'delivered_at'
+        'created_at', 'confirmed_at', 'shipped_at', 'delivered_at'
     ]
     
     # Search fields
@@ -47,7 +47,7 @@ class OrderAdmin(admin.ModelAdmin):
     # Read-only fields
     readonly_fields = [
         'id', 'created_at', 'updated_at', 'confirmed_at', 'shipped_at',
-        'delivered_at', 'cancelled_at', 'deleted_at', 'item_count',
+        'delivered_at', 'cancelled_at', 'item_count',
         'absolute_url', 'can_cancel', 'can_refund', 'is_paid', 'is_shipped',
         'is_delivered', 'is_cancelled'
     ]
@@ -94,12 +94,7 @@ class OrderAdmin(admin.ModelAdmin):
             'fields': ['extra_data'],
             'classes': ('collapse',)
         }),
-        ('Soft Delete', {
-            'fields': (
-                'is_deleted', 'deleted_at'
-            ),
-            'classes': ('collapse',)
-        }),
+
         ('Audit Information', {
             'fields': (
                 'created_at', 'updated_at', 'confirmed_at', 'shipped_at',
@@ -119,8 +114,7 @@ class OrderAdmin(admin.ModelAdmin):
     # Custom actions
     actions = [
         'confirm_orders', 'ship_orders', 'deliver_orders', 'cancel_orders',
-        'refund_orders', 'soft_delete_orders', 'restore_orders',
-        'generate_tracking_numbers'
+        'refund_orders', 'generate_tracking_numbers'
     ]
     
     # Raw ID fields for better performance with large datasets
@@ -213,29 +207,7 @@ class OrderAdmin(admin.ModelAdmin):
         )
     refund_orders.short_description = "Refund selected orders"
     
-    def soft_delete_orders(self, request, queryset):
-        """Soft delete selected orders."""
-        updated = queryset.update(
-            is_deleted=True,
-            deleted_at=timezone.now()
-        )
-        self.message_user(
-            request,
-            f'Successfully soft deleted {updated} order(s).'
-        )
-    soft_delete_orders.short_description = "Soft delete selected orders"
-    
-    def restore_orders(self, request, queryset):
-        """Restore soft-deleted orders."""
-        updated = queryset.filter(is_deleted=True).update(
-            is_deleted=False,
-            deleted_at=None
-        )
-        self.message_user(
-            request,
-            f'Successfully restored {updated} order(s).'
-        )
-    restore_orders.short_description = "Restore soft-deleted orders"
+
     
     def generate_tracking_numbers(self, request, queryset):
         """Generate tracking numbers for selected orders."""
@@ -255,8 +227,8 @@ class OrderAdmin(admin.ModelAdmin):
     generate_tracking_numbers.short_description = "Generate tracking numbers"
     
     def has_delete_permission(self, request, obj=None):
-        """Only allow soft delete, not hard delete."""
-        return False
+        """Allow hard delete."""
+        return True
     
     def has_add_permission(self, request):
         """Allow adding orders."""

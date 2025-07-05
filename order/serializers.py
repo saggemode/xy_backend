@@ -246,9 +246,6 @@ class OrderSerializer(serializers.ModelSerializer):
             # Metadata
             'extra_data',
             
-            # Soft delete
-            'is_deleted', 'deleted_at',
-            
             # Audit fields
             'created_at', 'updated_at', 'confirmed_at', 'shipped_at',
             'delivered_at', 'cancelled_at',
@@ -265,7 +262,7 @@ class OrderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'order_number', 'created_at', 'updated_at', 'confirmed_at',
-            'shipped_at', 'delivered_at', 'cancelled_at', 'deleted_at',
+            'shipped_at', 'delivered_at', 'cancelled_at',
             'can_cancel', 'can_refund', 'is_paid', 'is_shipped',
             'is_delivered', 'is_cancelled', 'absolute_url'
         ]
@@ -511,8 +508,7 @@ class OrderBulkUpdateSerializer(serializers.Serializer):
         if request and request.user:
             user_orders = Order.objects.filter(
                 id__in=value,
-                user=request.user,
-                is_deleted=False
+                user=request.user
             )
             if len(user_orders) != len(value):
                 raise serializers.ValidationError(

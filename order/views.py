@@ -47,7 +47,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     # Comprehensive filtering options
     filterset_fields = [
         'status', 'payment_status', 'payment_method', 'shipping_method',
-        'user', 'store', 'is_deleted', 'currency', 'language'
+        'user', 'store', 'currency', 'language'
     ]
     
     # Search across multiple fields
@@ -66,13 +66,12 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Filter queryset based on user permissions and exclude soft-deleted orders.
+        Filter queryset based on user permissions.
         
         - Regular users can only see their own orders
         - Staff users can see all orders
-        - Always exclude soft-deleted orders for regular users
         """
-        queryset = super().get_queryset().filter(is_deleted=False)
+        queryset = super().get_queryset()
         
         # Staff users can see all orders
         if self.request.user.is_staff:
@@ -124,17 +123,18 @@ class OrderViewSet(viewsets.ModelViewSet):
             raise
 
     def perform_destroy(self, instance):
-        """Soft delete order instead of hard delete."""
+        """Delete order permanently."""
         try:
-            instance.soft_delete()
-            logger.info(f"Order soft deleted: {instance.order_number}")
+            order_number = instance.order_number
+            instance.delete()
+            logger.info(f"Order deleted: {order_number}")
             
             # Clear cache
             cache_key = f"order_count_{instance.user.id}"
             cache.delete(cache_key)
             
         except Exception as e:
-            logger.error(f"Error soft deleting order: {str(e)}")
+            logger.error(f"Error deleting order: {str(e)}")
             raise
 
     @action(detail=True, methods=['patch'])
@@ -407,8 +407,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                     
                     orders = Order.objects.filter(
                         id__in=order_ids,
-                        user=request.user,
-                        is_deleted=False
+                        user=request.user
                     )
                     
                     updated_count = 0
@@ -433,42 +432,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['delete'])
-    def soft_delete(self, request, pk=None):
-        """Soft delete an order."""
-        try:
-            order = self.get_object()
-            order.soft_delete()
-            
-            logger.info(f"Order soft deleted: {order.order_number}")
-            
-            return Response({'status': 'order soft-deleted'})
-            
-        except Exception as e:
-            logger.error(f"Error soft deleting order: {str(e)}")
-            return Response(
-                {'error': 'Failed to soft delete order'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
-    @action(detail=True, methods=['patch'])
-    def restore(self, request, pk=None):
-        """Restore a soft-deleted order (admin only)."""
-        try:
-            order = self.get_object()
-            order.restore()
-            
-            logger.info(f"Order restored: {order.order_number}")
-            
-            serializer = self.get_serializer(order)
-            return Response(serializer.data)
-            
-        except Exception as e:
-            logger.error(f"Error restoring order: {str(e)}")
-            return Response(
-                {'error': 'Failed to restore order'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
     def create_status_notification(self, order, status):
         """Create notification for order status change."""

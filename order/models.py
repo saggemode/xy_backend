@@ -275,20 +275,7 @@ class Order(models.Model):
         help_text=_('Additional order metadata')
     )
 
-    # Soft Delete
-    is_deleted = models.BooleanField(
-        default=False,
-        verbose_name=_('Is Deleted'),
-        help_text=_('Whether this order has been soft deleted'),
-        db_index=True
-    )
-    
-    deleted_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        verbose_name=_('Deleted At'),
-        help_text=_('Timestamp when the order was soft deleted')
-    )
+
 
     # Audit Fields
     created_at = models.DateTimeField(
@@ -362,7 +349,6 @@ class Order(models.Model):
             models.Index(fields=['user', 'created_at']),
             models.Index(fields=['store', 'status']),
             models.Index(fields=['payment_status', 'created_at']),
-            models.Index(fields=['is_deleted', 'created_at']),
             models.Index(fields=['order_number']),
             models.Index(fields=['tracking_number']),
         ]
@@ -478,19 +464,7 @@ class Order(models.Model):
             self.payment_status = self.PaymentStatus.REFUNDED
             self.save(update_fields=['status', 'payment_status'])
 
-    def soft_delete(self):
-        """Soft delete the order."""
-        if not self.is_deleted:
-            self.is_deleted = True
-            self.deleted_at = timezone.now()
-            self.save(update_fields=['is_deleted', 'deleted_at'])
 
-    def restore(self):
-        """Restore a soft-deleted order."""
-        if self.is_deleted:
-            self.is_deleted = False
-            self.deleted_at = None
-            self.save(update_fields=['is_deleted', 'deleted_at'])
 
     @property
     def items(self):
