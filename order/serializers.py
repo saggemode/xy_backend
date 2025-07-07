@@ -35,7 +35,8 @@ class SimpleProductSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Product
-        fields = ['id', 'name', 'slug', 'price', 'image']
+        fields = ['id', 'name', 'slug', 'base_price', 'current_price', 'on_sale', 
+                 'discount_percentage', 'original_price', 'sku', 'status']
         read_only_fields = ['id']
 
 
@@ -44,7 +45,8 @@ class SimpleProductVariantSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = ProductVariant
-        fields = ['id', 'name', 'sku', 'price']
+        fields = ['id', 'name', 'sku', 'base_price', 'current_price', 'pricing_mode',
+                 'price_adjustment', 'individual_price', 'variant_type']
         read_only_fields = ['id']
 
 
@@ -90,11 +92,13 @@ class OrderItemSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'order', 'product', 'product_name', 'product_slug', 'product_details',
             'variant', 'variant_name', 'variant_sku', 'variant_details',
-            'quantity', 'unit_price', 'total_price', 'notes', 'extra_data',
+            'quantity', 'unit_price', 'total_price', 'original_price', 'discount_amount',
+            'discount_percentage', 'was_on_sale', 'notes', 'extra_data',
             'created_at', 'updated_at', 'absolute_url'
         ]
         read_only_fields = [
-            'id', 'total_price', 'created_at', 'updated_at', 'absolute_url'
+            'id', 'total_price', 'original_price', 'discount_amount', 'discount_percentage',
+            'was_on_sale', 'created_at', 'updated_at', 'absolute_url'
         ]
 
     def get_absolute_url(self, obj):
@@ -166,9 +170,11 @@ class OrderItemListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'order', 'product', 'product_name', 'product_details',
             'variant', 'variant_name', 'quantity', 'unit_price', 'total_price',
+            'original_price', 'discount_amount', 'discount_percentage', 'was_on_sale',
             'created_at'
         ]
-        read_only_fields = ['id', 'total_price', 'created_at']
+        read_only_fields = ['id', 'total_price', 'original_price', 'discount_amount', 
+                           'discount_percentage', 'was_on_sale', 'created_at']
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -619,7 +625,11 @@ class OrderStatsSerializer(serializers.Serializer):
     cancelled_orders = serializers.IntegerField()
     refunded_orders = serializers.IntegerField()
     total_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
+    original_total_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
+    total_savings = serializers.DecimalField(max_digits=12, decimal_places=2)
     average_order_value = serializers.DecimalField(max_digits=12, decimal_places=2)
+    orders_with_discounts = serializers.IntegerField()
+    average_discount_percentage = serializers.DecimalField(max_digits=5, decimal_places=2)
     orders_by_status = serializers.DictField()
     orders_by_month = serializers.DictField()
     recent_orders = serializers.ListField(child=serializers.DictField())

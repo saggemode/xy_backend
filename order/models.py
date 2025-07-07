@@ -591,6 +591,39 @@ class OrderItem(models.Model):
         help_text=_('Total price for this item (quantity × unit price)'),
         validators=[MinValueValidator(Decimal('0.01'))]
     )
+    
+    # Sale Information (captured at time of order)
+    original_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        verbose_name=_('Original Price'),
+        help_text=_('Original price before any discounts'),
+        validators=[MinValueValidator(Decimal('0.01'))]
+    )
+    
+    discount_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name=_('Discount Amount'),
+        help_text=_('Discount amount applied to this item'),
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
+    
+    discount_percentage = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name=_('Discount Percentage'),
+        help_text=_('Discount percentage applied to this item'),
+        validators=[MinValueValidator(Decimal('0.00')), MaxValueValidator(Decimal('100.00'))]
+    )
+    
+    was_on_sale = models.BooleanField(
+        default=False,
+        verbose_name=_('Was On Sale'),
+        help_text=_('Whether this item was on sale when ordered')
+    )
 
     # Metadata
     notes = models.TextField(
@@ -652,6 +685,10 @@ class OrderItem(models.Model):
 
     def save(self, *args, **kwargs):
         """Override save to ensure data consistency."""
+        # Capture sale information if not already set
+        if not hasattr(self, '_sale_info_captured') or not self._sale_info_captured:
+            self._capture_sale_information()
+        
         # Auto-calculate total price if not set
         if not self.total_price:
             self.total_price = self.quantity * self.unit_price
@@ -661,6 +698,38 @@ class OrderItem(models.Model):
         
         # Update order totals
         self.order.update_totals()
+    
+    def _capture_sale_information(self):
+        """Capture sale information at the time of order."""
+        if self.variant:
+            # Get variant pricing information
+            self.original_price = self.variant.base_price
+            current_price = self.variant.current_price
+            
+            if current_price != self.original_price:
+                self.was_on_sale = True
+                self.discount_amount = self.original_price - current_price
+                if self.original_price > 0:
+                    self.discount_percentage = (self.discount_amount / self.original_price) * 100
+            else:
+                self.was_on_sale = False
+                self.discount_amount = Decimal('0.00')
+                self.discount_percentage = Decimal('0.00')
+        else:
+            # Get product pricing information
+            self.original_price = self.product.original_price
+            current_price = self.product.current_price
+            
+            if self.product.on_sale:
+                self.was_on_sale = True
+                self.discount_amount = self.original_price - current_price
+                self.discount_percentage = self.product.discount_percentage
+            else:
+                self.was_on_sale = False
+                self.discount_amount = Decimal('0.00')
+                self.discount_percentage = Decimal('0.00')
+        
+        self._sale_info_captured = True
 
     def get_absolute_url(self):
         """Get the absolute URL for this order item."""

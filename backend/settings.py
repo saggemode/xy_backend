@@ -246,6 +246,10 @@ REST_FRAMEWORK = {
     }
 }
 
+REST_AUTH_REGISTER_SERIALIZERS = {
+    'REGISTER_SERIALIZER': 'bank.serializers.CustomRegisterSerializer',
+}
+
 from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),

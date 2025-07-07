@@ -251,7 +251,7 @@ class OrderItemAdmin(admin.ModelAdmin):
     
     list_display = [
         'id', 'order', 'product', 'variant', 'quantity', 'unit_price',
-        'total_price', 'created_at'
+        'total_price', 'original_price', 'discount_amount', 'was_on_sale', 'created_at'
     ]
     
     list_display_links = ['id']
@@ -265,7 +265,8 @@ class OrderItemAdmin(admin.ModelAdmin):
     ]
     
     readonly_fields = [
-        'id', 'created_at', 'updated_at'
+        'id', 'created_at', 'updated_at', 'original_price', 'discount_amount',
+        'discount_percentage', 'was_on_sale'
     ]
     
     ordering = ['-created_at']
@@ -280,7 +281,8 @@ class OrderItemAdmin(admin.ModelAdmin):
         }),
         ('Item Details', {
             'fields': (
-                'quantity', 'unit_price', 'total_price'
+                'quantity', 'unit_price', 'total_price', 'original_price',
+                'discount_amount', 'discount_percentage', 'was_on_sale'
             )
         }),
         ('Additional Information', {
