@@ -11,7 +11,7 @@ class ReportViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Report.objects.filter(user=self.request.user)
+        return Report.objects.filter(reporter=self.request.user)
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        serializer.save(reporter=self.request.user)

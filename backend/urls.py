@@ -29,7 +29,7 @@ urlpatterns = [
     path('api/auth/', include('dj_rest_auth.urls')),  # Login, logout, password reset, etc.
     path('api/auth/registration/', include('dj_rest_auth.registration.urls')),  # Registration endpoints
 
-    path("accounts/", include("allauth.urls")),
+    # path("accounts/", include("allauth.urls")),  # Commented out to avoid conflicts
     
     path('api/', include('store.urls')),
     path('api/', include('product.urls')),
