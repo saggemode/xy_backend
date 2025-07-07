@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='orderitem',
             name='original_price',
-            field=models.DecimalField(decimal_places=2, default=datetime.datetime(2025, 7, 5, 23, 46, 31, 591721, tzinfo=datetime.timezone.utc), help_text='Original price before any discounts', max_digits=10, validators=[django.core.validators.MinValueValidator(Decimal('0.01'))], verbose_name='Original Price'),
+            field=models.DecimalField(decimal_places=2, default=Decimal('0.00'), help_text='Original price before any discounts', max_digits=10, validators=[django.core.validators.MinValueValidator(Decimal('0.01'))], verbose_name='Original Price'),
             preserve_default=False,
         ),
         migrations.AddField(

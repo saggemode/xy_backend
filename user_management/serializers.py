@@ -1,6 +1,5 @@
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from rest_framework import serializers
-from .models import UserProfile
 
 class CustomRegisterSerializer(RegisterSerializer):
     phone = serializers.CharField(required=True, max_length=15)
@@ -9,13 +8,3 @@ class CustomRegisterSerializer(RegisterSerializer):
         data = super().get_cleaned_data()
         data['phone'] = self.validated_data.get('phone', '')
         return data
-
-    def save(self, request):
-        user = super().save(request)
-        # Create UserProfile with phone number
-        UserProfile.objects.create(
-            user=user,
-            phone=self.validated_data.get('phone', ''),
-            is_verified=False
-        )
-        return user
