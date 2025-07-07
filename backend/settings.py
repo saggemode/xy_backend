@@ -207,19 +207,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom User Model (using default Django User model)
 AUTH_USER_MODEL = 'auth.User'
 
-# REST_FRAMEWORK = {
-#     'DEFAULT_AUTHENTICATION_CLASSES': (
-#         'rest_framework.authentication.TokenAuthentication',
-#     )
-# }
-
-# dj-rest-auth settings
-# REST_AUTH = {
-#     'SESSION_LOGIN': True,
-#     'USE_JWT': True,
-#     'JWT_AUTH_COOKIE': 'auth',
-#     'JWT_AUTH_HTTPONLY': False,
-# }
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 ACCOUNT_EMAIL_REQUIRED = False
@@ -246,16 +233,7 @@ REST_FRAMEWORK = {
     }
 }
 
-# dj-rest-auth settings
-REST_AUTH = {
-    'USE_JWT': True,
-    'JWT_AUTH_COOKIE': 'auth',
-    'JWT_AUTH_HTTPONLY': False,
-}
 
-REST_AUTH_REGISTER_SERIALIZERS = {
-    'REGISTER_SERIALIZER': 'bank.serializers.CustomRegisterSerializer',
-}
 
 from datetime import timedelta
 SIMPLE_JWT = {
