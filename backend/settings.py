@@ -246,6 +246,13 @@ REST_FRAMEWORK = {
     }
 }
 
+# dj-rest-auth settings
+REST_AUTH = {
+    'USE_JWT': True,
+    'JWT_AUTH_COOKIE': 'auth',
+    'JWT_AUTH_HTTPONLY': False,
+}
+
 REST_AUTH_REGISTER_SERIALIZERS = {
     'REGISTER_SERIALIZER': 'bank.serializers.CustomRegisterSerializer',
 }
