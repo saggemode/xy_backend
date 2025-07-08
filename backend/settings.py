@@ -63,7 +63,7 @@ INSTALLED_APPS = [
     'cities_light',
     'rest_framework',
     'rest_framework.authtoken',
-    'bank',
+    'customUser',
     'product',
     'wishlist',
     'cart',
@@ -205,7 +205,14 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom User Model (using default Django User model)
-AUTH_USER_MODEL = 'auth.User'
+# AUTH_USER_MODEL = 'auth.User'
+AUTH_USER_MODEL = 'customUser.CustomUser'
+ACCOUNT_ADAPTER = 'customUser.adapters.CustomAccountAdapter'
+
+REST_AUTH_REGISTER_SERIALIZERS = {
+    'REGISTER_SERIALIZER': 'customUser.serializers.CustomRegisterSerializer',
+}
+
 
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
