@@ -63,7 +63,6 @@ INSTALLED_APPS = [
     'cities_light',
     'rest_framework',
     'rest_framework.authtoken',
-    'customUser',
     'product',
     'wishlist',
     'cart',
@@ -123,31 +122,30 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-     
-}
-
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': getenv('PGDATABASE'),
-#         'USER': getenv('PGUSER'),
-#         'PASSWORD': getenv('PGPASSWORD'),
-#         'HOST': getenv('PGHOST'),
-#         'PORT': getenv('PGPORT', 5432),
-#          'OPTIONS': {
-#              'sslmode': 'require',
-#         }
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
 #     }
+     
 # }
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': getenv('PGDATABASE'),
+        'USER': getenv('PGUSER'),
+        'PASSWORD': getenv('PGPASSWORD'),
+        'HOST': getenv('PGHOST'),
+        'PORT': getenv('PGPORT', 5432),
+         'OPTIONS': {
+             'sslmode': 'require',
+        }
+    }
+}
 
 
 
@@ -205,31 +203,18 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Custom User Model (using default Django User model)
-# AUTH_USER_MODEL = 'auth.User'
-AUTH_USER_MODEL = 'customUser.CustomUser'
-ACCOUNT_ADAPTER = 'customUser.adapters.CustomAccountAdapter'
-
-REST_AUTH_REGISTER_SERIALIZERS = {
-    'REGISTER_SERIALIZER': 'customUser.serializers.CustomRegisterSerializer',
-}
-
+AUTH_USER_MODEL = 'auth.User'
 
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 ACCOUNT_EMAIL_REQUIRED = False
+
 # ACCOUNT_AUTHENTICATION_METHOD = 'username'
 
 # ACCOUNT_EMAIL_VERIFICATION = 'optional'
 
 ACCOUNT_LOGIN_METHODS = {'username'}
-ACCOUNT_SIGNUP_FIELDS = [
-    'username*',
-    'email*',
-    'password1*',
-    'password2*',
-    'full_name*',
-    'phone*',
-]
+
 
 
 
