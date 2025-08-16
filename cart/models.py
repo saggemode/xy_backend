@@ -55,6 +55,10 @@ class Cart(models.Model):
         if self.product.store != self.store:
             raise ValidationError(_('Product does not belong to the selected store'))
         
+        # Prevent users from adding their own products to cart
+        if self.product.store.owner == self.user:
+            raise ValidationError(_('You cannot add your own products to your cart'))
+        
         # Check if variant belongs to product
         if self.variant and self.variant.product != self.product:
             raise ValidationError(_('Variant does not belong to the selected product'))

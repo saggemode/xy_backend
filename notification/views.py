@@ -35,7 +35,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
     - Advanced filtering and searching
     - Bulk operations
     - Statistics and analytics
-    - Soft delete functionality
     - Caching for performance
     - Comprehensive error handling
     - Audit logging
@@ -48,8 +47,9 @@ class NotificationViewSet(viewsets.ModelViewSet):
     
     # Comprehensive filtering options
     filterset_fields = [
-        'notification_type', 'level', 'status', 'isRead', 'is_deleted',
-        'recipient', 'sender', 'user', 'orderId', 'source', 'priority'
+        'notification_type', 'level', 'status', 'isRead',
+        'recipient', 'sender', 'user', 'orderId', 'source', 'priority',
+        'transaction', 'bank_transfer', 'bill_payment', 'virtual_card'
     ]
     
     # Search across multiple fields
@@ -60,25 +60,21 @@ class NotificationViewSet(viewsets.ModelViewSet):
     
     # Ordering options
     ordering_fields = [
-        'created_at', 'updated_at', 'read_at', 'deleted_at',
+        'created_at', 'updated_at', 'read_at',
         'priority', 'notification_type', 'level', 'status', 'isRead'
     ]
     ordering = ['-created_at']
 
     def get_queryset(self):
         """
-        Filter queryset based on user permissions and exclude soft-deleted notifications.
-        
+        Filter queryset based on user permissions.
         - Regular users can only see their own notifications
         - Staff users can see all notifications
-        - Always exclude soft-deleted notifications for regular users
         """
-        queryset = super().get_queryset().filter(is_deleted=False)
-        
+        queryset = super().get_queryset()
         # Staff users can see all notifications
         if self.request.user.is_staff:
             return queryset
-        
         # Regular users can only see their own notifications
         return queryset.filter(recipient=self.request.user)
 
@@ -94,7 +90,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         """Set permissions based on action."""
-        if self.action in ['destroy', 'bulk_delete', 'clear_all']:
+        if self.action in ['destroy']:
             permission_classes = [IsAdminUser]
         else:
             permission_classes = [IsAuthenticated]
@@ -105,11 +101,9 @@ class NotificationViewSet(viewsets.ModelViewSet):
         try:
             notification = serializer.save(sender=self.request.user)
             logger.info(f"Notification created: {notification.id} for user {notification.recipient.username}")
-            
             # Clear cache for user's notification count
             cache_key = f"notification_count_{notification.recipient.id}"
             cache.delete(cache_key)
-            
         except Exception as e:
             logger.error(f"Error creating notification: {str(e)}")
             raise
@@ -119,28 +113,24 @@ class NotificationViewSet(viewsets.ModelViewSet):
         try:
             notification = serializer.save()
             logger.info(f"Notification updated: {notification.id}")
-            
             # Clear cache if read status changed
             if 'isRead' in serializer.validated_data:
                 cache_key = f"notification_count_{notification.recipient.id}"
                 cache.delete(cache_key)
-                
         except Exception as e:
             logger.error(f"Error updating notification: {str(e)}")
             raise
 
     def perform_destroy(self, instance):
-        """Soft delete notification instead of hard delete."""
+        """Hard delete notification."""
         try:
-            instance.soft_delete()
-            logger.info(f"Notification soft deleted: {instance.id}")
-            
+            instance.delete()
+            logger.info(f"Notification deleted: {instance.id}")
             # Clear cache
             cache_key = f"notification_count_{instance.recipient.id}"
             cache.delete(cache_key)
-            
         except Exception as e:
-            logger.error(f"Error soft deleting notification: {str(e)}")
+            logger.error(f"Error deleting notification: {str(e)}")
             raise
 
     @action(detail=True, methods=['patch'])
@@ -149,16 +139,12 @@ class NotificationViewSet(viewsets.ModelViewSet):
         try:
             notification = self.get_object()
             notification.mark_as_read()
-            
             serializer = self.get_serializer(notification)
             logger.info(f"Notification marked as read: {notification.id}")
-            
             # Clear cache
             cache_key = f"notification_count_{notification.recipient.id}"
             cache.delete(cache_key)
-            
             return Response(serializer.data)
-            
         except Exception as e:
             logger.error(f"Error marking notification as read: {str(e)}")
             return Response(
@@ -172,16 +158,12 @@ class NotificationViewSet(viewsets.ModelViewSet):
         try:
             notification = self.get_object()
             notification.mark_as_unread()
-            
             serializer = self.get_serializer(notification)
             logger.info(f"Notification marked as unread: {notification.id}")
-            
             # Clear cache
             cache_key = f"notification_count_{notification.recipient.id}"
             cache.delete(cache_key)
-            
             return Response(serializer.data)
-            
         except Exception as e:
             logger.error(f"Error marking notification as unread: {str(e)}")
             return Response(
@@ -194,19 +176,14 @@ class NotificationViewSet(viewsets.ModelViewSet):
         """Get current user's notifications with caching."""
         cache_key = f"my_notifications_{request.user.id}"
         cached_data = cache.get(cache_key)
-        
         if cached_data and not request.query_params:
             return Response(cached_data)
-        
         try:
             notifications = self.get_queryset().filter(recipient=request.user)
             serializer = self.get_serializer(notifications, many=True)
-            
             # Cache for 5 minutes
             cache.set(cache_key, serializer.data, 300)
-            
             return Response(serializer.data)
-            
         except Exception as e:
             logger.error(f"Error fetching user notifications: {str(e)}")
             return Response(
@@ -224,7 +201,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
             )
             serializer = self.get_serializer(notifications, many=True)
             return Response(serializer.data)
-            
         except Exception as e:
             logger.error(f"Error fetching unread notifications: {str(e)}")
             return Response(
@@ -244,7 +220,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
             )
             serializer = self.get_serializer(notifications, many=True)
             return Response(serializer.data)
-            
         except Exception as e:
             logger.error(f"Error fetching urgent notifications: {str(e)}")
             return Response(
@@ -256,83 +231,67 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def bulk_mark_read(self, request):
         """Mark multiple notifications as read."""
         serializer = NotificationBulkUpdateSerializer(data=request.data, context={'request': request})
-        
         if serializer.is_valid():
             try:
                 with transaction.atomic():
                     notification_ids = serializer.validated_data['notification_ids']
                     notifications = Notification.objects.filter(
                         id__in=notification_ids,
-                        recipient=request.user,
-                        is_deleted=False
+                        recipient=request.user
                     )
-                    
                     # Update all notifications
                     updated_count = notifications.update(
                         isRead=True,
                         read_at=timezone.now(),
                         status='read'
                     )
-                    
                     # Clear cache
                     cache_key = f"notification_count_{request.user.id}"
                     cache.delete(cache_key)
-                    
                     logger.info(f"Bulk marked {updated_count} notifications as read for user {request.user.username}")
-                    
                     return Response({
                         'message': f'Marked {updated_count} notifications as read',
                         'updated_count': updated_count
                     })
-                    
             except Exception as e:
                 logger.error(f"Error in bulk mark read: {str(e)}")
                 return Response(
                     {'error': 'Failed to mark notifications as read'},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'])
     def bulk_mark_unread(self, request):
         """Mark multiple notifications as unread."""
         serializer = NotificationBulkUpdateSerializer(data=request.data, context={'request': request})
-        
         if serializer.is_valid():
             try:
                 with transaction.atomic():
                     notification_ids = serializer.validated_data['notification_ids']
                     notifications = Notification.objects.filter(
                         id__in=notification_ids,
-                        recipient=request.user,
-                        is_deleted=False
+                        recipient=request.user
                     )
-                    
                     updated_count = notifications.update(
                         isRead=False,
                         read_at=None,
                         status='delivered'
                     )
-                    
                     # Clear cache
                     cache_key = f"notification_count_{request.user.id}"
                     cache.delete(cache_key)
-                    
                     logger.info(f"Bulk marked {updated_count} notifications as unread for user {request.user.username}")
-                    
                     return Response({
                         'message': f'Marked {updated_count} notifications as unread',
                         'updated_count': updated_count
                     })
-                    
             except Exception as e:
                 logger.error(f"Error in bulk mark unread: {str(e)}")
                 return Response(
                     {'error': 'Failed to mark notifications as unread'},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['get'])
@@ -340,13 +299,10 @@ class NotificationViewSet(viewsets.ModelViewSet):
         """Get comprehensive notification statistics for the current user."""
         cache_key = f"notification_stats_{request.user.id}"
         cached_stats = cache.get(cache_key)
-        
         if cached_stats:
             return Response(cached_stats)
-        
         try:
             queryset = self.get_queryset().filter(recipient=request.user)
-            
             # Basic counts
             total_count = queryset.count()
             unread_count = queryset.filter(isRead=False).count()
@@ -358,26 +314,21 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 action_text__isnull=False,
                 action_url__isnull=False
             ).count()
-            
             # Grouped statistics
             by_type = dict(queryset.values('notification_type').annotate(
                 count=Count('id')
             ).values_list('notification_type', 'count'))
-            
             by_level = dict(queryset.values('level').annotate(
                 count=Count('id')
             ).values_list('level', 'count'))
-            
             by_status = dict(queryset.values('status').annotate(
                 count=Count('id')
             ).values_list('status', 'count'))
-            
             # Recent activity (last 7 days)
             seven_days_ago = timezone.now() - timedelta(days=7)
             recent_activity = queryset.filter(
                 created_at__gte=seven_days_ago
             ).values('id', 'title', 'notification_type', 'created_at', 'isRead')[:10]
-            
             stats = {
                 'total_notifications': total_count,
                 'unread_count': unread_count,
@@ -389,49 +340,14 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 'notifications_by_status': by_status,
                 'recent_activity': list(recent_activity),
             }
-            
             # Cache for 10 minutes
             cache.set(cache_key, stats, 600)
-            
             serializer = NotificationStatsSerializer(stats)
             return Response(serializer.data)
-            
         except Exception as e:
             logger.error(f"Error generating notification stats: {str(e)}")
             return Response(
                 {'error': 'Failed to generate notification statistics'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=False, methods=['delete'])
-    def clear_all(self, request):
-        """Clear all notifications for the current user (soft delete)."""
-        try:
-            with transaction.atomic():
-                notifications = self.get_queryset().filter(recipient=request.user)
-                count = notifications.count()
-                
-                # Soft delete all notifications
-                notifications.update(
-                    is_deleted=True,
-                    deleted_at=timezone.now()
-                )
-                
-                # Clear cache
-                cache_key = f"notification_count_{request.user.id}"
-                cache.delete(cache_key)
-                
-                logger.info(f"Cleared {count} notifications for user {request.user.username}")
-                
-                return Response({
-                    'message': f'Cleared {count} notifications',
-                    'cleared_count': count
-                })
-                
-        except Exception as e:
-            logger.error(f"Error clearing notifications: {str(e)}")
-            return Response(
-                {'error': 'Failed to clear notifications'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -446,7 +362,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
             )
             serializer = self.get_serializer(notifications, many=True)
             return Response(serializer.data)
-            
         except Exception as e:
             logger.error(f"Error fetching recent notifications: {str(e)}")
             return Response(
@@ -458,13 +373,11 @@ class NotificationViewSet(viewsets.ModelViewSet):
     def by_type(self, request):
         """Get notifications filtered by type."""
         notification_type = request.query_params.get('type')
-        
         if not notification_type:
             return Response(
                 {'error': 'type parameter is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
         try:
             notifications = self.get_queryset().filter(
                 recipient=request.user,
@@ -472,56 +385,10 @@ class NotificationViewSet(viewsets.ModelViewSet):
             )
             serializer = self.get_serializer(notifications, many=True)
             return Response(serializer.data)
-            
         except Exception as e:
             logger.error(f"Error fetching notifications by type: {str(e)}")
             return Response(
                 {'error': 'Failed to fetch notifications by type'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=True, methods=['delete'])
-    def soft_delete(self, request, pk=None):
-        """Soft delete a notification."""
-        try:
-            notification = self.get_object()
-            notification.soft_delete()
-            
-            # Clear cache
-            cache_key = f"notification_count_{notification.recipient.id}"
-            cache.delete(cache_key)
-            
-            logger.info(f"Notification soft deleted: {notification.id}")
-            
-            return Response({'status': 'notification soft-deleted'})
-            
-        except Exception as e:
-            logger.error(f"Error soft deleting notification: {str(e)}")
-            return Response(
-                {'error': 'Failed to soft delete notification'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=True, methods=['patch'])
-    def restore(self, request, pk=None):
-        """Restore a soft-deleted notification (admin only)."""
-        try:
-            notification = self.get_object()
-            notification.restore()
-            
-            # Clear cache
-            cache_key = f"notification_count_{notification.recipient.id}"
-            cache.delete(cache_key)
-            
-            logger.info(f"Notification restored: {notification.id}")
-            
-            serializer = self.get_serializer(notification)
-            return Response(serializer.data)
-            
-        except Exception as e:
-            logger.error(f"Error restoring notification: {str(e)}")
-            return Response(
-                {'error': 'Failed to restore notification'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
@@ -539,7 +406,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
             }
             serializer = NotificationPreferencesSerializer(preferences)
             return Response(serializer.data)
-        
         elif request.method == 'POST':
             serializer = NotificationPreferencesSerializer(data=request.data)
             if serializer.is_valid():
@@ -547,3 +413,18 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 logger.info(f"User {request.user.username} updated notification preferences")
                 return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['patch'])
+    def restore(self, request, pk=None):
+        """Stub restore method for NotificationViewSet to fix schema generation."""
+        return Response({'detail': 'Restore not implemented.'}, status=501)
+
+    @action(detail=True, methods=['delete'])
+    def soft_delete(self, request, pk=None):
+        """Stub soft_delete method for NotificationViewSet to fix schema generation."""
+        return Response({'detail': 'Soft delete not implemented.'}, status=501)
+
+    @action(detail=False, methods=['delete'])
+    def clear_all(self, request):
+        """Stub clear_all method for NotificationViewSet to fix schema generation."""
+        return Response({'detail': 'Clear all not implemented.'}, status=501)

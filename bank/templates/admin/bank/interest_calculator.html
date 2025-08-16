@@ -1,0 +1,254 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Interest Rate Calculator{% endblock %}
+
+{% block extrastyle %}
+<style>
+    .interest-calculator {
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .calculator-form {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    
+    .form-group {
+        margin-bottom: 15px;
+    }
+    
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+    }
+    
+    .form-group input, .form-group select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+    
+    .btn-calculate {
+        background: #007bff;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    
+    .btn-calculate:hover {
+        background: #0056b3;
+    }
+    
+    .rates-info {
+        background: #e9ecef;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    
+    .rates-info h3 {
+        margin-top: 0;
+        color: #495057;
+    }
+    
+    .rate-tier {
+        margin-bottom: 10px;
+        padding: 10px;
+        background: white;
+        border-radius: 4px;
+        border-left: 4px solid #007bff;
+    }
+    
+    .calculation-result {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        border-radius: 5px;
+        padding: 20px;
+        margin-top: 20px;
+    }
+    
+    .calculation-result h3 {
+        margin-top: 0;
+        color: #155724;
+    }
+    
+    .breakdown-item {
+        background: white;
+        padding: 10px;
+        margin: 5px 0;
+        border-radius: 4px;
+        border-left: 3px solid #28a745;
+    }
+    
+    .error-message {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    
+    .summary-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .stat-card {
+        background: white;
+        padding: 15px;
+        border-radius: 5px;
+        text-align: center;
+        border: 1px solid #dee2e6;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #007bff;
+    }
+    
+    .stat-label {
+        color: #6c757d;
+        font-size: 14px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="interest-calculator">
+    <h1>Interest Rate Calculator</h1>
+    
+    {% if error %}
+    <div class="error-message">
+        <strong>Error:</strong> {{ error }}
+    </div>
+    {% endif %}
+    
+    <!-- Interest Rates Information -->
+    <div class="rates-info">
+        <h3>Current Interest Rate Structure</h3>
+        <div class="rate-tier">
+            <strong>Tier 1:</strong> {{ rates_info.tier_1.description }} - {{ rates_info.tier_1.rate }}
+        </div>
+        <div class="rate-tier">
+            <strong>Tier 2:</strong> {{ rates_info.tier_2.description }} - {{ rates_info.tier_2.rate }}
+        </div>
+        <div class="rate-tier">
+            <strong>Tier 3:</strong> {{ rates_info.tier_3.description }} - {{ rates_info.tier_3.rate }}
+        </div>
+    </div>
+    
+    <!-- Calculator Form -->
+    <div class="calculator-form">
+        <h3>Calculate Interest</h3>
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="balance">Balance Amount:</label>
+                <input type="number" id="balance" name="balance" step="0.01" min="0" 
+                       value="{{ input_balance.amount|default:'' }}" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="currency">Currency:</label>
+                <select id="currency" name="currency">
+                    <option value="NGN" {% if input_currency == 'NGN' %}selected{% endif %}>NGN (Nigerian Naira)</option>
+                    <option value="USD" {% if input_currency == 'USD' %}selected{% endif %}>USD (US Dollar)</option>
+                    <option value="EUR" {% if input_currency == 'EUR' %}selected{% endif %}>EUR (Euro)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="days">Calculation Period (Days):</label>
+                <input type="number" id="days" name="days" min="1" max="3650" 
+                       value="{{ input_days|default:365 }}" required>
+            </div>
+            
+            <button type="submit" class="btn-calculate">Calculate Interest</button>
+        </form>
+    </div>
+    
+    <!-- Calculation Results -->
+    {% if calculation_result %}
+    <div class="calculation-result">
+        <h3>Interest Calculation Results</h3>
+        
+        <div class="summary-stats">
+            <div class="stat-card">
+                <div class="stat-value">₦{{ calculation_result.total_interest.amount|floatformat:2 }}</div>
+                <div class="stat-label">Total Interest</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ calculation_result.effective_rate|floatformat:2 }}%</div>
+                <div class="stat-label">Effective Annual Rate</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ input_days }}</div>
+                <div class="stat-label">Calculation Period (Days)</div>
+            </div>
+        </div>
+        
+        <h4>Interest Breakdown by Tier:</h4>
+        {% for tier in calculation_result.breakdown %}
+        <div class="breakdown-item">
+            <strong>Tier {{ tier.tier }}:</strong> {{ tier.balance_in_tier }} at {{ tier.rate|floatformat:1 }}% p.a. = {{ tier.interest }}
+            <br><small>{{ tier.description }}</small>
+        </div>
+        {% endfor %}
+        
+        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+            <h4>Quick Calculations:</h4>
+            <p><strong>Monthly Interest (30 days):</strong> ₦{{ calculation_result.monthly_interest|floatformat:2 }}</p>
+            <p><strong>Weekly Interest (7 days):</strong> ₦{{ calculation_result.weekly_interest|floatformat:2 }}</p>
+            <p><strong>Daily Interest (1 day):</strong> ₦{{ calculation_result.daily_interest|floatformat:2 }}</p>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Demo Calculations -->
+    <div style="margin-top: 30px; background: #f8f9fa; padding: 20px; border-radius: 5px;">
+        <h3>Example Calculations</h3>
+        <p>Here are some example calculations to help you understand the tiered interest structure:</p>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-top: 15px;">
+            <div style="background: white; padding: 15px; border-radius: 5px;">
+                <h4>₦5,000 Balance</h4>
+                <p><strong>Annual Interest:</strong> ₦1,000 (20% p.a.)</p>
+                <p><strong>Monthly Interest:</strong> ₦83.33</p>
+                <p><em>Tier 1 only</em></p>
+            </div>
+            
+            <div style="background: white; padding: 15px; border-radius: 5px;">
+                <h4>₦25,000 Balance</h4>
+                <p><strong>Annual Interest:</strong> ₦4,400</p>
+                <p><strong>Monthly Interest:</strong> ₦366.67</p>
+                <p><em>Tier 1 + Tier 2</em></p>
+            </div>
+            
+            <div style="background: white; padding: 15px; border-radius: 5px;">
+                <h4>₦150,000 Balance</h4>
+                <p><strong>Annual Interest:</strong> ₦19,400</p>
+                <p><strong>Monthly Interest:</strong> ₦1,616.67</p>
+                <p><em>All three tiers</em></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

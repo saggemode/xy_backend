@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Verify OTP - Fintech Platform</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f8f9fa; }
+        .container { max-width: 400px; margin: 60px auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); padding: 32px; }
+        h2 { text-align: center; color: #2d3e50; }
+        form { margin-top: 24px; }
+        .form-group { margin-bottom: 18px; }
+        label { display: block; margin-bottom: 6px; color: #333; }
+        input { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .errorlist { color: #dc3545; margin: 0 0 10px 0; list-style: none; padding: 0; }
+        button { width: 100%; background: #007bff; color: #fff; border: none; padding: 12px; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; position: relative; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .info { text-align: center; margin-bottom: 18px; color: #555; }
+        
+        /* Loading spinner styles */
+        .spinner { 
+            display: none; 
+            width: 20px; 
+            height: 20px; 
+            border: 2px solid #ffffff; 
+            border-top: 2px solid transparent; 
+            border-radius: 50%; 
+            animation: spin 1s linear infinite; 
+            position: absolute; 
+            left: 50%; 
+            top: 50%; 
+            transform: translate(-50%, -50%); 
+        }
+        @keyframes spin { 
+            0% { transform: translate(-50%, -50%) rotate(0deg); } 
+            100% { transform: translate(-50%, -50%) rotate(360deg); } 
+        }
+        .loading .spinner { display: inline-block; }
+        .loading .button-text { opacity: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Verify Your Account</h2>
+        <div class="info">
+            {% if user %}
+                An OTP has been sent to {{ user.email }} and your phone number.<br>
+                Please enter it below to verify your account.
+            {% endif %}
+        </div>
+        <form method="post" id="verifyForm">
+            {% csrf_token %}
+            {% for field in form %}
+                <div class="form-group">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    {% if field.errors %}
+                        <ul class="errorlist">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            {% if form.non_field_errors %}
+                <ul class="errorlist">{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+            <button type="submit" id="verifyBtn">
+                <span class="spinner"></span>
+                <span class="button-text">Verify OTP</span>
+            </button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('verifyForm').addEventListener('submit', function(e) {
+            const button = document.getElementById('verifyBtn');
+            const buttonText = button.querySelector('.button-text');
+            
+            // Show loading state
+            button.classList.add('loading');
+            button.disabled = true;
+            buttonText.textContent = 'Verifying...';
+            
+            // Optional: Add a small delay to show the loading state
+            setTimeout(() => {
+                // Form will submit normally
+            }, 100);
+        });
+    </script>
+</body>
+</html> 

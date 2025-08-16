@@ -1,0 +1,371 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Staff Management Dashboard{% endblock %}
+
+{% block extrastyle %}
+<style>
+    .dashboard-container {
+        padding: 20px;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .stat-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-left: 4px solid #007bff;
+    }
+    
+    .stat-card h3 {
+        margin: 0 0 10px 0;
+        color: #333;
+        font-size: 16px;
+    }
+    
+    .stat-number {
+        font-size: 32px;
+        font-weight: bold;
+        color: #007bff;
+    }
+    
+    .section {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .section h2 {
+        margin: 0 0 20px 0;
+        color: #333;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 10px;
+    }
+    
+    .table-responsive {
+        overflow-x: auto;
+    }
+    
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .table th,
+    .table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    .table th {
+        background-color: #f8f9fa;
+        font-weight: bold;
+    }
+    
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    
+    .status-pending { background-color: #fff3cd; color: #856404; }
+    .status-approved { background-color: #d4edda; color: #155724; }
+    .status-rejected { background-color: #f8d7da; color: #721c24; }
+    .status-escalated { background-color: #cce5ff; color: #004085; }
+    
+    .priority-high { background-color: #f8d7da; color: #721c24; }
+    .priority-medium { background-color: #fff3cd; color: #856404; }
+    .priority-low { background-color: #d4edda; color: #155724; }
+    
+    .role-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: bold;
+        background-color: #e9ecef;
+        color: #495057;
+    }
+    
+    .performance-bar {
+        width: 100%;
+        height: 8px;
+        background-color: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .performance-fill {
+        height: 100%;
+        background-color: #007bff;
+        transition: width 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <h1>Staff Management Dashboard</h1>
+    <p>Welcome, {{ current_staff.user.get_full_name }} ({{ current_staff.role.name|title }})</p>
+    
+    <!-- Statistics Grid -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Total Active Staff</h3>
+            <div class="stat-number">{{ total_staff }}</div>
+        </div>
+        
+        <div class="stat-card">
+            <h3>Pending Approvals</h3>
+            <div class="stat-number">{{ pending_approvals.count }}</div>
+        </div>
+        
+        <div class="stat-card">
+            <h3>Open Escalations</h3>
+            <div class="stat-number">{{ open_escalations.count }}</div>
+        </div>
+        
+        {% if can_manage_staff %}
+        <div class="stat-card">
+            <h3>Staff Under Management</h3>
+            <div class="stat-number">{{ staff_under_management.count }}</div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Staff by Role -->
+    <div class="section">
+        <h2>Staff Distribution by Role</h2>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Role</th>
+                        <th>Level</th>
+                        <th>Staff Count</th>
+                        <th>Max Approval Limit</th>
+                        <th>Permissions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for role in staff_by_role %}
+                    <tr>
+                        <td>
+                            <span class="role-badge">{{ role.name|title }}</span>
+                        </td>
+                        <td>{{ role.level }}</td>
+                        <td>{{ role.staff_count }}</td>
+                        <td>₦{{ role.max_transaction_approval|floatformat:0 }}</td>
+                        <td>
+                            {% if role.can_approve_kyc %}KYC, {% endif %}
+                            {% if role.can_manage_staff %}Staff, {% endif %}
+                            {% if role.can_view_reports %}Reports, {% endif %}
+                            {% if role.can_override_transactions %}Override, {% endif %}
+                            {% if role.can_handle_escalations %}Escalations{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Recent Activities -->
+    <div class="section">
+        <h2>Recent Staff Activities</h2>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Staff Member</th>
+                        <th>Role</th>
+                        <th>Activity</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for activity in recent_activities %}
+                    <tr>
+                        <td>{{ activity.staff.user.get_full_name }}</td>
+                        <td>
+                            <span class="role-badge">{{ activity.staff.role.name|title }}</span>
+                        </td>
+                        <td>{{ activity.description }}</td>
+                        <td>{{ activity.timestamp|date:"M d, Y H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Pending Approvals -->
+    <div class="section">
+        <h2>Pending Transaction Approvals</h2>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Transaction</th>
+                        <th>Amount</th>
+                        <th>Requested By</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for approval in pending_approvals %}
+                    <tr>
+                        <td>{{ approval.transaction.reference }}</td>
+                        <td>₦{{ approval.transaction.amount|floatformat:2 }}</td>
+                        <td>{{ approval.requested_by.user.get_full_name }}</td>
+                        <td>
+                            <span class="status-badge status-{{ approval.status }}">
+                                {{ approval.status|title }}
+                            </span>
+                        </td>
+                        <td>{{ approval.created_at|date:"M d, Y H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Open Escalations -->
+    <div class="section">
+        <h2>Open Customer Escalations</h2>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Subject</th>
+                        <th>Customer</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Assigned To</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for escalation in open_escalations %}
+                    <tr>
+                        <td>{{ escalation.subject }}</td>
+                        <td>{{ escalation.customer.get_full_name }}</td>
+                        <td>
+                            <span class="status-badge priority-{{ escalation.priority }}">
+                                {{ escalation.priority|title }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge status-{{ escalation.status }}">
+                                {{ escalation.status|title }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if escalation.assigned_to %}
+                                {{ escalation.assigned_to.user.get_full_name }}
+                            {% else %}
+                                Unassigned
+                            {% endif %}
+                        </td>
+                        <td>{{ escalation.created_at|date:"M d, Y H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Staff Performance -->
+    {% if can_view_reports %}
+    <div class="section">
+        <h2>Staff Performance (Last 30 Days)</h2>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Staff Member</th>
+                        <th>Role</th>
+                        <th>Activities</th>
+                        <th>Approvals</th>
+                        <th>Escalations Resolved</th>
+                        <th>Performance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for performance in staff_performance %}
+                    <tr>
+                        <td>{{ performance.staff.user.get_full_name }}</td>
+                        <td>
+                            <span class="role-badge">{{ performance.staff.role.name|title }}</span>
+                        </td>
+                        <td>{{ performance.activities }}</td>
+                        <td>{{ performance.approvals }}</td>
+                        <td>{{ performance.escalations_resolved }}</td>
+                        <td>
+                            <div class="performance-bar">
+                                {% widthratio performance.activities 10 100 as width %}
+                                <div class="performance-fill" style="width: {{ width }}%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Subordinates (for managers) -->
+    {% if can_manage_staff and subordinates %}
+    <div class="section">
+        <h2>Your Subordinates</h2>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Role</th>
+                        <th>Employee ID</th>
+                        <th>Branch</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for subordinate in subordinates %}
+                    <tr>
+                        <td>{{ subordinate.user.get_full_name }}</td>
+                        <td>
+                            <span class="role-badge">{{ subordinate.role.name|title }}</span>
+                        </td>
+                        <td>{{ subordinate.employee_id }}</td>
+                        <td>{{ subordinate.branch }}</td>
+                        <td>
+                            {% if subordinate.is_active %}
+                                <span class="status-badge status-approved">Active</span>
+                            {% else %}
+                                <span class="status-badge status-rejected">Inactive</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 

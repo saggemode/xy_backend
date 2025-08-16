@@ -1,0 +1,59 @@
+{% load static %}
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title">
+            <i class="fas fa-users"></i> User Statistics
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="info-box">
+                    <span class="info-box-icon bg-info">
+                        <i class="fas fa-user"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Total Users</span>
+                        <span class="info-box-number">{{ total_users|default:0 }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-box">
+                    <span class="info-box-icon bg-success">
+                        <i class="fas fa-check-circle"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Verified Users</span>
+                        <span class="info-box-number">{{ verified_users|default:0 }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="info-box">
+                    <span class="info-box-icon bg-warning">
+                        <i class="fas fa-user-plus"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">New Today</span>
+                        <span class="info-box-number">{{ new_users_today|default:0 }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-box">
+                    <span class="info-box-icon bg-primary">
+                        <i class="fas fa-percentage"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Verification Rate</span>
+                        <span class="info-box-number">{{ verification_rate|floatformat:1 }}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

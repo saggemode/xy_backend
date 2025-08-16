@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>KYC Verification</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f8f9fa; }
+        .container { max-width: 400px; margin: 60px auto; background: #fff; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); padding: 32px; }
+        h2 { text-align: center; color: #2d3e50; }
+        form { margin-top: 24px; }
+        .form-group { margin-bottom: 18px; }
+        label { display: block; margin-bottom: 6px; color: #333; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .errorlist { color: #dc3545; margin: 0 0 10px 0; list-style: none; padding: 0; }
+        button { width: 100%; background: #007bff; color: #fff; border: none; padding: 12px; border-radius: 5px; font-size: 16px; font-weight: bold; cursor: pointer; position: relative; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        .result { color: green; margin-top: 18px; }
+        .error { color: #dc3545; margin-top: 18px; }
+        
+        /* Loading spinner styles */
+        .spinner { 
+            display: none; 
+            width: 20px; 
+            height: 20px; 
+            border: 2px solid #ffffff; 
+            border-top: 2px solid transparent; 
+            border-radius: 50%; 
+            animation: spin 1s linear infinite; 
+            position: absolute; 
+            left: 50%; 
+            top: 50%; 
+            transform: translate(-50%, -50%); 
+        }
+        @keyframes spin { 
+            0% { transform: translate(-50%, -50%) rotate(0deg); } 
+            100% { transform: translate(-50%, -50%) rotate(360deg); } 
+        }
+        .loading .spinner { display: inline-block; }
+        .loading .button-text { opacity: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Enter Your BVN or NIN</h2>
+        <form method="post" id="kycForm">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" id="kycBtn">
+                <span class="spinner"></span>
+                <span class="button-text">Submit</span>
+            </button>
+        </form>
+        {% if result %}
+            <div class="result">KYC Success: {{ result }}</div>
+        {% endif %}
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+    </div>
+
+    <script>
+        document.getElementById('kycForm').addEventListener('submit', function(e) {
+            const button = document.getElementById('kycBtn');
+            const buttonText = button.querySelector('.button-text');
+            
+            // Show loading state
+            button.classList.add('loading');
+            button.disabled = true;
+            buttonText.textContent = 'Verifying...';
+            
+            // Optional: Add a small delay to show the loading state
+            setTimeout(() => {
+                // Form will submit normally
+            }, 100);
+        });
+    </script>
+</body>
+</html> 

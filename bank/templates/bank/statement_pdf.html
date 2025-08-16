@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Account Statement</title>
+    <style>
+        body { font-family: 'DejaVu Sans', Arial, sans-serif; margin: 0; padding: 0; }
+        .header { background: #003366; color: #fff; padding: 20px; text-align: center; }
+        .info { margin: 20px; }
+        .info-table { width: 100%; margin-bottom: 20px; }
+        .info-table td { padding: 4px 8px; }
+        .date-range { font-size: 1.1em; margin-bottom: 10px; }
+        table.statement { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        table.statement th, table.statement td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        table.statement th { background: #f0f0f0; }
+        .credit { color: #28a745; font-weight: bold; }
+        .debit { color: #dc3545; font-weight: bold; }
+        .summary { margin: 20px; font-size: 1.1em; }
+        .footer { text-align: center; color: #888; font-size: 0.9em; margin: 30px 0 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Account Statement</h1>
+    </div>
+    <div class="info">
+        <table class="info-table">
+            <tr><td><strong>User:</strong></td><td>{{ user.username }} ({{ user.email }})</td></tr>
+            <tr><td><strong>Wallet:</strong></td><td>{{ wallet.account_number }}</td></tr>
+            <tr><td><strong>Currency:</strong></td><td>{{ wallet.currency }}</td></tr>
+        </table>
+        <div class="date-range">
+            <strong>Date Range:</strong> {{ date_from }} - {{ date_to }}
+        </div>
+    </div>
+    <table class="statement">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Reference</th>
+                <th>Description</th>
+                <th>Type</th>
+                <th>Channel</th>
+                <th>Status</th>
+                <th>Amount</th>
+                <th>Balance After</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for tx in transactions %}
+            <tr>
+                <td>{{ tx.timestamp|date:'Y-m-d H:i' }}</td>
+                <td>{{ tx.reference }}</td>
+                <td>{{ tx.description }}</td>
+                <td>{{ tx.get_type_display }}</td>
+                <td>{{ tx.get_channel_display }}</td>
+                <td>{{ tx.get_status_display }}</td>
+                <td class="{% if tx.type == 'credit' %}credit{% else %}debit{% endif %}">
+                    {% if tx.type == 'credit' %}+{% else %}-{% endif %}₦{{ tx.amount|floatformat:2 }}
+                </td>
+                <td>₦{{ tx.balance_after|floatformat:2 }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <div class="summary">
+        <strong>Total Credits:</strong> ₦{{ total_credits|floatformat:2 }}<br>
+        <strong>Total Debits:</strong> ₦{{ total_debits|floatformat:2 }}<br>
+        <strong>Opening Balance:</strong> ₦{{ opening_balance|floatformat:2 }}<br>
+        <strong>Closing Balance:</strong> ₦{{ closing_balance|floatformat:2 }}
+    </div>
+    <div class="footer">
+        Generated on {{ now|date:'Y-m-d H:i' }} | Powered by Your Fintech Platform
+    </div>
+</body>
+</html> 

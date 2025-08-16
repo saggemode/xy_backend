@@ -432,6 +432,20 @@ class OrderViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['patch'])
+    def restore(self, request, pk=None):
+        """Stub restore method for OrderViewSet to fix schema generation."""
+        return Response({'detail': 'Restore not implemented.'}, status=501)
+
+    @action(detail=True, methods=['delete'])
+    def soft_delete(self, request, pk=None):
+        """Stub soft_delete method for OrderViewSet to fix schema generation."""
+        return Response({'detail': 'Soft delete not implemented.'}, status=501)
+
+    @action(detail=False, methods=['delete'])
+    def clear_all(self, request):
+        """Stub clear_all method for OrderViewSet to fix schema generation."""
+        return Response({'detail': 'Clear all not implemented.'}, status=501)
 
 
     def create_status_notification(self, order, status):

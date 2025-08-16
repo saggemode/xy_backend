@@ -60,6 +60,8 @@ class Order(models.Model):
         CASH_ON_DELIVERY = 'cash_on_delivery', _('Cash on Delivery')
         DIGITAL_WALLET = 'digital_wallet', _('Digital Wallet')
         CRYPTOCURRENCY = 'cryptocurrency', _('Cryptocurrency')
+        XYSAVE = 'xysave', _('XySave Account')
+        WALLET = 'wallet', _('Wallet')
 
     class ShippingMethod(models.TextChoices):
         """Available shipping methods."""

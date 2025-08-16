@@ -1,0 +1,1 @@
+# Accounting app for double-entry ledger accounting

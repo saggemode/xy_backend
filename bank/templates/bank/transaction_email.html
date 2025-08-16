@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { font-family: Arial, sans-serif; color: #222; }
+        .container { max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 8px; padding: 24px; background: #fafbfc; }
+        .header { color: #0a4d8c; font-size: 22px; font-weight: bold; margin-bottom: 16px; }
+        .details { margin: 18px 0; }
+        .label { font-weight: bold; }
+        .footer { margin-top: 32px; color: #888; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">{{ subject }}</div>
+        <p>Dear {{ user_full_name }},</p>
+        <p>
+            {% if is_credit %}
+                You have <b>received</b> a transfer of <b>{{ amount }} {{ currency }}</b>
+                {% if sender_name %} from <b>{{ sender_name }}</b>{% endif %}.
+            {% else %}
+                Your transaction of <b>{{ amount }} {{ currency }}</b> ({{ description }}) is now <b>{{ status }}</b>.
+            {% endif %}
+        </p>
+        <div class="details">
+            <div><span class="label">Reference:</span> {{ reference }}</div>
+            <div><span class="label">Type:</span> {{ type }}</div>
+            <div><span class="label">Channel:</span> {{ channel }}</div>
+            <div><span class="label">Balance after transaction:</span> {{ balance_after }}</div>
+        </div>
+        <div class="footer">
+            Thank you for banking with us.<br>
+            <b>YourBank Team</b>
+        </div>
+    </div>
+</body>
+</html> 

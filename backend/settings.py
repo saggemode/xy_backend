@@ -15,21 +15,41 @@ import os
 from os import getenv
 from dotenv import load_dotenv
 from datetime import timedelta
+from celery.schedules import crontab
+
+from environ import Env
+import dj_database_url
 
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = BASE_DIR.parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+# env = Env()
+# Env.read_env()
+ENVIRONMENT = getenv('ENVIRONMENT', default='production')
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-$m**vd0gb*%hh=f#xboi7k+33zm6qgyv$^h#w)dfu5npkp64ip'
+# Environment and Feature Toggles
+DEBUG = ENVIRONMENT == 'development'
+DEVELOPER_MODE = getenv('DEVELOPER_MODE', 'False').lower() == 'true'
+STAGING = getenv('STAGING', 'False').lower() == 'true'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Security settings based on environment
+if ENVIRONMENT == 'development':
+    SECRET_KEY = getenv('SECRET_KEY', 'your-secret-key-for-development')
+    DEBUG = True
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_BROWSER_XSS_FILTER = False
+    SECURE_CONTENT_TYPE_NOSNIFF = False
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = FalseDEBUG = True
+else:
+    DEBUG = False
 
 ALLOWED_HOSTS = [
     '127.0.0.1', 
@@ -43,11 +63,27 @@ ALLOWED_HOSTS = [
     'xy-backend.vercel.sh']
 
 
+CSRF_TRUSTED_ORIGINS = [ 'https://*.onrender.com' ]
+
+
+# INTERNAL_IPS = (
+#     '127.0.0.1',
+#     'localhost:8000'
+# )
+
+
+# ALLOWED_HOSTS = ['*']
+
+
 # Application definition
 
 INSTALLED_APPS = [
     "whitenoise.runserver_nostatic",
     'jazzmin',
+    'anymail',
+    'django_extensions',
+    'storages',
+    'djmoney',
     'admin_berry.apps.AdminBerryConfig',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -56,6 +92,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',
+
+    # Your existing apps
+
     'djoser',
     'phonenumber_field',
     'django_filters',
@@ -63,12 +102,24 @@ INSTALLED_APPS = [
     'cities_light',
     'rest_framework',
     'rest_framework.authtoken',
+    # 'rest_framework_simplejwt.token_blacklist',
+    'django_apscheduler',
+    # Celery tasks live in apps, no need to add 'celery' app itself
+    'admin_honeypot',
+    'django_htmx',  # Add this for token blacklisting
+    'accounts',
+    # 'accounting',
+    # 'monetization',
     'product',
     'wishlist',
+    'channels',
     'cart',
     'store',
     'order',
     'address',
+    'bank',
+    'dj_rest_auth',
+    'dj_rest_auth.registration',
     'inventory',
     'notification',
     'report',
@@ -79,12 +130,24 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.facebook', 
     "crispy_forms",
     "crispy_bootstrap4",
-    # 'corsheaders',
-    
-    # 'PILLOW',
-    'dj_rest_auth',
-    'dj_rest_auth.registration',
+    'drf_spectacular',
+    'tailwind',
+    'theme',
+    'widget_tweaks',
 ]
+
+if DEBUG:
+    # Add django_browser_reload only in DEBUG mode
+    INSTALLED_APPS += ['django_browser_reload']
+
+TAILWIND_APP_NAME = 'theme' 
+
+INTERNAL_IPS = [
+    '127.0.0.1',
+    'localhost',    
+]
+
+NPM_BIN_PATH = r"C:\Program Files\nodejs\npm.cmd"
 
 CRISPY_TEMPLATE_PACK = 'bootstrap4'
 
@@ -94,20 +157,30 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    "django_htmx.middleware.HtmxMiddleware",
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
+    # Custom security middleware
+    'accounts.middleware.SecurityMiddleware',
+    'accounts.middleware.LoginSecurityMiddleware',
 ]
+
+if DEBUG:
+    # Add django_browser_reload middleware only in DEBUG mode
+    MIDDLEWARE += [
+        "django_browser_reload.middleware.BrowserReloadMiddleware",
+    ]
 
 ROOT_URLCONF = 'backend.urls'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-         'DIRS': [BASE_DIR / 'templates'],
-         'DIRS': [],
+        #  'DIRS': [os.path.join(BASE_DIR, 'venv', 'xy_backend', 'templates')],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -115,6 +188,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'django.template.context_processors.static',
             ],
         },
     },
@@ -124,14 +198,6 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-     
-# }
 
 DATABASES = {
     'default': {
@@ -143,9 +209,29 @@ DATABASES = {
         'PORT': getenv('PGPORT', 5432),
          'OPTIONS': {
              'sslmode': 'require',
+             'PGSSLMODE':'require',
+             'PGCHANNELBINDING':'require'
         }
     }
 }
+
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#         'OPTIONS': {
+#             'timeout': 30,  # seconds
+#             # 'retry_on_timeout': True,
+#             # 'isolation_level': None,  # Use autocommit mode
+#         }
+#     }
+# }
+
+POSTGRES_LOCALLY = False
+if ENVIRONMENT == 'production' or POSTGRES_LOCALLY == True:
+    DATABASES['default'] = dj_database_url.parse(getenv('PGHOST'))
+
 
 
 
@@ -195,38 +281,49 @@ STATICFILES_DIRS = [
 ]
 
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+if ENVIRONMENT == 'production' or POSTGRES_LOCALLY == True: 
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    CLOUDINARY_STORAGE = {
+        'CLOUDINARY_NAME': getenv('CLOUDINARY_NAME'),
+        'CLOUDINARY_KEY': getenv('CLOUDINARY_KEY'),
+        'CLOUDINARY_SECRET': getenv('CLOUDINARY_SECRET')
+    }
+
+else:
+    # MEDIA_ROOT = BASE_DIR / 'media'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+
+
 # Custom User Model (using default Django User model)
 AUTH_USER_MODEL = 'auth.User'
 
-
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-ACCOUNT_EMAIL_REQUIRED = False
-
-# ACCOUNT_AUTHENTICATION_METHOD = 'username'
-
-# ACCOUNT_EMAIL_VERIFICATION = 'optional'
-
-ACCOUNT_LOGIN_METHODS = {'username'}
 
 
 
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        # Use JWT and Token authentication for API
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.TokenAuthentication',
-        'dj_rest_auth.jwt_auth.JWTCookieAuthentication'
+        # 'rest_framework.authentication.SessionAuthentication',
+        # 'dj_rest_auth.jwt_auth.JWTCookieAuthentication'
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
     ],
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
@@ -235,26 +332,11 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'user': '1000/day',
         'anon': '100/day',
-    }
+    },
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 
-
-from datetime import timedelta
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    'VERIFYING_KEY': None,
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_TYPE_CLAIM': 'token_type',
-}
 
 CONSTANCE_CONFIG = {
     'MAINTENANCE_MODE': (False, 'Is site in maintenance mode?'),
@@ -265,29 +347,1266 @@ CONSTANCE_CONFIG = {
 CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
 
 STORAGES = {
-    # ...
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        # "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
+# STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'  # or cloudinary_storage.storage.StaticHashedCloudinaryStorage
 
 
 # Auth Backends Configurations
-AUTHENTICATION_BACKENDS = (
-    "django.contrib.auth.backends.ModelBackend",
-    "allauth.account.auth_backends.AuthenticationBackend",
-)
+AUTHENTICATION_BACKENDS = [
+    'accounts.backends.UsernameEmailPhoneBackend',
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+REST_AUTH = {
+    'REGISTER_SERIALIZER': 'accounts.serializers.CustomRegisterSerializer',
+    'LOGIN_SERIALIZER': 'accounts.serializers.CustomLoginSerializer',
+    'JWT_SERIALIZER': 'dj_rest_auth.serializers.JWTSerializer',
+    'JWT_SERIALIZER_WITH_EXPIRATION': 'dj_rest_auth.serializers.JWTSerializerWithExpiration',
+    'USER_DETAILS_SERIALIZER': 'dj_rest_auth.serializers.UserDetailsSerializer',
+}
 
 
-# Twilio SMS settings (add your real credentials in production or .env)
-TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', 'your_twilio_account_sid')
-TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', 'your_twilio_auth_token')
-TWILIO_FROM_NUMBER = os.getenv('TWILIO_FROM_NUMBER', '+1234567890')
+OTP_EXPIRY_MINUTES = 10  # Change this value to set OTP expiry time in minutes
+
+# Jazzmin Settings - Professional Fintech Admin Interface
+JAZZMIN_SETTINGS = {
+    # title of the window (Will default to current_admin_site.site_title if absent or None)
+    "site_title": "Fintech Bank Admin",
+    
+    # Title on the login screen (19 chars max) (defaults to current_admin_site.site_header if absent or None)
+    "site_header": "Fintech Bank",
+    
+    # Title on the brand (19 chars max) (defaults to current_admin_site.site_header if absent or None)
+    "site_brand": "Fintech Bank",
+    
+    # Logo to use for your site, must be present in static files, used for brand on top left
+    "site_logo": None,
+    
+    # Logo to use for your site, must be present in static files, used for login form logo (defaults to site_logo)
+    "login_logo": None,
+    
+    # Logo to use for login form in dark themes (defaults to login_logo)
+    "login_logo_dark": None,
+    
+    # CSS classes that are applied to the logo above
+    "site_logo_classes": "img-circle",
+    
+    # Relative path to a favicon for your site, will default to site_logo if absent (ideally 32x32 px)
+    "site_icon": None,
+    
+    # Welcome text on the login screen
+    "welcome_sign": "Welcome to Fintech Bank Admin",
+    
+    # Copyright on the footer
+    "copyright": "Fintech Bank Ltd",
+    
+    # List of model admins to search from the search bar, search bar omitted if excluded
+    # If you want to use a single search field you dont need to use a list, you can use a simple string 
+    "search_model": ["auth.User", "accounts.UserProfile", "accounts.AuditLog", "accounts.SecurityAlert", "bank.Wallet", "order.Order"],
+    
+    # Field name on user model that contains avatar ImageField/URLField/Charfield or a callable that receives the user
+    "user_avatar": None,
+    
+    ############
+    # Top Menu #
+    ############
+    # Links to put along the top menu
+    "topmenu_links": [
+        {"name": "Home", "url": "admin:index", "permissions": ["auth.view_user"]},
+        {"app": "accounts"},
+        {"app": "bank"},
+        {"app": "order"},
+    ],
+    
+    #############
+    # Side Menu #
+    #############
+    # Whether to display the side menu
+    "show_sidebar": True,
+    
+    # Whether to aut expand the menu
+    "navigation_expanded": True,
+    
+    # Custom icons for side menu apps/models
+    "icons": {
+        "auth": "fas fa-users-cog",
+        "auth.user": "fas fa-user",
+        "auth.Group": "fas fa-users",
+        "accounts.userprofile": "fas fa-user-circle",
+        "accounts.auditlog": "fas fa-clipboard-list",
+        "accounts.securityalert": "fas fa-exclamation-triangle",
+        "accounts.usersession": "fas fa-clock",
+        "bank.kycprofile": "fas fa-id-card",
+        "bank.wallet": "fas fa-wallet",
+        "bank.transaction": "fas fa-exchange-alt",
+        "bank.banktransfer": "fas fa-university",
+        "bank.billpayment": "fas fa-file-invoice-dollar",
+        "bank.virtualcard": "fas fa-credit-card",
+        "bank.bank": "fas fa-building",
+        "order.order": "fas fa-shopping-cart",
+        "order.orderitem": "fas fa-box",
+        "product.product": "fas fa-box-open",
+        "store.store": "fas fa-store",
+        "notification.notification": "fas fa-bell",
+        "payment.payment": "fas fa-money-bill-wave",
+    },
+    
+    # Icons that are used when one is not manually specified
+    "default_icon_parents": "fas fa-chevron-circle-right",
+    "default_icon_children": "fas fa-circle",
+    
+    #################
+    # Related Modal #
+    #################
+    # Use modals instead of popups
+    "related_modal_active": True,
+    
+    #############
+    # UI Tweaks #
+    #############
+    # Relative paths to custom CSS/JS scripts (must be present in static files)
+    "custom_css": None,
+    "custom_js": None,
+    
+    # Whether to show the UI customizer on the sidebar
+    "show_ui_builder": True,
+    
+    ###############
+    # Change view #
+    ###############
+    # Render out the change view as a single form, or in tabs, current options are
+    # - single
+    # - horizontal_tabs (default)
+    # - vertical_tabs
+    # - collapsible
+    # - carousel
+    "changeform_format": "horizontal_tabs",
+    
+    # override change forms on a per modeladmin basis
+    "changeform_format_overrides": {
+        "auth.user": "collapsible",
+        "auth.group": "vertical_tabs",
+        "accounts.userprofile": "collapsible",
+        "accounts.auditlog": "single",
+        "accounts.securityalert": "collapsible",
+        "accounts.usersession": "single",
+        "bank.wallet": "collapsible",
+        "order.order": "collapsible",
+    },
+    
+    # Add a language dropdown into the admin
+    "language_chooser": False,
+    
+    ###############
+    # Dashboard #
+    ###############
+    # Custom dashboard widgets
+    "show_dashboard": True,
+    "dashboard_widgets": [
+        {
+            "name": "user_stats",
+            "title": "User Statistics",
+            "template": "admin/widgets/user_stats.html",
+        },
+        {
+            "name": "financial_metrics",
+            "title": "Financial Metrics",
+            "template": "admin/widgets/financial_metrics.html",
+        },
+        {
+            "name": "recent_activity",
+            "title": "Recent Activity",
+            "template": "admin/widgets/recent_activity.html",
+        },
+        {
+            "name": "system_health",
+            "title": "System Health",
+            "template": "admin/widgets/system_health.html",
+        },
+    ],
+    
+    ###############
+    # Ordering #
+    ###############
+    # Order with respect to model name
+    "order_with_respect_to": ["auth", "accounts", "accounts.UserProfile", "accounts.AuditLog", "accounts.SecurityAlert", "bank", "order"],
+    
+    ###############
+    # Custom Links #
+    ###############
+    # Custom links to append to app groups, keyed on app name
+    "custom_links": {
+        "accounts": [{
+            "name": "Security Dashboard", 
+            "url": "/accounts/admin/dashboard/", 
+            "icon": "fas fa-shield-alt",
+        }, {
+            "name": "User Analytics", 
+            "url": "/accounts/admin/user-analytics/", 
+            "icon": "fas fa-chart-line",
+        }, {
+            "name": "System Monitoring", 
+            "url": "/accounts/admin/system-monitoring/", 
+            "icon": "fas fa-heartbeat",
+        }, {
+            "name": "Compliance Report", 
+            "url": "/accounts/admin/compliance-report/", 
+            "icon": "fas fa-file-alt",
+        }],
+    },
+    
+    ###############
+    # Permissions #
+    ###############
+    # Permissions to check for adding links from the custom links app
+    "custom_links_permissions": ["auth.view_user"],
+    
+    ###############
+    # Hiding #
+    ###############
+    # Hide these apps when generating side menu e.g (auth)
+    "hide_apps": [],
+    
+    # Hide these models when generating side menu (e.g auth.user)
+    "hide_models": [],
+    
+    ###############
+    # Custom CSS #
+    ###############
+    # Custom css for every page, must be a dictionary of the following
+    "custom_css": {
+        "all": [
+            "css/custom.css",
+        ]
+    },
+    
+    ###############
+    # Custom JS #
+    ###############
+    # Custom js for every page, must be a dictionary of the following
+    "custom_js": {
+        "all": [
+            "js/custom.js",
+        ]
+    },
+    
+    ###############
+    # Show Full Sidebar #
+    ###############
+    # Show the sidebar on the admin docs pages
+    "show_full_sidebar": True,
+    
+    ###############
+    # Show UI Builder #
+    ###############
+    # Show the UI builder on the admin pages
+    "show_ui_builder": True,
+    
+    ###############
+    # Dark Mode #
+    ###############
+    # Change the default dark mode
+    "dark_mode_theme": None,
+    
+    ###############
+    # Button Actions #
+    ###############
+    # Add custom buttons to the admin
+    "buttons": [
+        {
+            "name": "Security Report",
+            "url": "/accounts/admin/compliance-report/",
+            "icon": "fas fa-shield-alt",
+            "permissions": ["auth.view_user"],
+        },
+        {
+            "name": "System Health",
+            "url": "/accounts/admin/system-monitoring/",
+            "icon": "fas fa-heartbeat",
+            "permissions": ["auth.view_user"],
+        },
+    ],
+}
+
+# Jazzmin UI Customizer Settings
+JAZZMIN_UI_TWEAKS = {
+    "navbar_small_text": False,
+    "footer_small_text": False,
+    "body_small_text": False,
+    "brand_small_text": False,
+    "brand_colour": "navbar-success",
+    "accent": "accent-teal",
+    "navbar": "navbar-dark",
+    "no_navbar_border": False,
+    "navbar_fixed": False,
+    "layout_boxed": False,
+    "footer_fixed": False,
+    "sidebar_fixed": False,
+    "sidebar": "sidebar-dark-success",
+    "sidebar_nav_small_text": False,
+    "sidebar_disable_expand": False,
+    "sidebar_nav_child_indent": False,
+    "sidebar_nav_compact_style": False,
+    "sidebar_nav_legacy_style": False,
+    "sidebar_nav_flat_style": False,
+    "theme": "cosmo",
+    "dark_mode_theme": None,
+    "button_classes": {
+        "primary": "btn-primary",
+        "secondary": "btn-secondary",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success"
+    }
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'XYPay API',
+    'DESCRIPTION': 'Comprehensive API documentation for the XYPay fintech platform, including e-commerce, wallet, KYC, and social features.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': True,
+    'CONTACT': {
+        'name': 'XYPay Support',
+        'email': 'support@xypay.com',
+        'url': 'https://xypay.com',
+    },
+    'LICENSE': {
+        'name': 'MIT License',
+        'url': 'https://opensource.org/licenses/MIT',
+    },
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True,  # Keep auth tokens between page reloads
+        'displayOperationId': True,
+        'filter': True,
+        'docExpansion': 'none',
+        'defaultModelExpandDepth': 2,
+        'defaultModelsExpandDepth': 1,
+        'showExtensions': True,
+        'showCommonExtensions': True,
+    },
+    'COMPONENT_SPLIT_REQUEST': True,  # Show request/response separately
+    'SECURITY': [
+        {'BearerAuth': []},
+    ],
+    'SECURITY_DEFINITIONS': {
+        'BearerAuth': {
+            'type': 'http',
+            'scheme': 'bearer',
+            'bearerFormat': 'JWT',
+            'description': 'JWT Authorization header using the Bearer scheme. Example: "Authorization: Bearer {token}"',
+        },
+    },
+}
+
+
+REST_USE_JWT = True 
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=45),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+}
+
+# Disable allauth's automatic email confirmation so only our custom OTP/verification email is sent
+ACCOUNT_EMAIL_VERIFICATION = 'none'
+
+# ADMINS = [('umeh paul', 'umeh288@email.com')]
+
+# Notification Settings # Email Settings
+# ====================
+
+if ENVIRONMENT == 'production' or POSTGRES_LOCALLY == True: 
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = getenv('EMAIL_HOST', 'smtp.gmail.com')
+    EMAIL_HOST_USER = getenv('EMAIL_ADDRESS')
+    EMAIL_HOST_PASSWORD = getenv('EMAIL_HOST_PASSWORD') 
+    EMAIL_PORT = int(getenv('EMAIL_PORT', 587))
+    EMAIL_USE_TLS = getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+    DEFAULT_FROM_EMAIL = f'Awesome {getenv("EMAIL_ADDRESS", 'noreply@xypay.com')}'
+    # ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
+else:
+    # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = getenv('EMAIL_HOST', 'smtp.gmail.com')
+    EMAIL_HOST_USER = getenv('EMAIL_ADDRESS')
+    EMAIL_HOST_PASSWORD = getenv('EMAIL_HOST_PASSWORD') 
+    EMAIL_PORT = int(getenv('EMAIL_PORT', 587))
+    EMAIL_USE_TLS = getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+    DEFAULT_FROM_EMAIL = f'Awesome {getenv("EMAIL_ADDRESS", 'noreply@xypay.com')}'
+    # ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
 
 
 
 
-DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
+
+# SMS Settings (Twilio)
+TWILIO_ACCOUNT_SID = getenv('TWILIO_ACCOUNT_SID')
+TWILIO_AUTH_TOKEN = getenv('TWILIO_AUTH_TOKEN')
+TWILIO_PHONE_NUMBER = getenv('TWILIO_PHONE_NUMBER')
+
+# Push Notification Settings (Firebase Cloud Messaging)
+FCM_API_KEY = getenv('FCM_API_KEY')
+
+# WebSocket Settings (for real-time notifications)
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
+
+# Notification Configuration
+NOTIFICATION_SETTINGS = {
+    'ENABLE_EMAIL': True,
+    'ENABLE_SMS': bool(TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN),
+    'ENABLE_PUSH': bool(FCM_API_KEY),
+    'ENABLE_WEBSOCKET': True,
+    'SMS_ENABLED_FOR': ['transaction', 'security', 'kyc'],  # Types that should send SMS
+    'PUSH_ENABLED_FOR': ['transaction', 'security'],  # Types that should send push notifications
+}
+
+
+
+
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',  # Show INFO and above for all loggers
+    },
+    'loggers': {
+        'bank': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # You can add other app loggers here as needed
+    },
+}
+
+# # Celery configuration
+# CELERY_BROKER_URL = getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+# CELERY_RESULT_BACKEND = getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/1')
+# CELERY_TASK_ALWAYS_EAGER = getenv('CELERY_TASK_ALWAYS_EAGER', 'False').lower() == 'true'
+# CELERY_TIMEZONE = TIME_ZONE
+# CELERY_TASK_IGNORE_RESULT = True
+
+# CELERY_BEAT_SCHEDULE = {
+#     'process-daily-interest-23-55': {
+#         'task': 'bank.tasks.process_daily_interest',
+#         'schedule': crontab(hour=23, minute=55),
+#     },
+#     'send-weekly-statements-sun-08-00': {
+#         'task': 'bank.tasks.send_weekly_statements',
+#         'schedule': crontab(hour=8, minute=0, day_of_week='sun'),
+#     },
+# }
+
+
+
+
+
+
+
+
+# """
+# Django settings for backend project.
+
+# Generated by 'django-admin startproject' using Django 5.2.1.
+
+# For more information on this file, see
+# https://docs.djangoproject.com/en/5.2/topics/settings/
+
+# For the full list of settings and their values, see
+# https://docs.djangoproject.com/en/5.2/ref/settings/
+# """
+
+# from pathlib import Path
+# import os
+# from os import getenv
+# from dotenv import load_dotenv
+# from datetime import timedelta
+
+# from environ import Env
+# import dj_database_url
+
+# load_dotenv()
+
+# # Build paths inside the project like this: BASE_DIR / 'subdir'.
+# BASE_DIR = Path(__file__).resolve().parent.parent
+# PROJECT_ROOT = BASE_DIR.parent.parent
+
+
+# # env = Env()
+# # Env.read_env()
+# ENVIRONMENT = getenv('ENVIRONMENT', default='production')
+
+# # Feature Toggle
+# DEVELOPER = getenv('DEVELOPER', default='')
+# STAGING = getenv('STAGING', default='False')
+
+
+# # Quick-start development settings - unsuitable for production
+# # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+
+# # SECURITY WARNING: keep the secret key used in production secret!
+# SECRET_KEY = getenv('SECRET_KEY')
+
+# # SECURITY WARNING: don't run with debug turned on in production!
+# if ENVIRONMENT == 'development':
+#     DEBUG = True
+# else:
+#     DEBUG = False
+
+# ALLOWED_HOSTS = [
+#     '127.0.0.1', 
+#     'localhost', 
+#     '.vercel.app', 
+#     '.vercel.sh', 
+#     'xy-backend.vercel.app', 
+#     '.now.sh', 
+#     'xy-backend.vercel.sh', 
+#     'xy-backend.now.sh', 
+#     'xy-backend.vercel.sh']
+
+
+# CSRF_TRUSTED_ORIGINS = [ 'https://*.onrender.com' ]
+
+
+# # INTERNAL_IPS = (
+# #     '127.0.0.1',
+# #     'localhost:8000'
+# # )
+
+
+# # ALLOWED_HOSTS = ['*']
+
+
+# # Application definition
+
+# INSTALLED_APPS = [
+#     "whitenoise.runserver_nostatic",
+#     'jazzmin',
+#     'anymail',
+#     'django_extensions',
+#     'storages',
+#     'djmoney',
+#     'admin_berry.apps.AdminBerryConfig',
+#     'django.contrib.admin',
+#     'django.contrib.auth',
+#     'django.contrib.contenttypes',
+#     'django.contrib.sessions',
+#     'django.contrib.messages',
+#     'django.contrib.staticfiles',
+#     'django.contrib.sites',
+
+#     # Your existing apps
+
+#     'djoser',
+#     'phonenumber_field',
+#     'django_filters',
+#     'django_countries',
+#     'cities_light',
+#     'rest_framework',
+#     'rest_framework.authtoken',
+#     # 'rest_framework_simplejwt.token_blacklist',
+#     'django_apscheduler',
+#     'admin_honeypot',
+#     'django_htmx',  # Add this for token blacklisting
+#     'accounts',
+#     'product',
+#     'wishlist',
+#     'channels',
+#     'cart',
+#     'store',
+#     'order',
+#     'address',
+#     'bank',
+#     'dj_rest_auth',
+#     'dj_rest_auth.registration',
+#     'inventory',
+#     'notification',
+#     'report',
+#     'allauth',
+#     'allauth.account',
+#     'allauth.socialaccount',
+#     'allauth.socialaccount.providers.google',  # For Google authentication
+#     'allauth.socialaccount.providers.facebook', 
+#     "crispy_forms",
+#     "crispy_bootstrap4",
+#     'drf_spectacular',
+#     'tailwind',
+#     'theme',
+#     'widget_tweaks',
+# ]
+
+# if DEBUG:
+#     # Add django_browser_reload only in DEBUG mode
+#     INSTALLED_APPS += ['django_browser_reload']
+
+# TAILWIND_APP_NAME = 'theme' 
+
+# INTERNAL_IPS = [
+#     '127.0.0.1',
+#     'localhost',    
+# ]
+
+# NPM_BIN_PATH = r"C:\Program Files\nodejs\npm.cmd"
+
+# CRISPY_TEMPLATE_PACK = 'bootstrap4'
+
+# MIDDLEWARE = [
+#     "django.middleware.security.SecurityMiddleware",
+#     "whitenoise.middleware.WhiteNoiseMiddleware",
+#     'django.middleware.security.SecurityMiddleware',
+#     'django.contrib.sessions.middleware.SessionMiddleware',
+#     'django.middleware.common.CommonMiddleware',
+#     "django_htmx.middleware.HtmxMiddleware",
+#     'django.middleware.csrf.CsrfViewMiddleware',
+#     'django.contrib.auth.middleware.AuthenticationMiddleware',
+#     'django.contrib.messages.middleware.MessageMiddleware',
+#     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+#     'allauth.account.middleware.AccountMiddleware',
+#     # Custom security middleware
+#     'accounts.middleware.SecurityMiddleware',
+#     'accounts.middleware.LoginSecurityMiddleware',
+# ]
+
+# if DEBUG:
+#     # Add django_browser_reload middleware only in DEBUG mode
+#     MIDDLEWARE += [
+#         "django_browser_reload.middleware.BrowserReloadMiddleware",
+#     ]
+
+# ROOT_URLCONF = 'backend.urls'
+
+# TEMPLATES = [
+#     {
+#         'BACKEND': 'django.template.backends.django.DjangoTemplates',
+#         #  'DIRS': [os.path.join(BASE_DIR, 'venv', 'xy_backend', 'templates')],
+#         'DIRS': [os.path.join(BASE_DIR, 'templates')],
+#         'APP_DIRS': True,
+#         'OPTIONS': {
+#             'context_processors': [
+#                 'django.template.context_processors.debug',
+#                 'django.template.context_processors.request',
+#                 'django.contrib.auth.context_processors.auth',
+#                 'django.contrib.messages.context_processors.messages',
+#                 'django.template.context_processors.static',
+#             ],
+#         },
+#     },
+# ]
+
+# WSGI_APPLICATION = 'backend.wsgi.application'
+
+# # Database
+# # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+
+# # DATABASES = {
+# #     'default': {
+# #         'ENGINE': 'django.db.backends.postgresql',
+# #         'NAME': getenv('PGDATABASE'),
+# #         'USER': getenv('PGUSER'),
+# #         'PASSWORD': getenv('PGPASSWORD'),
+# #         'HOST': getenv('PGHOST'),
+# #         'PORT': getenv('PGPORT', 5432),
+# #          'OPTIONS': {
+# #              'sslmode': 'require',
+# #         }
+# #     }
+# # }
+
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#         'OPTIONS': {
+#             'timeout': 30,  # seconds
+#             # 'retry_on_timeout': True,
+#             # 'isolation_level': None,  # Use autocommit mode
+#         }
+#     }
+# }
+
+# POSTGRES_LOCALLY = False
+# if ENVIRONMENT == 'production' or POSTGRES_LOCALLY == True:
+#     DATABASES['default'] = dj_database_url.parse(getenv('DATABASE_URL'))
+
+
+
+
+
+# # Password validation
+# # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+
+# AUTH_PASSWORD_VALIDATORS = [
+#     {
+#         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+#     },
+#     {
+#         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+#     },
+#     {
+#         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+#     },
+#     {
+#         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+#     },
+# ]
+
+
+
+# # Internationalization
+# # https://docs.djangoproject.com/en/5.2/topics/i18n/
+
+# LANGUAGE_CODE = 'en-us'
+
+# TIME_ZONE = 'UTC'
+
+# USE_I18N = True
+
+# USE_TZ = True
+
+# # Site ID
+# SITE_ID = 1
+
+
+# # Static files (CSS, JavaScript, Images)
+# # https://docs.djangoproject.com/en/5.2/howto/static-files/
+
+# STATIC_URL = '/static/'
+# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# STATICFILES_DIRS = [
+#     os.path.join(BASE_DIR, 'static')
+# ]
+
+# MEDIA_URL = '/media/'
+
+
+# if ENVIRONMENT == 'production' or POSTGRES_LOCALLY == True: 
+#     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+#     CLOUDINARY_STORAGE = {
+#         'CLOUDINARY_NAME': getenv('CLOUDINARY_NAME'),
+#         'CLOUDINARY_KEY': getenv('CLOUDINARY_KEY'),
+#         'CLOUDINARY_SECRET': getenv('CLOUDINARY_SECRET')
+#     }
+
+# else:
+#     # MEDIA_ROOT = BASE_DIR / 'media'
+#     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# # Default primary key field type
+# # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+
+# DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+
+# # Custom User Model (using default Django User model)
+# AUTH_USER_MODEL = 'auth.User'
+
+
+
+# if ENVIRONMENT == 'production' or POSTGRES_LOCALLY == True: 
+#     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+#     EMAIL_HOST = 'smtp.gmail.com'
+#     EMAIL_HOST_USER = getenv('EMAIL_ADDRESS')
+#     EMAIL_HOST_PASSWORD = getenv('EMAIL_HOST_PASSWORD') 
+#     EMAIL_PORT = 587
+#     EMAIL_USE_TLS = True
+#     DEFAULT_FROM_EMAIL = f'Awesome {getenv("EMAIL_ADDRESS")}'
+#     ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
+# else:
+#     # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# # DEFAULT_FROM_EMAIL = 'noreply@yourdomain.com'
+#     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+#     EMAIL_HOST = 'smtp.gmail.com'
+#     EMAIL_HOST_USER = getenv('EMAIL_ADDRESS')
+#     EMAIL_HOST_PASSWORD = getenv('EMAIL_HOST_PASSWORD') 
+#     EMAIL_PORT = 587
+#     EMAIL_USE_TLS = True
+#     DEFAULT_FROM_EMAIL = f'Awesome {getenv("EMAIL_ADDRESS")}'
+#     ACCOUNT_EMAIL_SUBJECT_PREFIX = ''
+
+
+# REST_FRAMEWORK = {
+#     'DEFAULT_AUTHENTICATION_CLASSES': [
+#         # Use JWT and Token authentication for API
+#         'rest_framework_simplejwt.authentication.JWTAuthentication',
+#         'rest_framework.authentication.TokenAuthentication',
+#         # 'rest_framework.authentication.SessionAuthentication',
+#         # 'dj_rest_auth.jwt_auth.JWTCookieAuthentication'
+#     ],
+#     'DEFAULT_PERMISSION_CLASSES': [
+#         'rest_framework.permissions.IsAuthenticated',
+#     ],
+#     'DEFAULT_FILTER_BACKENDS': [
+#         'django_filters.rest_framework.DjangoFilterBackend',
+#         'rest_framework.filters.SearchFilter',
+#         'rest_framework.filters.OrderingFilter',
+#     ],
+#     'DEFAULT_THROTTLE_CLASSES': [
+#         'rest_framework.throttling.AnonRateThrottle',
+#         'rest_framework.throttling.UserRateThrottle',
+#     ],
+#     'DEFAULT_THROTTLE_RATES': {
+#         'user': '1000/day',
+#         'anon': '100/day',
+#     },
+#     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+# }
+
+
+
+# CONSTANCE_CONFIG = {
+#     'MAINTENANCE_MODE': (False, 'Is site in maintenance mode?'),
+#     'CURRENCY': ('NGN', 'Default currency'),
+#     'MINIMUM_ORDER_AMOUNT': (0.0, 'Minimum order amount'),
+# }
+
+# CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
+
+# STORAGES = {
+#     "default": {
+#         "BACKEND": "django.core.files.storage.FileSystemStorage",
+#         # "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+#     },
+#     "staticfiles": {
+#         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+#     },
+# }
+
+# STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# # STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'  # or cloudinary_storage.storage.StaticHashedCloudinaryStorage
+
+
+# # Auth Backends Configurations
+# AUTHENTICATION_BACKENDS = [
+#     'accounts.backends.UsernameEmailPhoneBackend',
+#     'django.contrib.auth.backends.ModelBackend',
+#     'allauth.account.auth_backends.AuthenticationBackend',
+# ]
+
+# REST_AUTH = {
+#     'REGISTER_SERIALIZER': 'accounts.serializers.CustomRegisterSerializer',
+#     'LOGIN_SERIALIZER': 'accounts.serializers.CustomLoginSerializer',
+#     'JWT_SERIALIZER': 'dj_rest_auth.serializers.JWTSerializer',
+#     'JWT_SERIALIZER_WITH_EXPIRATION': 'dj_rest_auth.serializers.JWTSerializerWithExpiration',
+#     'USER_DETAILS_SERIALIZER': 'dj_rest_auth.serializers.UserDetailsSerializer',
+# }
+
+
+# OTP_EXPIRY_MINUTES = 10  # Change this value to set OTP expiry time in minutes
+
+# # Jazzmin Settings - Professional Fintech Admin Interface
+# JAZZMIN_SETTINGS = {
+#     # title of the window (Will default to current_admin_site.site_title if absent or None)
+#     "site_title": "Fintech Bank Admin",
+    
+#     # Title on the login screen (19 chars max) (defaults to current_admin_site.site_header if absent or None)
+#     "site_header": "Fintech Bank",
+    
+#     # Title on the brand (19 chars max) (defaults to current_admin_site.site_header if absent or None)
+#     "site_brand": "Fintech Bank",
+    
+#     # Logo to use for your site, must be present in static files, used for brand on top left
+#     "site_logo": None,
+    
+#     # Logo to use for your site, must be present in static files, used for login form logo (defaults to site_logo)
+#     "login_logo": None,
+    
+#     # Logo to use for login form in dark themes (defaults to login_logo)
+#     "login_logo_dark": None,
+    
+#     # CSS classes that are applied to the logo above
+#     "site_logo_classes": "img-circle",
+    
+#     # Relative path to a favicon for your site, will default to site_logo if absent (ideally 32x32 px)
+#     "site_icon": None,
+    
+#     # Welcome text on the login screen
+#     "welcome_sign": "Welcome to Fintech Bank Admin",
+    
+#     # Copyright on the footer
+#     "copyright": "Fintech Bank Ltd",
+    
+#     # List of model admins to search from the search bar, search bar omitted if excluded
+#     # If you want to use a single search field you dont need to use a list, you can use a simple string 
+#     "search_model": ["auth.User", "accounts.UserProfile", "accounts.AuditLog", "accounts.SecurityAlert", "bank.Wallet", "order.Order"],
+    
+#     # Field name on user model that contains avatar ImageField/URLField/Charfield or a callable that receives the user
+#     "user_avatar": None,
+    
+#     ############
+#     # Top Menu #
+#     ############
+#     # Links to put along the top menu
+#     "topmenu_links": [
+#         {"name": "Home", "url": "admin:index", "permissions": ["auth.view_user"]},
+#         {"app": "accounts"},
+#         {"app": "bank"},
+#         {"app": "order"},
+#     ],
+    
+#     #############
+#     # Side Menu #
+#     #############
+#     # Whether to display the side menu
+#     "show_sidebar": True,
+    
+#     # Whether to aut expand the menu
+#     "navigation_expanded": True,
+    
+#     # Custom icons for side menu apps/models
+#     "icons": {
+#         "auth": "fas fa-users-cog",
+#         "auth.user": "fas fa-user",
+#         "auth.Group": "fas fa-users",
+#         "accounts.userprofile": "fas fa-user-circle",
+#         "accounts.auditlog": "fas fa-clipboard-list",
+#         "accounts.securityalert": "fas fa-exclamation-triangle",
+#         "accounts.usersession": "fas fa-clock",
+#         "bank.kycprofile": "fas fa-id-card",
+#         "bank.wallet": "fas fa-wallet",
+#         "bank.transaction": "fas fa-exchange-alt",
+#         "bank.banktransfer": "fas fa-university",
+#         "bank.billpayment": "fas fa-file-invoice-dollar",
+#         "bank.virtualcard": "fas fa-credit-card",
+#         "bank.bank": "fas fa-building",
+#         "order.order": "fas fa-shopping-cart",
+#         "order.orderitem": "fas fa-box",
+#         "product.product": "fas fa-box-open",
+#         "store.store": "fas fa-store",
+#         "notification.notification": "fas fa-bell",
+#         "payment.payment": "fas fa-money-bill-wave",
+#     },
+    
+#     # Icons that are used when one is not manually specified
+#     "default_icon_parents": "fas fa-chevron-circle-right",
+#     "default_icon_children": "fas fa-circle",
+    
+#     #################
+#     # Related Modal #
+#     #################
+#     # Use modals instead of popups
+#     "related_modal_active": True,
+    
+#     #############
+#     # UI Tweaks #
+#     #############
+#     # Relative paths to custom CSS/JS scripts (must be present in static files)
+#     "custom_css": None,
+#     "custom_js": None,
+    
+#     # Whether to show the UI customizer on the sidebar
+#     "show_ui_builder": True,
+    
+#     ###############
+#     # Change view #
+#     ###############
+#     # Render out the change view as a single form, or in tabs, current options are
+#     # - single
+#     # - horizontal_tabs (default)
+#     # - vertical_tabs
+#     # - collapsible
+#     # - carousel
+#     "changeform_format": "horizontal_tabs",
+    
+#     # override change forms on a per modeladmin basis
+#     "changeform_format_overrides": {
+#         "auth.user": "collapsible",
+#         "auth.group": "vertical_tabs",
+#         "accounts.userprofile": "collapsible",
+#         "accounts.auditlog": "single",
+#         "accounts.securityalert": "collapsible",
+#         "accounts.usersession": "single",
+#         "bank.wallet": "collapsible",
+#         "order.order": "collapsible",
+#     },
+    
+#     # Add a language dropdown into the admin
+#     "language_chooser": False,
+    
+#     ###############
+#     # Dashboard #
+#     ###############
+#     # Custom dashboard widgets
+#     "show_dashboard": True,
+#     "dashboard_widgets": [
+#         {
+#             "name": "user_stats",
+#             "title": "User Statistics",
+#             "template": "admin/widgets/user_stats.html",
+#         },
+#         {
+#             "name": "financial_metrics",
+#             "title": "Financial Metrics",
+#             "template": "admin/widgets/financial_metrics.html",
+#         },
+#         {
+#             "name": "recent_activity",
+#             "title": "Recent Activity",
+#             "template": "admin/widgets/recent_activity.html",
+#         },
+#         {
+#             "name": "system_health",
+#             "title": "System Health",
+#             "template": "admin/widgets/system_health.html",
+#         },
+#     ],
+    
+#     ###############
+#     # Ordering #
+#     ###############
+#     # Order with respect to model name
+#     "order_with_respect_to": ["auth", "accounts", "accounts.UserProfile", "accounts.AuditLog", "accounts.SecurityAlert", "bank", "order"],
+    
+#     ###############
+#     # Custom Links #
+#     ###############
+#     # Custom links to append to app groups, keyed on app name
+#     "custom_links": {
+#         "accounts": [{
+#             "name": "Security Dashboard", 
+#             "url": "/accounts/admin/dashboard/", 
+#             "icon": "fas fa-shield-alt",
+#         }, {
+#             "name": "User Analytics", 
+#             "url": "/accounts/admin/user-analytics/", 
+#             "icon": "fas fa-chart-line",
+#         }, {
+#             "name": "System Monitoring", 
+#             "url": "/accounts/admin/system-monitoring/", 
+#             "icon": "fas fa-heartbeat",
+#         }, {
+#             "name": "Compliance Report", 
+#             "url": "/accounts/admin/compliance-report/", 
+#             "icon": "fas fa-file-alt",
+#         }],
+#     },
+    
+#     ###############
+#     # Permissions #
+#     ###############
+#     # Permissions to check for adding links from the custom links app
+#     "custom_links_permissions": ["auth.view_user"],
+    
+#     ###############
+#     # Hiding #
+#     ###############
+#     # Hide these apps when generating side menu e.g (auth)
+#     "hide_apps": [],
+    
+#     # Hide these models when generating side menu (e.g auth.user)
+#     "hide_models": [],
+    
+#     ###############
+#     # Custom CSS #
+#     ###############
+#     # Custom css for every page, must be a dictionary of the following
+#     "custom_css": {
+#         "all": [
+#             "css/custom.css",
+#         ]
+#     },
+    
+#     ###############
+#     # Custom JS #
+#     ###############
+#     # Custom js for every page, must be a dictionary of the following
+#     "custom_js": {
+#         "all": [
+#             "js/custom.js",
+#         ]
+#     },
+    
+#     ###############
+#     # Show Full Sidebar #
+#     ###############
+#     # Show the sidebar on the admin docs pages
+#     "show_full_sidebar": True,
+    
+#     ###############
+#     # Show UI Builder #
+#     ###############
+#     # Show the UI builder on the admin pages
+#     "show_ui_builder": True,
+    
+#     ###############
+#     # Dark Mode #
+#     ###############
+#     # Change the default dark mode
+#     "dark_mode_theme": None,
+    
+#     ###############
+#     # Button Actions #
+#     ###############
+#     # Add custom buttons to the admin
+#     "buttons": [
+#         {
+#             "name": "Security Report",
+#             "url": "/accounts/admin/compliance-report/",
+#             "icon": "fas fa-shield-alt",
+#             "permissions": ["auth.view_user"],
+#         },
+#         {
+#             "name": "System Health",
+#             "url": "/accounts/admin/system-monitoring/",
+#             "icon": "fas fa-heartbeat",
+#             "permissions": ["auth.view_user"],
+#         },
+#     ],
+# }
+
+# # Jazzmin UI Customizer Settings
+# JAZZMIN_UI_TWEAKS = {
+#     "navbar_small_text": False,
+#     "footer_small_text": False,
+#     "body_small_text": False,
+#     "brand_small_text": False,
+#     "brand_colour": "navbar-success",
+#     "accent": "accent-teal",
+#     "navbar": "navbar-dark",
+#     "no_navbar_border": False,
+#     "navbar_fixed": False,
+#     "layout_boxed": False,
+#     "footer_fixed": False,
+#     "sidebar_fixed": False,
+#     "sidebar": "sidebar-dark-success",
+#     "sidebar_nav_small_text": False,
+#     "sidebar_disable_expand": False,
+#     "sidebar_nav_child_indent": False,
+#     "sidebar_nav_compact_style": False,
+#     "sidebar_nav_legacy_style": False,
+#     "sidebar_nav_flat_style": False,
+#     "theme": "cosmo",
+#     "dark_mode_theme": None,
+#     "button_classes": {
+#         "primary": "btn-primary",
+#         "secondary": "btn-secondary",
+#         "info": "btn-info",
+#         "warning": "btn-warning",
+#         "danger": "btn-danger",
+#         "success": "btn-success"
+#     }
+# }
+
+# SPECTACULAR_SETTINGS = {
+#     'TITLE': 'XYPay API',
+#     'DESCRIPTION': 'Comprehensive API documentation for the XYPay fintech platform, including e-commerce, wallet, KYC, and social features.',
+#     'VERSION': '1.0.0',
+#     'SERVE_INCLUDE_SCHEMA': True,
+#     'CONTACT': {
+#         'name': 'XYPay Support',
+#         'email': 'support@xypay.com',
+#         'url': 'https://xypay.com',
+#     },
+#     'LICENSE': {
+#         'name': 'MIT License',
+#         'url': 'https://opensource.org/licenses/MIT',
+#     },
+#     'SWAGGER_UI_SETTINGS': {
+#         'persistAuthorization': True,  # Keep auth tokens between page reloads
+#         'displayOperationId': True,
+#         'filter': True,
+#         'docExpansion': 'none',
+#         'defaultModelExpandDepth': 2,
+#         'defaultModelsExpandDepth': 1,
+#         'showExtensions': True,
+#         'showCommonExtensions': True,
+#     },
+#     'COMPONENT_SPLIT_REQUEST': True,  # Show request/response separately
+#     'SECURITY': [
+#         {'BearerAuth': []},
+#     ],
+#     'SECURITY_DEFINITIONS': {
+#         'BearerAuth': {
+#             'type': 'http',
+#             'scheme': 'bearer',
+#             'bearerFormat': 'JWT',
+#             'description': 'JWT Authorization header using the Bearer scheme. Example: "Authorization: Bearer {token}"',
+#         },
+#     },
+# }
+
+
+# REST_USE_JWT = True 
+
+# SIMPLE_JWT = {
+#     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=45),
+#     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+#     'ROTATE_REFRESH_TOKENS': True,
+#     'BLACKLIST_AFTER_ROTATION': True,
+#     'UPDATE_LAST_LOGIN': True,
+#     'ALGORITHM': 'HS256',
+#     'SIGNING_KEY': SECRET_KEY,
+#     'AUTH_HEADER_TYPES': ('Bearer',),
+#     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+# }
+
+# # Disable allauth's automatic email confirmation so only our custom OTP/verification email is sent
+# ACCOUNT_EMAIL_VERIFICATION = 'none'
+
+
+
+# # ADMINS = [('umeh paul', 'umeh288@email.com')]
+
+
+
+
+
+
+# LOGGING = {
+#     'version': 1,
+#     'disable_existing_loggers': False,
+#     'handlers': {
+#         'console': {
+#             'class': 'logging.StreamHandler',
+#         },
+#     },
+#     'root': {
+#         'handlers': ['console'],
+#         'level': 'INFO',  # Show INFO and above for all loggers
+#     },
+#     'loggers': {
+#         'bank': {
+#             'handlers': ['console'],
+#             'level': 'INFO',
+#             'propagate': False,
+#         },
+#         # You can add other app loggers here as needed
+#     },
+# }
+
+
+
+
+

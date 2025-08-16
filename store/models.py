@@ -12,9 +12,9 @@ from decimal import Decimal
 from django.core.validators import URLValidator
 from django.core.exceptions import ValidationError
 
-# E-commerce Store model
-from django.db import models
-from django.conf import settings
+# Import bank models for payment integration
+from bank.models import Wallet, XySaveAccount
+
 
 class Store(models.Model): 
     STATUS_CHOICES = [
@@ -30,7 +30,43 @@ class Store(models.Model):
         default=uuid.uuid4,
         editable=False,
         verbose_name=_('ID')
-    ) 
+    )
+    
+    # User fields for tracking
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='stores_created',
+        help_text=_('User who created the store')
+    )
+    
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='stores_updated',
+        help_text=_('User who last updated the store')
+    )
+    
+    # Payment accounts for transfers
+    wallet = models.ForeignKey(
+        Wallet,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='stores',
+        help_text=_('Store wallet for payment processing')
+    )
+     # Payment accounts for transfers
+    xy_save_account = models.ForeignKey(
+        XySaveAccount,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='linked_stores',
+        help_text=_('XySave account for store payments')
+    )
 
     name = models.CharField(
         max_length=255,
@@ -177,10 +213,49 @@ class Store(models.Model):
         if self.twitter_url and 'twitter.com' not in self.twitter_url:
             raise ValidationError(_('Please provide a valid Twitter URL.'))
 
+        # Ensure a user cannot own more than one store
+        if self.owner:
+            duplicate = Store.objects.filter(owner=self.owner).exclude(pk=self.pk).exists()
+            if duplicate:
+                raise ValidationError({'owner': _('You already have a store.')})
+
     def save(self, *args, **kwargs):
-        """Override save to handle business logic."""
+        """Override save to handle business logic and payment account linking."""
         self.full_clean()
+        
+        # Track whether this is a new store (no ID yet)
+        is_new = not self.pk
+        
+        # Handle created_by and updated_by
+        if 'created_by' in kwargs:
+            self.created_by = kwargs.pop('created_by')
+        if 'updated_by' in kwargs:
+            self.updated_by = kwargs.pop('updated_by')
+        
         super().save(*args, **kwargs)
+        
+        # After saving, link the owner's payment accounts if available and missing on the store
+        # This runs on creation and on subsequent saves if links are still empty
+        if self.owner and (not self.wallet or not self.xy_save_account):
+            try:
+                # Try to link owner's wallet if not already linked
+                if not self.wallet:
+                    wallet = Wallet.objects.filter(user=self.owner).first()
+                    if wallet:
+                        self.wallet = wallet
+                        # Save again but skip the is_new check to avoid infinite recursion
+                        super().save(update_fields=['wallet'])
+                
+                # Try to link owner's XySave account if not already linked
+                if not self.xy_save_account:
+                    xy_save = XySaveAccount.objects.filter(user=self.owner).first()
+                    if xy_save:
+                        self.xy_save_account = xy_save
+                        # Save again but skip the is_new check to avoid infinite recursion
+                        super().save(update_fields=['xy_save_account'])
+            except Exception as e:
+                # Log the error but don't prevent store creation
+                print(f"Error linking payment accounts: {e}")
 
     # Business Logic Methods
     def activate(self, user=None):
@@ -229,6 +304,76 @@ class Store(models.Model):
     def is_operational(self):
         """Check if store is operational (active and verified)."""
         return self.status == 'active' and self.is_verified
+        
+    def has_payment_account(self):
+        """Check if store has at least one payment account linked."""
+        return bool(self.wallet or self.xy_save_account)
+    
+    def get_primary_payment_account(self):
+        """Get the primary payment account for this store.
+        Returns the wallet first if available, otherwise the XySave account.
+        """
+        return self.wallet or self.xy_save_account
+        
+    def get_payment_account_number(self):
+        """Get the account number of the primary payment account."""
+        account = self.get_primary_payment_account()
+        if account:
+            return account.account_number
+        return None
+        
+    def process_payment_from_user(self, user, amount, description=None):
+        """Process a payment from a user to this store.
+        
+        Args:
+            user: The user making the payment
+            amount: The payment amount (Money object)
+            description: Optional description for the transaction
+            
+        Returns:
+            tuple: (success, message, transaction_reference)
+        """
+        if not self.has_payment_account():
+            return False, "Store has no payment account configured", None
+            
+        if not self.is_operational():
+            return False, "Store is not operational", None
+            
+        # Get store's payment account
+        store_account = self.get_primary_payment_account()
+        
+        try:
+            # Import transaction service
+            from bank.transaction_services import TransactionService
+            
+            # Create transaction service
+            tx_service = TransactionService()
+            
+            # Process the transfer
+            if isinstance(store_account, Wallet):
+                # Transfer to store wallet
+                result = tx_service.transfer_to_wallet(
+                    user=user,
+                    recipient_wallet=store_account,
+                    amount=amount,
+                    description=description or f"Payment to {self.name}"
+                )
+            else:
+                # Transfer to store XySave account
+                result = tx_service.transfer_to_xysave(
+                    user=user,
+                    recipient_xysave=store_account,
+                    amount=amount,
+                    description=description or f"Payment to {self.name}"
+                )
+                
+            if result.get('success'):
+                return True, "Payment processed successfully", result.get('reference')
+            else:
+                return False, result.get('message', "Payment failed"), None
+                
+        except Exception as e:
+            return False, f"Payment processing error: {str(e)}", None
 
 
 class StoreStaff(models.Model):

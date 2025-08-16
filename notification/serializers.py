@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-from .models import Notification
+from .models import Notification, NotificationType, NotificationLevel, NotificationStatus
 from order.serializers import OrderSerializer
 
 User = get_user_model()
@@ -66,6 +66,9 @@ class NotificationSerializer(serializers.ModelSerializer):
             # Related objects
             'orderId', 'order_id', 'order',
             
+            # Banking references
+            'transaction', 'bank_transfer', 'bill_payment', 'virtual_card',
+            
             # Core content
             'title', 'message',
             
@@ -83,9 +86,6 @@ class NotificationSerializer(serializers.ModelSerializer):
             # Priority and metadata
             'priority', 'source', 'extra_data',
             
-            # Soft delete
-            'is_deleted', 'deleted_at',
-            
             # Audit fields
             'created_at', 'updated_at',
             
@@ -94,8 +94,8 @@ class NotificationSerializer(serializers.ModelSerializer):
             'absolute_url',
         ]
         read_only_fields = [
-            'id', 'created_at', 'updated_at', 'is_deleted', 'deleted_at',
-            'read_at', 'is_actionable', 'age_in_hours', 'is_urgent'
+            'id', 'created_at', 'updated_at', 'read_at',
+            'is_actionable', 'age_in_hours', 'is_urgent'
         ]
 
     def get_absolute_url(self, obj):
@@ -155,6 +155,7 @@ class NotificationListSerializer(serializers.ModelSerializer):
             'recipient', 'recipient_username', 'recipient_details',
             'user', 'user_username', 'user_details',
             'orderId', 'order_id', 'order',
+            'transaction', 'bank_transfer', 'bill_payment', 'virtual_card',
             'title', 'message',
             'notification_type', 'notification_type_display',
             'level', 'level_display',
@@ -193,6 +194,7 @@ class NotificationCreateSerializer(serializers.ModelSerializer):
         model = Notification
         fields = [
             'recipient', 'sender', 'user', 'orderId',
+            'transaction', 'bank_transfer', 'bill_payment', 'virtual_card',
             'title', 'message', 'link',
             'notification_type', 'level', 'status',
             'action_text', 'action_url',
@@ -261,8 +263,7 @@ class NotificationCreateSerializer(serializers.ModelSerializer):
             recipient=recipient,
             notification_type=notification_type,
             orderId=order,
-            isRead=False,
-            is_deleted=False
+            isRead=False
         )
         if existing.exists():
             raise serializers.ValidationError(
@@ -315,7 +316,7 @@ class NotificationBulkUpdateSerializer(serializers.Serializer):
         help_text="Set all notifications to this read status"
     )
     status = serializers.ChoiceField(
-        choices=Notification.NotificationStatus.choices,
+        choices=NotificationStatus.choices,
         required=False,
         help_text="Set all notifications to this status"
     )
@@ -326,8 +327,7 @@ class NotificationBulkUpdateSerializer(serializers.Serializer):
         if request and request.user:
             user_notifications = Notification.objects.filter(
                 id__in=value,
-                recipient=request.user,
-                is_deleted=False
+                recipient=request.user
             )
             if len(user_notifications) != len(value):
                 raise serializers.ValidationError(
@@ -354,12 +354,12 @@ class NotificationPreferencesSerializer(serializers.Serializer):
     """Serializer for user notification preferences."""
     
     muted_types = serializers.ListField(
-        child=serializers.ChoiceField(choices=Notification.NotificationType.choices),
+        child=serializers.ChoiceField(choices=NotificationType.choices),
         required=False,
         default=list
     )
     preferred_levels = serializers.ListField(
-        child=serializers.ChoiceField(choices=Notification.NotificationLevel.choices),
+        child=serializers.ChoiceField(choices=NotificationLevel.choices),
         required=False,
         default=list
     )

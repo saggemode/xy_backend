@@ -1,14 +1,27 @@
 from rest_framework import serializers
 from .models import Cart
+from store.serializers import WalletSerializer, XySaveSerializer
+from store.models import Store
+from bank.models import Wallet, XySaveAccount
+
+class SimpleStoreSerializer(serializers.ModelSerializer):
+    """Simple store serializer with payment details"""
+    wallet_details = WalletSerializer(source='wallet', read_only=True)
+    xysave_details = XySaveSerializer(source='xy_save_account', read_only=True)
+
+    class Meta:
+        model = Store
+        fields = ['id', 'name', 'status', 'wallet_details', 'xysave_details']
 
 class CartSerializer(serializers.ModelSerializer):
     total_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    store_details = SimpleStoreSerializer(source='store', read_only=True)
 
     class Meta:
         model = Cart
         fields = [
-            'id', 'user', 'store', 'product', 'variant', 'quantity', 'selected_size',
+            'id', 'user', 'store', 'store_details', 'product', 'variant', 'quantity', 'selected_size',
             'selected_color', 'unit_price', 'total_price', 'created_at', 'updated_at'
         ]
         read_only_fields = ['user', 'created_at', 'updated_at']
@@ -103,6 +116,10 @@ class CartCreateSerializer(serializers.ModelSerializer):
         # Check if product belongs to store
         if product.store != store:
             raise serializers.ValidationError("Product does not belong to the selected store")
+            
+        # Prevent users from adding their own products to cart
+        if product.store.owner == self.context['request'].user:
+            raise serializers.ValidationError("You cannot add your own products to your cart")
 
         # Validate variant if provided
         variant = None

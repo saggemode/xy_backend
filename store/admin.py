@@ -13,17 +13,27 @@ from .models import Store, StoreAnalytics, StoreStaff, CustomerLifetimeValue
 
 @admin.register(Store)
 class StoreAdmin(admin.ModelAdmin):
-    list_display = ('name', 'owner',  'is_verified', 'created_at', 'updated_at')
+    list_display = ('name', 'owner', 'has_wallet', 'has_xysave', 'is_verified', 'created_at', 'updated_at')
     list_filter = ( 'is_verified', 'created_at')
     search_fields = ('name', 'owner__username', 'description')
     readonly_fields = ('created_at', 'updated_at')
     actions = []
+    
+    def save_model(self, request, obj, form, change):
+        if not change:  # If creating a new object
+            obj.created_by = request.user
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
     fieldsets = (
         ('Basic Information', {
             'fields': ('name', 'description', 'location', 'owner')
         }),
         ('Contact Information', {
             'fields': ('contact_email', 'phone_number', 'website_url')
+        }),
+        ('Payment Accounts', {
+            'fields': ('wallet', 'xy_save_account'),
+            'description': 'Payment accounts linked to this store for processing transactions'
         }),
         ('Social Media', {
             'fields': ('facebook_url', 'instagram_url', 'twitter_url'),
@@ -96,7 +106,17 @@ class StoreAdmin(admin.ModelAdmin):
     restore_stores.short_description = "Restore selected stores"
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('owner', 'analytics')
+        return super().get_queryset(request).select_related('owner', 'analytics', 'wallet', 'xy_save_account')
+        
+    def has_wallet(self, obj):
+        return bool(obj.wallet)
+    has_wallet.short_description = 'Wallet Linked'
+    has_wallet.boolean = True
+    
+    def has_xysave(self, obj):
+        return bool(obj.xy_save_account)
+    has_xysave.short_description = 'XySave Linked'
+    has_xysave.boolean = True
 
 @admin.register(StoreStaff)
 class StoreStaffAdmin(admin.ModelAdmin):
@@ -330,4 +350,4 @@ class CustomerLifetimeValueAdmin(admin.ModelAdmin):
 # Custom admin site configuration
 admin.site.site_header = "Store Management System"
 admin.site.site_title = "Store Admin"
-admin.site.index_title = "Store Management Dashboard" 
+admin.site.index_title = "Store Management Dashboard"

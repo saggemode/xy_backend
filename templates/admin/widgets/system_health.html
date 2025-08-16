@@ -1,0 +1,84 @@
+{% load static %}
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title">
+            <i class="fas fa-heartbeat"></i> System Health
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="info-box">
+                    <span class="info-box-icon bg-success">
+                        <i class="fas fa-server"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">System Status</span>
+                        <span class="info-box-number">{{ system_status|default:"Healthy" }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-box">
+                    <span class="info-box-icon bg-info">
+                        <i class="fas fa-clock"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Uptime</span>
+                        <span class="info-box-number">{{ uptime|default:"99.9%" }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-6">
+                <div class="info-box">
+                    <span class="info-box-icon bg-warning">
+                        <i class="fas fa-database"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Last Backup</span>
+                        <span class="info-box-number">{{ last_backup|date:"M d, H:i"|default:"N/A" }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-box">
+                    <span class="info-box-icon bg-primary">
+                        <i class="fas fa-shield-alt"></i>
+                    </span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Security Score</span>
+                        <span class="info-box-number">{{ security_score|default:95 }}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Performance indicators -->
+        <div class="row mt-3">
+            <div class="col-12">
+                <h6>Performance Metrics</h6>
+                <div class="progress-group">
+                    <span class="float-right">
+                        <b>{{ memory_usage|default:45 }}%</b>/100%
+                    </span>
+                    <span>Memory Usage</span>
+                    <div class="progress">
+                        <div class="progress-bar bg-info" style="width: {{ memory_usage|default:45 }}%"></div>
+                    </div>
+                </div>
+                <div class="progress-group">
+                    <span class="float-right">
+                        <b>{{ cpu_usage|default:23 }}%</b>/100%
+                    </span>
+                    <span>CPU Usage</span>
+                    <div class="progress">
+                        <div class="progress-bar bg-success" style="width: {{ cpu_usage|default:23 }}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

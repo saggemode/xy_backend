@@ -9,7 +9,7 @@ from django.views.decorators.vary import vary_on_cookie
 from .models import Cart
 from .serializers import (
     CartSerializer, CartCreateSerializer, CartUpdateSerializer,
-    CartSummarySerializer, CartBulkUpdateSerializer
+    CartSummarySerializer, CartBulkUpdateSerializer, SimpleStoreSerializer
 )
 from product.models import Product, ProductVariant
 from store.models import Store
@@ -46,6 +46,12 @@ class CartViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Create cart item with user assignment"""
         serializer.save(user=self.request.user)
+        
+    def get_serializer_context(self):
+        """Add request to serializer context"""
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
     def perform_update(self, serializer):
         """Update cart item"""
@@ -119,14 +125,10 @@ class CartViewSet(viewsets.ModelViewSet):
                 'store': None
             }
             
-            # Add store info if available
+            # Add store info with payment details if available
             if store:
-                response_data['store'] = {
-                    'id': str(store.id),
-                    'name': store.name,
-                    'status': getattr(store, 'status', 'unknown')
-                }
-            
+                store_serializer = SimpleStoreSerializer(store)
+                response_data['store'] = store_serializer.data
             # Add last updated if available
             try:
                 if cart_items.exists():
@@ -186,6 +188,9 @@ class CartViewSet(viewsets.ModelViewSet):
                 
                 if item.product.on_sale or (item.variant and item.variant.current_price != item.variant.base_price):
                     items_on_sale += 1
+                    
+            # Get detailed store info
+            store_data = SimpleStoreSerializer(store).data if store else None
             
             serializer = CartSummarySerializer({
                 'total_items': total_items,
@@ -194,7 +199,7 @@ class CartViewSet(viewsets.ModelViewSet):
                 'total_savings': total_savings,
                 'items_on_sale': items_on_sale,
                 'item_count': cart_items.count(),
-                'store': store,
+                'store': store_data,
                 'items': cart_items
             })
             

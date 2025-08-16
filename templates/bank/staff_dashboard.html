@@ -1,0 +1,491 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Staff Dashboard - {{ current_staff.role.name }}{% endblock %}
+
+{% block extrastyle %}
+<style>
+    .dashboard-container {
+        padding: 20px;
+        background: #f8f9fa;
+        min-height: 100vh;
+    }
+    
+    .dashboard-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .staff-info {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+    
+    .staff-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        font-weight: bold;
+    }
+    
+    .staff-details h1 {
+        margin: 0 0 10px 0;
+        font-size: 28px;
+    }
+    
+    .staff-details p {
+        margin: 5px 0;
+        opacity: 0.9;
+    }
+    
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .metric-card {
+        background: white;
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-left: 4px solid #667eea;
+    }
+    
+    .metric-card h3 {
+        margin: 0 0 10px 0;
+        color: #333;
+        font-size: 16px;
+    }
+    
+    .metric-value {
+        font-size: 32px;
+        font-weight: bold;
+        color: #667eea;
+        margin: 0;
+    }
+    
+    .content-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 30px;
+    }
+    
+    .main-content {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .section-card {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+    
+    .section-header {
+        background: #f8f9fa;
+        padding: 15px 20px;
+        border-bottom: 1px solid #dee2e6;
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .section-content {
+        padding: 20px;
+    }
+    
+    .activity-item {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        padding: 10px 0;
+        border-bottom: 1px solid #f1f3f4;
+    }
+    
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    
+    .activity-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        color: white;
+    }
+    
+    .activity-icon.approval { background: #28a745; }
+    .activity-icon.escalation { background: #dc3545; }
+    .activity-icon.kyc { background: #17a2b8; }
+    .activity-icon.transaction { background: #ffc107; }
+    
+    .activity-details h4 {
+        margin: 0 0 5px 0;
+        font-size: 14px;
+        color: #333;
+    }
+    
+    .activity-details p {
+        margin: 0;
+        font-size: 12px;
+        color: #666;
+    }
+    
+    .approval-item {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border-left: 4px solid #ffc107;
+    }
+    
+    .approval-item h4 {
+        margin: 0 0 10px 0;
+        color: #333;
+    }
+    
+    .approval-amount {
+        font-size: 18px;
+        font-weight: bold;
+        color: #28a745;
+        margin: 5px 0;
+    }
+    
+    .approval-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 12px;
+        text-decoration: none;
+        display: inline-block;
+    }
+    
+    .btn-approve { background: #28a745; color: white; }
+    .btn-reject { background: #dc3545; color: white; }
+    .btn-escalate { background: #ffc107; color: #333; }
+    
+    .escalation-item {
+        background: #fff3cd;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border-left: 4px solid #ffc107;
+    }
+    
+    .priority-high { border-left-color: #dc3545; background: #f8d7da; }
+    .priority-medium { border-left-color: #ffc107; background: #fff3cd; }
+    .priority-low { border-left-color: #28a745; background: #d4edda; }
+    
+    .staff-role-card {
+        background: #e3f2fd;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        text-align: center;
+    }
+    
+    .role-name {
+        font-weight: bold;
+        color: #1976d2;
+        margin-bottom: 5px;
+    }
+    
+    .role-count {
+        font-size: 24px;
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .performance-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid #f1f3f4;
+    }
+    
+    .performance-item:last-child {
+        border-bottom: none;
+    }
+    
+    .staff-name {
+        font-weight: bold;
+        color: #333;
+    }
+    
+    .performance-stats {
+        display: flex;
+        gap: 15px;
+    }
+    
+    .stat {
+        text-align: center;
+    }
+    
+    .stat-value {
+        font-size: 18px;
+        font-weight: bold;
+        color: #667eea;
+    }
+    
+    .stat-label {
+        font-size: 10px;
+        color: #666;
+        text-transform: uppercase;
+    }
+    
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #666;
+    }
+    
+    .empty-state i {
+        font-size: 48px;
+        margin-bottom: 15px;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="staff-info">
+            <div class="staff-avatar">
+                {{ current_staff.user.first_name|first|upper }}{{ current_staff.user.last_name|first|upper }}
+            </div>
+            <div class="staff-details">
+                <h1>{{ current_staff.user.get_full_name|default:current_staff.user.username }}</h1>
+                <p><strong>Role:</strong> {{ current_staff.role.name }} (Level {{ current_staff.role.level }})</p>
+                <p><strong>Employee ID:</strong> {{ current_staff.employee_id }}</p>
+                <p><strong>Branch:</strong> {{ current_staff.branch }} | <strong>Department:</strong> {{ current_staff.department }}</p>
+                <p><strong>Max Approval Limit:</strong> ₦{{ current_staff.role.max_transaction_approval|floatformat:0 }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Key Metrics -->
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <h3>Total Active Staff</h3>
+            <p class="metric-value">{{ total_staff }}</p>
+        </div>
+        <div class="metric-card">
+            <h3>Pending Approvals</h3>
+            <p class="metric-value">{{ pending_approvals.count }}</p>
+        </div>
+        <div class="metric-card">
+            <h3>Open Escalations</h3>
+            <p class="metric-value">{{ open_escalations.count }}</p>
+        </div>
+        <div class="metric-card">
+            <h3>Recent Activities</h3>
+            <p class="metric-value">{{ recent_activities.count }}</p>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="content-grid">
+        <div class="main-content">
+            <!-- Pending Approvals -->
+            <div class="section-card">
+                <div class="section-header">
+                    <i class="fas fa-clock"></i> Pending Transaction Approvals
+                </div>
+                <div class="section-content">
+                    {% if pending_approvals %}
+                        {% for approval in pending_approvals %}
+                        <div class="approval-item">
+                            <h4>Transaction #{{ approval.transaction.reference }}</h4>
+                            <p><strong>Requested by:</strong> {{ approval.requested_by.user.get_full_name }}</p>
+                            <p><strong>Amount:</strong> <span class="approval-amount">₦{{ approval.transaction.amount|floatformat:2 }}</span></p>
+                            <p><strong>Reason:</strong> {{ approval.reason|default:"No reason provided" }}</p>
+                            <div class="approval-actions">
+                                <a href="#" class="btn btn-approve">Approve</a>
+                                <a href="#" class="btn btn-reject">Reject</a>
+                                <a href="#" class="btn btn-escalate">Escalate</a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>No pending approvals</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Open Escalations -->
+            <div class="section-card">
+                <div class="section-header">
+                    <i class="fas fa-exclamation-triangle"></i> Open Customer Escalations
+                </div>
+                <div class="section-content">
+                    {% if open_escalations %}
+                        {% for escalation in open_escalations %}
+                        <div class="escalation-item priority-{{ escalation.priority }}">
+                            <h4>{{ escalation.subject }}</h4>
+                            <p><strong>Customer:</strong> {{ escalation.customer.username }}</p>
+                            <p><strong>Priority:</strong> {{ escalation.get_priority_display }}</p>
+                            <p><strong>Status:</strong> {{ escalation.get_status_display }}</p>
+                            <p><strong>Description:</strong> {{ escalation.description|truncatewords:20 }}</p>
+                            <div class="approval-actions">
+                                <a href="#" class="btn btn-approve">Assign to Self</a>
+                                <a href="#" class="btn btn-escalate">View Details</a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-smile"></i>
+                            <p>No open escalations</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Staff Performance -->
+            {% if can_manage_staff %}
+            <div class="section-card">
+                <div class="section-header">
+                    <i class="fas fa-chart-line"></i> Staff Performance (Last 30 Days)
+                </div>
+                <div class="section-content">
+                    {% if staff_performance %}
+                        {% for performance in staff_performance %}
+                        <div class="performance-item">
+                            <div class="staff-name">{{ performance.staff.user.get_full_name }}</div>
+                            <div class="performance-stats">
+                                <div class="stat">
+                                    <div class="stat-value">{{ performance.activities }}</div>
+                                    <div class="stat-label">Activities</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="stat-value">{{ performance.approvals }}</div>
+                                    <div class="stat-label">Approvals</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="stat-value">{{ performance.escalations_resolved }}</div>
+                                    <div class="stat-label">Resolved</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <p>No performance data available</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="sidebar">
+            <!-- Staff by Role -->
+            <div class="section-card">
+                <div class="section-header">
+                    <i class="fas fa-users"></i> Staff by Role
+                </div>
+                <div class="section-content">
+                    {% for role in staff_by_role %}
+                    <div class="staff-role-card">
+                        <div class="role-name">{{ role.name }}</div>
+                        <div class="role-count">{{ role.staff_count }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Recent Activities -->
+            <div class="section-card">
+                <div class="section-header">
+                    <i class="fas fa-history"></i> Recent Activities
+                </div>
+                <div class="section-content">
+                    {% if recent_activities %}
+                        {% for activity in recent_activities %}
+                        <div class="activity-item">
+                            <div class="activity-icon {{ activity.activity_type }}">
+                                {% if activity.activity_type == 'transaction_processed' %}💰
+                                {% elif activity.activity_type == 'kyc_approved' %}✅
+                                {% elif activity.activity_type == 'escalation_resolved' %}🔧
+                                {% else %}📝{% endif %}
+                            </div>
+                            <div class="activity-details">
+                                <h4>{{ activity.staff.user.get_full_name }}</h4>
+                                <p>{{ activity.description|truncatewords:10 }}</p>
+                                <small>{{ activity.timestamp|timesince }} ago</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-clock"></i>
+                            <p>No recent activities</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="section-card">
+                <div class="section-header">
+                    <i class="fas fa-bolt"></i> Quick Actions
+                </div>
+                <div class="section-content">
+                    <a href="/admin/bank/transactionapproval/" class="btn btn-approve" style="width: 100%; margin-bottom: 10px;">
+                        View All Approvals
+                    </a>
+                    <a href="/admin/bank/customerescalation/" class="btn btn-escalate" style="width: 100%; margin-bottom: 10px;">
+                        View All Escalations
+                    </a>
+                    {% if can_manage_staff %}
+                    <a href="/admin/bank/staffprofile/" class="btn btn-approve" style="width: 100%; margin-bottom: 10px;">
+                        Manage Staff
+                    </a>
+                    {% endif %}
+                    {% if can_view_reports %}
+                    <a href="/admin/dashboard/" class="btn btn-escalate" style="width: 100%;">
+                        View Reports
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

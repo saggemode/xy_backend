@@ -8,6 +8,7 @@ from product.models import Product, ProductVariant
 from store.models import Store
 from address.models import ShippingAddress
 from notification.models import Notification
+from bank.models import Wallet, XySaveAccount  # Add bank models for payment validation
 
 User = get_user_model()
 
@@ -26,7 +27,7 @@ class SimpleStoreSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Store
-        fields = ['id', 'name', 'slug', 'description']
+        fields = ['id', 'name', 'description']
         read_only_fields = ['id']
 
 
@@ -56,8 +57,7 @@ class SimpleShippingAddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShippingAddress
         fields = [
-            'id', 'address_line1', 'address_line2', 'city', 'state',
-            'postal_code', 'country', 'phone_number'
+            'id', 'address', 'city', 'state', 'country', 'postal_code', 'phone', 'additional_phone'
         ]
         read_only_fields = ['id']
 
@@ -384,20 +384,114 @@ class OrderCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'items': 'Quantity must be at least 1 for each item.'
                 })
+
+        # Validate payment method and balance
+        payment_method = data.get('payment_method')
+        user = self.context['request'].user
+
+        if payment_method == Order.PaymentMethod.WALLET:
+            try:
+                wallet = Wallet.objects.get(user=user)
+                # Calculate total from items
+                total = sum(
+                    item.get('quantity', 0) * (
+                        item.get('unit_price') or 
+                        (item.get('variant').current_price if item.get('variant') else item.get('product').current_price)
+                    )
+                    for item in items
+                )
+                if wallet.balance < total:
+                    raise serializers.ValidationError({
+                        'payment_method': 'Insufficient balance in wallet. Please top up your wallet or choose a different payment method.'
+                    })
+            except Wallet.DoesNotExist:
+                raise serializers.ValidationError({
+                    'payment_method': 'No wallet found. Please create a wallet first.'
+                })
+
+        elif payment_method == Order.PaymentMethod.XYSAVE:
+            try:
+                xysave = XySaveAccount.objects.get(user=user)
+                # Calculate total from items
+                total = sum(
+                    item.get('quantity', 0) * (
+                        item.get('unit_price') or 
+                        (item.get('variant').current_price if item.get('variant') else item.get('product').current_price)
+                    )
+                    for item in items
+                )
+                if xysave.balance < total:
+                    raise serializers.ValidationError({
+                        'payment_method': 'Insufficient balance in XySave account. Please top up your account or choose a different payment method.'
+                    })
+            except XySaveAccount.DoesNotExist:
+                raise serializers.ValidationError({
+                    'payment_method': 'No XySave account found. Please create an XySave account first.'
+                })
         
         return data
 
     def create(self, validated_data):
         """Create order with items and business logic."""
         items_data = validated_data.pop('items', [])
+        payment_method = validated_data.get('payment_method')
+        user = self.context['request'].user
         
         with transaction.atomic():
             # Create order
             order = Order.objects.create(**validated_data)
             
-            # Create order items
+            # Create order items and calculate total
+            total_amount = 0
             for item_data in items_data:
-                OrderItem.objects.create(order=order, **item_data)
+                order_item = OrderItem.objects.create(order=order, **item_data)
+                total_amount += order_item.total_price
+
+            # Process payment based on method
+            if payment_method == Order.PaymentMethod.WALLET:
+                wallet = Wallet.objects.get(user=user)
+                wallet.balance -= total_amount
+                wallet.save()
+                
+                # Create payment record
+                Payment.objects.create(
+                    order=order,
+                    amount=total_amount,
+                    payment_method=payment_method,
+                    status='completed',
+                    reference=f'wallet-payment-{order.order_number}'
+                )
+                
+                # Update order payment status
+                order.payment_status = Order.PaymentStatus.PAID
+                order.save()
+
+            elif payment_method == Order.PaymentMethod.XYSAVE:
+                xysave = XySaveAccount.objects.get(user=user)
+                xysave.balance -= total_amount
+                xysave.save()
+                
+                # Create payment record
+                Payment.objects.create(
+                    order=order,
+                    amount=total_amount,
+                    payment_method=payment_method,
+                    status='completed',
+                    reference=f'xysave-payment-{order.order_number}'
+                )
+                
+                # Update order payment status
+                order.payment_status = Order.PaymentStatus.PAID
+                order.save()
+
+            # Create notification for the store owner
+            Notification.objects.create(
+                user=order.store.owner,
+                title='New Order Received',
+                message=f'You have received a new order #{order.order_number}',
+                notification_type='order_received',
+                related_object_id=order.id
+            )
             
             # Update order totals
             order.update_totals()

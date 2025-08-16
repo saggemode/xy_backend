@@ -1,0 +1,82 @@
+{% extends 'admin/base_site.html' %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block content %}
+<h1>Admin Dashboard</h1>
+<div style="display: flex; flex-wrap: wrap; gap: 40px;">
+  <div style="flex: 1 1 400px; min-width: 350px;">
+    <h3>Transaction Volume (Last 30 Days)</h3>
+    <canvas id="volumeChart"></canvas>
+  </div>
+  <div style="flex: 1 1 400px; min-width: 350px;">
+    <h3>Revenue (Credits, Last 30 Days)</h3>
+    <canvas id="revenueChart"></canvas>
+  </div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 40px; margin-top: 40px;">
+  <div style="flex: 1 1 400px; min-width: 350px;">
+    <h3>Reversals (Last 30 Days)</h3>
+    <canvas id="reversalChart"></canvas>
+  </div>
+  <div style="flex: 1 1 400px; min-width: 350px;">
+    <h3>Top Users by Volume</h3>
+    <table class="admin-table" style="width:100%; border-collapse: collapse;">
+      <thead><tr><th>User</th><th>Total Volume</th></tr></thead>
+      <tbody>
+        {% for user in top_users %}
+        <tr><td>{{ user.user__username }}</td><td>₦{{ user.total|floatformat:2 }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const volumeData = {{ volume_data|safe }};
+const revenueData = {{ revenue_data|safe }};
+const reversalData = {{ reversal_data|safe }};
+
+const volumeCtx = document.getElementById('volumeChart').getContext('2d');
+new Chart(volumeCtx, {
+  type: 'line',
+  data: {
+    labels: volumeData.map(d => d.date),
+    datasets: [{
+      label: 'Transactions',
+      data: volumeData.map(d => d.count),
+      borderColor: '#003366',
+      backgroundColor: 'rgba(0,51,102,0.1)',
+      fill: true,
+    }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } } }
+});
+
+const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+new Chart(revenueCtx, {
+  type: 'bar',
+  data: {
+    labels: revenueData.map(d => d.date),
+    datasets: [{
+      label: 'Revenue (₦)',
+      data: revenueData.map(d => d.revenue),
+      backgroundColor: '#28a745',
+    }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } } }
+});
+
+const reversalCtx = document.getElementById('reversalChart').getContext('2d');
+new Chart(reversalCtx, {
+  type: 'bar',
+  data: {
+    labels: reversalData.map(d => d.date),
+    datasets: [{
+      label: 'Reversals',
+      data: reversalData.map(d => d.count),
+      backgroundColor: '#dc3545',
+    }]
+  },
+  options: { responsive: true, plugins: { legend: { display: false } } }
+});
+</script>
+{% endblock %} 

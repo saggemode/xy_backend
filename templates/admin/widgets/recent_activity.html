@@ -1,0 +1,35 @@
+{% load static %}
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title">
+            <i class="fas fa-clock"></i> Recent Activity
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="timeline">
+            {% for activity in recent_activities|slice:":5" %}
+            <div class="time-label">
+                <span class="bg-red">{{ activity.timestamp|date:"M d, Y" }}</span>
+            </div>
+            <div>
+                <i class="fas fa-user bg-blue"></i>
+                <div class="timeline-item">
+                    <span class="time">
+                        <i class="fas fa-clock"></i> {{ activity.timestamp|time:"H:i" }}
+                    </span>
+                    <h3 class="timeline-header">{{ activity.title }}</h3>
+                    <div class="timeline-body">
+                        {{ activity.description }}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="text-center text-muted">
+                <i class="fas fa-info-circle"></i>
+                <p>No recent activity</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div> 

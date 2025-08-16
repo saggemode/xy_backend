@@ -13,8 +13,48 @@ from .models import (
     CustomerLifetimeValue
 )
 from product.models import Product, ProductVariant
+from bank.models import Wallet, XySaveAccount
 
 User = get_user_model()
+
+class WalletSerializer(serializers.ModelSerializer):
+    """Serializer for store wallet details."""
+    balance_amount = serializers.SerializerMethodField()
+    balance_currency = serializers.SerializerMethodField()
+    account_number = serializers.CharField(read_only=True)
+    
+    class Meta:
+        model = Wallet
+        fields = ['id', 'account_number', 'balance_amount', 'balance_currency']
+    
+    def get_balance_amount(self, obj):
+        return str(obj.balance.amount) if obj.balance else "0.00"
+    
+    def get_balance_currency(self, obj):
+        return obj.balance.currency.code if obj.balance else "NGN"
+
+class XySaveSerializer(serializers.ModelSerializer):
+    """Serializer for store XySave account details."""
+    balance_amount = serializers.SerializerMethodField()
+    balance_currency = serializers.SerializerMethodField()
+    savings_percentage = serializers.SerializerMethodField()
+    account_number = serializers.CharField(read_only=True)
+    
+    class Meta:
+        model = XySaveAccount
+        fields = ['id', 'account_number', 'balance_amount', 'balance_currency', 'savings_percentage']
+    
+    def get_balance_amount(self, obj):
+        return str(obj.balance.amount) if obj.balance else "0.00"
+    
+    def get_balance_currency(self, obj):
+        return obj.balance.currency.code if obj.balance else "NGN"
+        
+    def get_savings_percentage(self, obj):
+        return str(obj.savings_percentage) if obj.savings_percentage else "0.00"
+        
+    def get_savings_percentage(self, obj):
+        return str(obj.auto_save_percentage) if hasattr(obj, 'auto_save_percentage') else "0.00"
 
 
 class SimpleStoreSerializer(serializers.ModelSerializer):
@@ -34,11 +74,13 @@ class SimpleProductSerializer(serializers.ModelSerializer):
     """Simple product serializer for store context."""
     category_name = serializers.CharField(source='category.name', read_only=True)
     subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
+    current_price = serializers.DecimalField(read_only=True, max_digits=10, decimal_places=2)
+    on_sale = serializers.BooleanField(read_only=True)
     
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'brand', 'base_price', 'discount_price', 'description', 
+            'id', 'name', 'brand', 'base_price', 'current_price', 'on_sale', 'description', 
             'image_urls', 'stock', 'is_featured', 'sku', 'slug', 'status', 
             'available_sizes', 'available_colors', 'created_at', 'updated_at',
             'category_name', 'subcategory_name'
@@ -237,6 +279,10 @@ class StoreSerializer(serializers.ModelSerializer):
                 return None
         return None
 
+    # Add wallet and XySave serializers
+    wallet_details = WalletSerializer(source='wallet', read_only=True)
+    xysave_details = XySaveSerializer(source='xy_save_account', read_only=True)
+
     class Meta:
         model = Store
         fields = [
@@ -246,7 +292,8 @@ class StoreSerializer(serializers.ModelSerializer):
             'commission_rate', 'created_at', 'updated_at',
             'owner', 'owner_username', 'owner_email',
             'owner_details', 'total_products', 'total_staff', 'is_operational',
-            'products', 'staff', 'analytics'
+            'products', 'staff', 'analytics',
+            'wallet_details', 'xysave_details'  # Add these new fields
         ]
         read_only_fields = [
             'id', 'created_at', 'updated_at',
@@ -371,8 +418,14 @@ class StoreCreateSerializer(StoreSerializer):
     
     def validate(self, data):
         """Additional validation for store creation."""
-        # Check if user already owns a store
+        # Determine the intended owner (explicit or request user)
         owner = data.get('owner')
+        if not owner:
+            request = self.context.get('request')
+            if request and request.user.is_authenticated:
+                owner = request.user
+
+        # Check if user already owns a store
         if owner:
             existing_store = Store.objects.filter(
                 owner=owner
@@ -384,6 +437,13 @@ class StoreCreateSerializer(StoreSerializer):
                 })
         
         return super().validate(data)
+
+    def create(self, validated_data):
+        """Ensure owner defaults to the authenticated user for first save linking."""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and 'owner' not in validated_data:
+            validated_data['owner'] = request.user
+        return super().create(validated_data)
 
 class StoreUpdateSerializer(StoreSerializer):
     """Serializer for store updates with restricted fields."""

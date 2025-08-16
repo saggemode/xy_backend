@@ -1,0 +1,100 @@
+import requests
+from django.core.management.base import BaseCommand
+from django.utils.text import slugify
+from bank.models import Bank
+
+
+class Command(BaseCommand):
+    help = 'Seed Bank model with data from Nigerian banks API'
+
+    def handle(self, *args, **options):
+        self.stdout.write('Fetching banks from Nigerian banks API...')
+        
+        try:
+            # Fetch banks from the API
+            response = requests.get('https://nigerianbanks.xyz/')
+            response.raise_for_status()
+            banks_data = response.json()
+            
+            self.stdout.write(f'Found {len(banks_data)} banks')
+            
+            # Track created and updated banks
+            created_count = 0
+            updated_count = 0
+            skipped_count = 0
+            
+            for bank_data in banks_data:
+                try:
+                    # Extract bank information
+                    name = bank_data.get('name', '').strip()
+                    code = bank_data.get('code', '').strip()
+                    ussd = bank_data.get('ussd', '').strip()
+                    logo = bank_data.get('logo', '').strip()
+                    
+                    if not name or not code:
+                        self.stdout.write(
+                            self.style.WARNING(f'Skipping bank with missing name or code: {bank_data}')
+                        )
+                        skipped_count += 1
+                        continue
+                    
+                    # Generate slug from name
+                    slug = slugify(name)
+                    
+                    # Check if bank already exists
+                    bank, created = Bank.objects.get_or_create(
+                        code=code,
+                        defaults={
+                            'name': name,
+                            'slug': slug,
+                            'ussd': ussd if ussd else None,
+                            'logo': logo if logo else None,
+                        }
+                    )
+                    
+                    if created:
+                        created_count += 1
+                        self.stdout.write(
+                            self.style.SUCCESS(f'Created: {name} ({code})')
+                        )
+                    else:
+                        # Update existing bank if any field changed
+                        updated = False
+                        if bank.name != name or bank.slug != slug or bank.ussd != ussd or bank.logo != logo:
+                            bank.name = name
+                            bank.slug = slug
+                            bank.ussd = ussd if ussd else None
+                            bank.logo = logo if logo else None
+                            bank.save()
+                            updated_count += 1
+                            self.stdout.write(
+                                self.style.WARNING(f'Updated: {name} ({code})')
+                            )
+                        else:
+                            self.stdout.write(
+                                self.style.SUCCESS(f'Already exists: {name} ({code})')
+                            )
+                
+                except Exception as e:
+                    self.stdout.write(
+                        self.style.ERROR(f'Error processing bank {bank_data}: {str(e)}')
+                    )
+                    skipped_count += 1
+            
+            # Summary
+            self.stdout.write('\n' + '='*50)
+            self.stdout.write(self.style.SUCCESS('Bank seeding completed!'))
+            self.stdout.write(f'Created: {created_count} banks')
+            self.stdout.write(f'Updated: {updated_count} banks')
+            self.stdout.write(f'Skipped: {skipped_count} banks')
+            self.stdout.write(f'Total banks in database: {Bank.objects.count()}')
+            self.stdout.write('='*50)
+            
+        except requests.RequestException as e:
+            self.stdout.write(
+                self.style.ERROR(f'Failed to fetch banks from API: {str(e)}')
+            )
+        except Exception as e:
+            self.stdout.write(
+                self.style.ERROR(f'Unexpected error: {str(e)}')
+            ) 

@@ -108,11 +108,7 @@ class DebugStoreView(APIView):
             
         except Exception as e:
             logger.error(f"Debug view error: {str(e)}")
-            return Response({
-                'status': 'error',
-                'message': f'Error in debug view: {str(e)}',
-                'error_type': type(e).__name__
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class StoreViewSet(viewsets.ModelViewSet):
@@ -123,6 +119,15 @@ class StoreViewSet(viewsets.ModelViewSet):
     queryset = Store.objects.all().order_by('-created_at')
     serializer_class = StoreSerializer
     permission_classes = [AllowAny]
+    def get_serializer_class(self):
+        """Use specialized serializers per action for better validation and output."""
+        if self.action == 'create':
+            return StoreCreateSerializer
+        if self.action in ['update', 'partial_update']:
+            return StoreUpdateSerializer
+        if self.action == 'retrieve':
+            return StoreDetailSerializer
+        return super().get_serializer_class()
     
     def _add_related_data_to_stores(self, stores_data, request):
         """Helper method to add products, staff, and analytics data to store data."""
@@ -173,11 +178,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             })
         except Exception as e:
             logger.error(f"Store list error: {str(e)}")
-            return Response({
-                'status': 'error',
-                'message': f'Error in store list: {str(e)}',
-                'error_type': type(e).__name__
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'Unable to load stores at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'], url_path='homestore')
     def homestore(self, request):
@@ -217,20 +218,13 @@ class StoreViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             logger.error(f"Error in homestore endpoint: {str(e)}")
-            return Response({
-                'status': 'error',
-                'message': 'Failed to fetch featured stores',
-                'error': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'Unable to fetch featured stores at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def my_stores(self, request):
         """Get current user's stores."""
         if not request.user.is_authenticated:
-            return Response(
-                {'error': 'Authentication required'},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({'detail': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
         
         try:
             stores = self.get_queryset().filter(owner=request.user)
@@ -243,10 +237,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             return Response(data)
         except Exception as e:
             logger.error(f"Error fetching user stores: {str(e)}")
-            return Response(
-                {'error': 'Failed to fetch stores'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to fetch stores at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def active_stores(self, request):
@@ -262,10 +253,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             return Response(data)
         except Exception as e:
             logger.error(f"Error fetching active stores: {str(e)}")
-            return Response(
-                {'error': 'Failed to fetch active stores'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to fetch active stores at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def verified_stores(self, request):
@@ -281,19 +269,13 @@ class StoreViewSet(viewsets.ModelViewSet):
             return Response(data)
         except Exception as e:
             logger.error(f"Error fetching verified stores: {str(e)}")
-            return Response(
-                {'error': 'Failed to fetch verified stores'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to fetch verified stores at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def store_statistics(self, request):
         """Get store statistics."""
         if not request.user.is_authenticated:
-            return Response(
-                {'error': 'Authentication required'},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({'detail': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
         
         try:
             queryset = self.get_queryset()
@@ -310,28 +292,19 @@ class StoreViewSet(viewsets.ModelViewSet):
             return Response(stats)
         except Exception as e:
             logger.error(f"Error generating store stats: {str(e)}")
-            return Response(
-                {'error': 'Failed to generate store statistics'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to generate store statistics at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['post'])
     def bulk_actions(self, request):
         """Bulk actions on stores."""
         if not request.user.is_authenticated:
-            return Response(
-                {'error': 'Authentication required'},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+            return Response({'detail': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
         
         try:
             return Response({'message': 'Bulk actions endpoint'})
         except Exception as e:
             logger.error(f"Error in bulk store actions: {str(e)}")
-            return Response(
-                {'error': 'Failed to perform bulk actions'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to perform bulk actions at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['patch'])
     def activate(self, request, pk=None):
@@ -343,10 +316,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         except Exception as e:
             logger.error(f"Error activating store: {str(e)}")
-            return Response(
-                {'error': 'Failed to activate store'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to activate the store at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['patch'])
     def deactivate(self, request, pk=None):
@@ -358,18 +328,13 @@ class StoreViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         except Exception as e:
             logger.error(f"Error deactivating store: {str(e)}")
-            return Response(
-                {'error': 'Failed to deactivate store'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to deactivate the store at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['patch'])
     def verify(self, request, pk=None):
         """Verify a store."""
         if not request.user.is_staff:
-            return Response({
-                "error": "Only staff members can verify stores"
-            }, status=status.HTTP_403_FORBIDDEN)
+            return Response({'detail': 'Only staff can verify stores.'}, status=status.HTTP_403_FORBIDDEN)
         
         try:
             store = self.get_object()
@@ -378,10 +343,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         except Exception as e:
             logger.error(f"Error verifying store: {str(e)}")
-            return Response(
-                {'error': 'Failed to verify store'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to verify the store at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['patch'])
     def close(self, request, pk=None):
@@ -393,10 +355,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         except Exception as e:
             logger.error(f"Error closing store: {str(e)}")
-            return Response(
-                {'error': 'Failed to close store'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to close the store at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def analytics(self, request, pk=None):
@@ -406,10 +365,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             return Response({'message': 'Analytics endpoint', 'store_id': str(store.id)})
         except Exception as e:
             logger.error(f"Error fetching store analytics: {str(e)}")
-            return Response(
-                {'error': 'Failed to fetch store analytics'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to fetch store analytics at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def products(self, request, pk=None):
@@ -484,10 +440,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             logger.error(f"Error fetching products for store {pk}: {str(e)}")
-            return Response({
-                'error': 'Failed to fetch products',
-                'details': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'Unable to fetch products at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def featured_products(self, request, pk=None):
@@ -508,9 +461,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             logger.error(f"Error fetching featured products for store {pk}: {str(e)}")
-            return Response({
-                'error': 'Failed to fetch featured products'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'Unable to fetch featured products at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def products_by_category(self, request, pk=None):
@@ -520,9 +471,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             category = request.query_params.get('category')
             
             if not category:
-                return Response({
-                    'error': 'Category parameter is required'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'detail': 'Provide a category parameter.'}, status=status.HTTP_400_BAD_REQUEST)
             
             products = store.products.filter(
                 category__name__icontains=category,
@@ -542,9 +491,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             logger.error(f"Error fetching products by category for store {pk}: {str(e)}")
-            return Response({
-                'error': 'Failed to fetch products by category'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'Unable to fetch products by category at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def product_categories(self, request, pk=None):
@@ -565,9 +512,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             logger.error(f"Error fetching product categories for store {pk}: {str(e)}")
-            return Response({
-                'error': 'Failed to fetch product categories'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'Unable to fetch product categories at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def inventory(self, request, pk=None):
@@ -619,9 +564,7 @@ class StoreViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             logger.error(f"Error fetching inventory for store {pk}: {str(e)}")
-            return Response({
-                'error': 'Failed to fetch inventory information'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'Unable to load inventory information at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def retrieve(self, request, *args, **kwargs):
         """Get individual store with related data."""
@@ -648,13 +591,13 @@ class StoreViewSet(viewsets.ModelViewSet):
         product_id = request.query_params.get('product_id')
         category_id = request.query_params.get('category_id')
         if not product_id and not category_id:
-            return Response({'error': 'product_id or category_id is required'}, status=400)
+            return Response({'detail': 'Provide either product_id or category_id.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if product_id:
             try:
                 product = Product.objects.get(id=product_id)
             except Product.DoesNotExist:
-                return Response({'error': 'Product not found'}, status=404)
+                return Response({'detail': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
             # Get all stores that have a product with the same name (kind)
             stores = Store.objects.filter(products__name=product.name).distinct()
         else:
@@ -779,10 +722,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
                     
             except Exception as e:
                 logger.error(f"Error in bulk staff actions: {str(e)}")
-                return Response(
-                    {'error': 'Failed to perform bulk actions'},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+            return Response({'detail': 'Unable to perform bulk actions at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -807,10 +747,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             logger.error(f"Error fetching staff by store: {str(e)}")
-            return Response(
-                {'error': 'Failed to fetch staff by store'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to fetch staff by store at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
     def by_role(self, request):
@@ -833,10 +770,7 @@ class StoreStaffViewSet(viewsets.ModelViewSet):
             
         except Exception as e:
             logger.error(f"Error fetching staff by role: {str(e)}")
-            return Response(
-                {'error': 'Failed to fetch staff by role'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            return Response({'detail': 'Unable to fetch staff by role at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def create_staff_notification(self, staff_member, action):
         """Create notification for staff action."""
@@ -1126,11 +1060,7 @@ class SimpleStoreViewSet(viewsets.ModelViewSet):
             })
         except Exception as e:
             logger.error(f"Simple store list error: {str(e)}")
-            return Response({
-                'status': 'error',
-                'message': f'Error in simple store list: {str(e)}',
-                'error_type': type(e).__name__
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'Unable to load stores at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SimpleStoreTestView(APIView):
@@ -1163,11 +1093,7 @@ class SimpleStoreTestView(APIView):
             
         except Exception as e:
             logger.error(f"Simple store test error: {str(e)}")
-            return Response({
-                'status': 'error',
-                'message': f'Error in simple store test: {str(e)}',
-                'error_type': type(e).__name__
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class StoreViewSetDebugView(APIView):
@@ -1198,12 +1124,7 @@ class StoreViewSetDebugView(APIView):
             
         except Exception as e:
             logger.error(f"StoreViewSet debug error: {str(e)}")
-            return Response({
-                'status': 'error',
-                'message': f'Error in StoreViewSet debug: {str(e)}',
-                'error_type': type(e).__name__,
-                'error_details': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class MinimalStoreViewSet(viewsets.ModelViewSet):
@@ -1224,11 +1145,7 @@ class MinimalStoreViewSet(viewsets.ModelViewSet):
             })
         except Exception as e:
             logger.error(f"Minimal store list error: {str(e)}")
-            return Response({
-                'status': 'error',
-                'message': f'Error in minimal store list: {str(e)}',
-                'error_type': type(e).__name__
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'detail': 'Unable to load stores at this time.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class PublicProductByStoreView(APIView):
