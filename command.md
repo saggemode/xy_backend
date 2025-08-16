@@ -66,4 +66,5 @@ fashion@admin.com
 Fashion1966
 
 
+git init 
 git commit -m 'initial commit3'  
