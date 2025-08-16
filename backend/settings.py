@@ -209,8 +209,8 @@ DATABASES = {
         'PORT': getenv('PGPORT', 5432),
          'OPTIONS': {
              'sslmode': 'require',
-             'PGSSLMODE':'require',
-             'PGCHANNELBINDING':'require'
+            #  'PGSSLMODE':'require',
+            #  'PGCHANNELBINDING':'require'
         }
     }
 }
