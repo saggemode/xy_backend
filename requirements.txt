@@ -59,6 +59,7 @@ django-money==3.5.4
 django-otp==1.6.0
 django-permissionedforms==0.1
 django-phonenumber-field==8.1.0
+django-serverless==1.1
 django-storages==1.14.6
 django-stubs-ext==5.2.2
 django-taggit==6.1.0

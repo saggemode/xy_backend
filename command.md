@@ -68,3 +68,34 @@ Fashion1966
 
 git init 
 git commit -m 'initial commit3'  
+
+
+vercel.json
+{
+    "version": 2,
+    "builds": [
+      {
+        "src": "backend/wsgi.py",
+        "use": "@vercel/python",
+        "config": {
+          "maxLambdaSize": "15mb",
+          "runtime": "python3.9",
+          "buildCommand": "pip install -r requirements.txt && python manage.py collectstatic --noinput"
+        }
+      },
+      {
+        "src": "staticfiles/**",
+        "use": "@vercel/static"
+      }
+    ],
+    "routes": [
+      {
+        "src": "/static/(.*)",
+        "dest": "/staticfiles/$1"
+      },
+      {
+        "src": "/(.*)",
+        "dest": "backend/wsgi.py"
+      }
+    ]
+  }
