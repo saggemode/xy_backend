@@ -8,7 +8,8 @@
         "maxLambdaSize": "15mb",
         "runtime": "python3.9",
         "includeFiles": [
-          "requirements-vercel.txt"
+          "requirements-vercel.txt",
+          ".env.production"
         ]
       }
     }
@@ -22,5 +23,9 @@
       "src": "/(.*)",
       "dest": "backend/wsgi.py"
     }
-  ]
+  ],
+  "env": {
+    "PYTHON_VERSION": "3.9",
+    "DJANGO_SETTINGS_MODULE": "backend.settings"
+  }
 }
