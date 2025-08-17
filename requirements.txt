@@ -104,7 +104,7 @@ networkx==3.5
 oauthlib==3.2.2
 openpyxl==3.1.5
 packaging==25.0
-pandas==2.3.1
+# pandas==2.3.1
 phonenumbers==9.0.7
 pillow==11.2.1
 pillow_heif==1.0.0
