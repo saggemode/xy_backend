@@ -9,7 +9,8 @@
         "runtime": "python3.9",
         "includeFiles": [
           "requirements-vercel.txt",
-          ".env.production"
+          ".env.production",
+          "backend/settings/*.py"
         ]
       }
     }
@@ -26,6 +27,7 @@
   ],
   "env": {
     "PYTHON_VERSION": "3.9",
-    "DJANGO_SETTINGS_MODULE": "backend.settings"
+    "DJANGO_SETTINGS_MODULE": "backend.settings",
+    "ENVIRONMENT": "production"
   }
 }
