@@ -52,17 +52,18 @@ if ENVIRONMENT == 'development':
     SECURE_HSTS_PRELOAD = False
 else:
     DEBUG = False
-    ALLOWED_HOSTS = [
-        '127.0.0.1',
-        'localhost',
-        '.vercel.app',
-        '.vercel.sh',
-        'xy-backend.vercel.app',
-        '.now.sh',
-        'xy-backend.vercel.sh',
-        'xy-backend.now.sh',
-        'xy-backend-2apx.onrender.com/'
-    ]
+    # ALLOWED_HOSTS = [
+    #     '127.0.0.1',
+    #     'localhost',
+    #     '.vercel.app',
+    #     '.vercel.sh',
+    #     'xy-backend.vercel.app',
+    #     '.now.sh',
+    #     'xy-backend.vercel.sh',
+    #     'xy-backend.now.sh',
+    #     'xy-backend-2apx.onrender.com/'
+    # ]
+    ALLOWED_HOSTS = ["*"]
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
