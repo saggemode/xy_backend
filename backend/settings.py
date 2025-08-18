@@ -94,7 +94,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'storages',
     'djmoney',
-    'admin_berry.apps.AdminBerryConfig',
+    # 'admin_berry.apps.AdminBerryConfig',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

@@ -35,7 +35,6 @@ defusedxml==0.7.1
 dj-database-url==3.0.1
 dj-rest-auth==7.0.1
 Django==5.2.1
-django-admin-berry==1.0.16
 django-admin-honeypot1==1.2.0
 django-allauth==65.9.0
 django-anymail==13.0.1
@@ -51,7 +50,6 @@ django-extensions==4.1
 django-filter==25.1
 django-htmx==1.23.2
 django-jazzmin==3.0.1
-django-jet==1.0.8
 django-model-utils==5.0.0
 django-modelcluster==6.4
 django-money==3.5.4
