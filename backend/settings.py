@@ -15,7 +15,7 @@ import os
 from os import getenv
 from dotenv import load_dotenv
 from datetime import timedelta
-from celery.schedules import crontab
+
 
 from environ import Env
 import dj_database_url
@@ -33,7 +33,6 @@ ENVIRONMENT = getenv('ENVIRONMENT', default='production')
 
 # Environment settings
 ENVIRONMENT = getenv('ENVIRONMENT', default='production')
-DEBUG = ENVIRONMENT == 'development'
 DEVELOPER_MODE = getenv('DEVELOPER_MODE', 'False').lower() == 'true'
 STAGING = getenv('STAGING', 'False').lower() == 'true'
 
@@ -51,37 +50,40 @@ if ENVIRONMENT == 'development':
     SECURE_HSTS_INCLUDE_SUBDOMAINS = False
     SECURE_HSTS_PRELOAD = False
 else:
+    # Production settings
+    SECRET_KEY = getenv('SECRET_KEY')
     DEBUG = False
-    # ALLOWED_HOSTS = [
-    #     '127.0.0.1',
-    #     'localhost',
-    #     '.vercel.app',
-    #     '.vercel.sh',
-    #     'xy-backend.vercel.app',
-    #     '.now.sh',
-    #     'xy-backend.vercel.sh',
-    #     'xy-backend.now.sh',
-    #     'xy-backend-2apx.onrender.com/'
-    # ]
-    ALLOWED_HOSTS = ["*"]
+    ALLOWED_HOSTS = [
+        'xy-backend-2apx.onrender.com',
+        '.onrender.com',  # Allows all subdomains of onrender.com
+        '.vercel.app',
+        '.vercel.sh',
+        'xy-backend.vercel.app',
+        '.now.sh',
+        'xy-backend.vercel.sh',
+        'xy-backend.now.sh',
+        'localhost',
+        '127.0.0.1'
+    ]
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+
+# CSRF settings
+CSRF_TRUSTED_ORIGINS = [
+    'https://xy-backend-2apx.onrender.com',
+    'https://*.onrender.com',
+    'https://*.vercel.app',
+    'https://*.vercel.sh',
+    'https://*.now.sh'
+]
   
 
-
-CSRF_TRUSTED_ORIGINS = [ 'https://*.onrender.com' ]
-
-
-# INTERNAL_IPS = (
-#     '127.0.0.1',
-#     'localhost:8000'
-# )
 
 
 # ALLOWED_HOSTS = ['*']
@@ -116,7 +118,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     # 'rest_framework_simplejwt.token_blacklist',
     'django_apscheduler',
-    # Celery tasks live in apps, no need to add 'celery' app itself
+ 
     'admin_honeypot',
     'django_htmx',  # Add this for token blacklisting
     'accounts',
