@@ -60,7 +60,8 @@ else:
         'xy-backend.vercel.app',
         '.now.sh',
         'xy-backend.vercel.sh',
-        'xy-backend.now.sh'
+        'xy-backend.now.sh',
+        'xy-backend-2apx.onrender.com/'
     ]
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
@@ -209,34 +210,34 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': getenv('PGDATABASE'),
-        'USER': getenv('PGUSER'),
-        'PASSWORD': getenv('PGPASSWORD'),
-        'HOST': getenv('PGHOST'),
-        'PORT': getenv('PGPORT', 5432),
-         'OPTIONS': {
-             'sslmode': 'require',
-            #  'PGSSLMODE':'require',
-            #  'PGCHANNELBINDING':'require'
-        }
-    }
-}
-
-
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#         'OPTIONS': {
-#             'timeout': 30,  # seconds
-#             # 'retry_on_timeout': True,
-#             # 'isolation_level': None,  # Use autocommit mode
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': getenv('PGDATABASE'),
+#         'USER': getenv('PGUSER'),
+#         'PASSWORD': getenv('PGPASSWORD'),
+#         'HOST': getenv('PGHOST'),
+#         'PORT': getenv('PGPORT', 5432),
+#          'OPTIONS': {
+#              'sslmode': 'require',
+#             #  'PGSSLMODE':'require',
+#             #  'PGCHANNELBINDING':'require'
 #         }
 #     }
 # }
+
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            'timeout': 30,  # seconds
+            # 'retry_on_timeout': True,
+            # 'isolation_level': None,  # Use autocommit mode
+        }
+    }
+}
 
 POSTGRES_LOCALLY = False
 if ENVIRONMENT == 'production' or POSTGRES_LOCALLY == True:
