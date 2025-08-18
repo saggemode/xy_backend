@@ -1,5 +1,5 @@
 import logging
-from rest_framework import status, viewsets, mixins
+from rest_framework import status, viewsets, mixins, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -22,13 +22,7 @@ from .xysave_services import (
     XySaveAccountService, XySaveTransactionService, XySaveAutoSaveService,
     XySaveGoalService, XySaveInvestmentService, XySaveInterestService
 )
-from .ml_services import (
-    XySaveFraudDetectionService,
-    XySaveInvestmentRecommendationService,
-    XySaveCustomerInsightsService,
-    XySaveAnomalyDetectionService,
-    XySaveInterestRateService
-)
+from .transaction_security import TransactionSecurityService
 
 logger = logging.getLogger(__name__)
 
@@ -179,128 +173,36 @@ class XySaveAccountViewSet(viewsets.ReadOnlyModelViewSet):
             )
     
     @action(detail=False, methods=['get'])
-    def investment_recommendations(self, request):
-        """Get AI-powered investment recommendations"""
+    def transaction_security(self, request):
+        """Get basic security analysis for recent transactions"""
         try:
-            recommendation_service = XySaveInvestmentRecommendationService()
-            recommendations = recommendation_service.get_investment_recommendations(request.user)
-            return Response({
-                "recommendations": recommendations,
-                "confidence": recommendations.get('confidence', 0.85),
-                "last_updated": recommendations.get('last_updated', timezone.now())
-            })
-        except Exception as e:
-            logger.error(f"Error getting investment recommendations: {str(e)}")
-            return Response(
-                {"error": "Failed to get investment recommendations"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @action(detail=False, methods=['get'])
-    def customer_insights(self, request):
-        """Get AI-powered customer behavior insights"""
-        try:
-            insights_service = XySaveCustomerInsightsService()
-            behavior_analysis = insights_service.analyze_customer_behavior(request.user)
-            recommendations = insights_service.get_personalized_recommendations(request.user)
-            customer_segment = insights_service.get_customer_segment(request.user)
-            
-            return Response({
-                "behavior_analysis": behavior_analysis,
-                "personalized_recommendations": recommendations,
-                "customer_segment": customer_segment,
-                "analysis_timestamp": timezone.now()
-            })
-        except Exception as e:
-            logger.error(f"Error getting customer insights: {str(e)}")
-            return Response(
-                {"error": "Failed to get customer insights"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @action(detail=False, methods=['get'])
-    def fraud_analysis(self, request):
-        """Get fraud risk analysis for recent transactions"""
-        try:
-            fraud_service = XySaveFraudDetectionService()
             account = XySaveAccountService.get_xysave_account(request.user)
+            security_service = TransactionSecurityService()
             
             # Get recent transactions
             recent_transactions = account.transactions.all().order_by('-created_at')[:10]
             
-            fraud_analysis = []
+            security_analysis = []
             for transaction in recent_transactions:
-                fraud_risk = fraud_service.predict_fraud_risk(transaction, request.user)
-                fraud_analysis.append({
+                security_result = security_service.check_transaction_risk(transaction, request.user)
+                security_analysis.append({
                     'transaction_id': transaction.id,
                     'reference': transaction.reference,
                     'amount': str(transaction.amount),
-                    'fraud_risk': fraud_risk,
+                    'risk_level': security_result['risk_level'],
+                    'risk_factors': security_result['risk_factors'],
                     'created_at': transaction.created_at
                 })
             
             return Response({
-                "fraud_analysis": fraud_analysis,
-                "total_transactions_analyzed": len(fraud_analysis),
+                "security_analysis": security_analysis,
+                "total_transactions_analyzed": len(security_analysis),
                 "analysis_timestamp": timezone.now()
             })
         except Exception as e:
-            logger.error(f"Error getting fraud analysis: {str(e)}")
+            logger.error(f"Error getting security analysis: {str(e)}")
             return Response(
-                {"error": "Failed to get fraud analysis"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @action(detail=False, methods=['get'])
-    def anomaly_detection(self, request):
-        """Get anomaly detection results for recent transactions"""
-        try:
-            anomaly_service = XySaveAnomalyDetectionService()
-            account = XySaveAccountService.get_xysave_account(request.user)
-            
-            # Get recent transactions
-            recent_transactions = account.transactions.all().order_by('-created_at')[:10]
-            
-            anomaly_results = []
-            for transaction in recent_transactions:
-                anomaly_result = anomaly_service.detect_anomaly(transaction, request.user)
-                anomaly_results.append({
-                    'transaction_id': transaction.id,
-                    'reference': transaction.reference,
-                    'amount': str(transaction.amount),
-                    'anomaly_result': anomaly_result,
-                    'created_at': transaction.created_at
-                })
-            
-            return Response({
-                "anomaly_results": anomaly_results,
-                "total_transactions_analyzed": len(anomaly_results),
-                "analysis_timestamp": timezone.now()
-            })
-        except Exception as e:
-            logger.error(f"Error getting anomaly detection: {str(e)}")
-            return Response(
-                {"error": "Failed to get anomaly detection"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-    
-    @action(detail=False, methods=['get'])
-    def interest_rate_prediction(self, request):
-        """Get AI-powered interest rate predictions"""
-        try:
-            interest_service = XySaveInterestRateService()
-            rate_prediction = interest_service.predict_optimal_rate()
-            rate_forecast = interest_service.get_rate_forecast(days=30)
-            
-            return Response({
-                "current_prediction": rate_prediction,
-                "rate_forecast": rate_forecast,
-                "prediction_timestamp": timezone.now()
-            })
-        except Exception as e:
-            logger.error(f"Error getting interest rate prediction: {str(e)}")
-            return Response(
-                {"error": "Failed to get interest rate prediction"}, 
+                {"error": "Failed to get security analysis"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

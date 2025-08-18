@@ -12,14 +12,6 @@ from .models import (
     XySaveInvestment, XySaveSettings, Wallet
 )
 from .interest_services import InterestRateCalculator
-from .ml_services import (
-    XySaveFraudDetectionService,
-    XySaveInvestmentRecommendationService,
-    XySaveCustomerInsightsService,
-    XySaveAnomalyDetectionService,
-    XySaveInterestRateService
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -96,11 +88,11 @@ class XySaveAccountService:
 
 
 class XySaveTransactionService:
-    """Service for managing XySave transactions with ML-powered security"""
+    """Service for managing XySave transactions with basic security checks"""
     
     def __init__(self):
-        self.fraud_detector = XySaveFraudDetectionService()
-        self.anomaly_detector = XySaveAnomalyDetectionService()
+        from .transaction_security import TransactionSecurityService
+        self.security_service = TransactionSecurityService()
     
     def deposit_to_xysave(self, user, amount, description="Deposit to XySave"):
         """Deposit money to XySave account with ML-powered fraud and anomaly detection"""
@@ -131,24 +123,21 @@ class XySaveTransactionService:
                     description=description
                 )
                 
-                # ML-powered security checks
-                fraud_risk = self.fraud_detector.predict_fraud_risk(xysave_transaction, user)
-                anomaly_result = self.anomaly_detector.detect_anomaly(xysave_transaction, user)
+                # Basic security checks
+                security_result = self.security_service.check_transaction_risk(xysave_transaction, user)
                 
-                # Store ML analysis results
+                # Store security check results
                 xysave_transaction.metadata = {
-                    'fraud_risk': fraud_risk,
-                    'anomaly_detection': anomaly_result,
-                    'ml_analysis_timestamp': timezone.now().isoformat()
+                    'security_check': security_result,
+                    'check_timestamp': timezone.now().isoformat()
                 }
                 
                 # Check if transaction should be flagged
-                if fraud_risk['is_suspicious'] or anomaly_result['is_anomalous']:
+                if security_result['is_suspicious']:
                     xysave_transaction.metadata['requires_review'] = True
                     xysave_transaction.metadata['security_flags'] = {
-                        'fraud_suspicious': fraud_risk['is_suspicious'],
-                        'anomaly_detected': anomaly_result['is_anomalous'],
-                        'risk_level': max(fraud_risk['risk_level'], anomaly_result['risk_level'])
+                        'risk_level': security_result['risk_level'],
+                        'risk_factors': security_result['risk_factors']
                     }
                     logger.warning(f"Transaction flagged for review: {xysave_transaction.reference}")
                 

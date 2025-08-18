@@ -31,8 +31,7 @@ PROJECT_ROOT = BASE_DIR.parent.parent
 # Env.read_env()
 ENVIRONMENT = getenv('ENVIRONMENT', default='production')
 
-# Environment settings
-ENVIRONMENT = getenv('ENVIRONMENT', default='production')
+# Environment and Feature Toggles
 DEBUG = ENVIRONMENT == 'development'
 DEVELOPER_MODE = getenv('DEVELOPER_MODE', 'False').lower() == 'true'
 STAGING = getenv('STAGING', 'False').lower() == 'true'
@@ -41,7 +40,6 @@ STAGING = getenv('STAGING', 'False').lower() == 'true'
 if ENVIRONMENT == 'development':
     SECRET_KEY = getenv('SECRET_KEY', 'your-secret-key-for-development')
     DEBUG = True
-    ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
     SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
@@ -49,28 +47,20 @@ if ENVIRONMENT == 'development':
     SECURE_CONTENT_TYPE_NOSNIFF = False
     SECURE_HSTS_SECONDS = 0
     SECURE_HSTS_INCLUDE_SUBDOMAINS = False
-    SECURE_HSTS_PRELOAD = False
+    SECURE_HSTS_PRELOAD = FalseDEBUG = True
 else:
     DEBUG = False
-    ALLOWED_HOSTS = [
-        '127.0.0.1',
-        'localhost',
-        '.vercel.app',
-        '.vercel.sh',
-        'xy-backend.vercel.app',
-        '.now.sh',
-        'xy-backend.vercel.sh',
-        'xy-backend.now.sh'
-    ]
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-  
+
+ALLOWED_HOSTS = [
+    '127.0.0.1', 
+    'localhost', 
+    '.vercel.app', 
+    '.vercel.sh', 
+    'xy-backend.vercel.app', 
+    '.now.sh', 
+    'xy-backend.vercel.sh', 
+    'xy-backend.now.sh', 
+    'xy-backend.vercel.sh']
 
 
 CSRF_TRUSTED_ORIGINS = [ 'https://*.onrender.com' ]
